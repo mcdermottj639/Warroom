@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>War Room — Client Intel</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --txt:#e7eaf0; --muted:#9aa3b2; --accent:#3a7afe; --accent2:#1db887;
+    --hot:#ff5c5c; --warm:#ffb020; --crit:#ff3b3b; --pipe:#5b8def; --intro:#8a93a3;
+    --danger:#ff5c5c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg);color:var(--txt);height:100vh;overflow:hidden}
+  button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:9px 14px;
+    background:var(--accent);color:#fff;font-weight:600}
+  button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button.sm{padding:5px 10px;font-size:12px;border-radius:6px}
+  button.danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+  input,textarea,select{font:inherit;background:var(--panel2);color:var(--txt);
+    border:1px solid var(--line);border-radius:7px;padding:8px 10px;width:100%}
+  textarea{resize:vertical;min-height:60px;font-size:13px;line-height:1.45}
+  label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);margin:0 0 4px;font-weight:700}
+  .field{margin-bottom:12px}
+  h1,h2,h3{margin:0}
+  .hidden{display:none!important}
+
+  /* Lock screen */
+  #lock{height:100vh;display:flex;align-items:center;justify-content:center}
+  .lockcard{width:380px;background:var(--panel);border:1px solid var(--line);
+    border-radius:16px;padding:30px}
+  .lockcard h1{font-size:20px;margin-bottom:6px}
+  .lockcard p{color:var(--muted);font-size:13px;margin:0 0 18px;line-height:1.5}
+  .lockcard .err{color:var(--danger);font-size:12px;min-height:16px;margin-top:8px}
+  .brand{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:700;
+    letter-spacing:1px;color:var(--accent);font-size:12px;margin-bottom:18px}
+
+  /* App shell */
+  #app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+  .side{background:var(--panel);border-right:1px solid var(--line);display:flex;
+    flex-direction:column;min-height:0}
+  .side .top{padding:16px;border-bottom:1px solid var(--line)}
+  .side .top .brand{margin:0 0 12px}
+  .side .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .clist{overflow:auto;flex:1;padding:8px}
+  .citem{padding:10px 12px;border-radius:9px;cursor:pointer;margin-bottom:4px;
+    border:1px solid transparent}
+  .citem:hover{background:var(--panel2)}
+  .citem.active{background:var(--panel2);border-color:var(--line)}
+  .citem .nm{font-weight:600;font-size:14px;display:flex;justify-content:space-between;
+    align-items:center;gap:8px}
+  .citem .sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .side .foot{padding:12px 16px;border-top:1px solid var(--line);display:flex;
+    justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
+
+  .main{overflow:auto;min-height:0}
+  .pad{padding:26px 30px;max-width:1000px}
+  .empty{height:100vh;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);text-align:center;flex-direction:column;gap:8px}
+
+  .badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.5px;
+    padding:3px 8px;border-radius:20px;text-transform:uppercase}
+  .b-CRITICAL{background:var(--crit);color:#fff}
+  .b-HOT{background:var(--hot);color:#fff}
+  .b-WARM{background:var(--warm);color:#241a00}
+  .b-PIPELINE{background:var(--pipe);color:#fff}
+  .b-INTRO{background:var(--intro);color:#fff}
+
+  .head{display:flex;justify-content:space-between;align-items:flex-start;
+    gap:16px;margin-bottom:18px}
+  .head h2{font-size:24px}
+  .head .meta{color:var(--muted);font-size:13px;margin-top:4px}
+  .head .btns{display:flex;gap:8px;flex-shrink:0}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin-bottom:16px}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--muted);margin-bottom:10px}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;
+    border-bottom:1px solid var(--line);font-size:13px}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--muted)}
+  .kv .v{text-align:right;font-weight:600}
+  .anchor .v{color:var(--muted);font-weight:500}
+  .tag{font-size:10px;color:var(--muted)}
+  ul.clean{margin:0;padding-left:18px;font-size:13px;line-height:1.6}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+    border-radius:14px;padding:3px 9px;font-size:11px;margin:2px 4px 2px 0}
+
+  /* Editor rows */
+  .row{display:grid;gap:8px;margin-bottom:8px;align-items:center}
+  .row.acct{grid-template-columns:1fr 90px 1fr 34px 30px}
+  .row.two{grid-template-columns:1fr 1fr 30px}
+  .row.obj{grid-template-columns:1fr 1fr 30px}
+  .xbtn{background:transparent;border:1px solid var(--line);color:var(--muted);
+    padding:6px;border-radius:6px}
+  .addrow{font-size:12px;background:var(--panel2);border:1px dashed var(--line);
+    color:var(--muted);width:100%;margin-top:4px}
+  .editfoot{position:sticky;bottom:0;background:var(--bg);padding:14px 0;
+    display:flex;gap:10px;border-top:1px solid var(--line);margin-top:10px}
+  .note{font-size:12px;color:var(--muted);line-height:1.5}
+  .secsplit{margin:22px 0 10px;font-size:11px;text-transform:uppercase;
+    letter-spacing:.6px;color:var(--accent);font-weight:800;
+    border-top:1px solid var(--line);padding-top:14px}
+  dialog{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    border-radius:14px;padding:20px;width:560px;max-width:92vw}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- LOCK / SETUP -->
+<div id="lock">
+  <div class="lockcard">
+    <div class="brand">▚ WAR ROOM · CLIENT INTEL</div>
+    <h1 id="lockTitle">Unlock vault</h1>
+    <p id="lockMsg">Enter your passphrase. It derives the encryption keys on this
+      device — it is never stored or sent anywhere.</p>
+    <div class="field">
+      <input id="pass" type="password" placeholder="Passphrase" autocomplete="off">
+    </div>
+    <div class="field hidden" id="pass2Field">
+      <input id="pass2" type="password" placeholder="Confirm passphrase" autocomplete="off">
+    </div>
+    <button id="unlockBtn" style="width:100%">Unlock</button>
+    <div class="err" id="lockErr"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <aside class="side">
+    <div class="top">
+      <div class="brand">▚ WAR ROOM</div>
+      <div class="actions">
+        <button class="sm" id="addBtn">+ Client</button>
+        <button class="sm ghost" id="importBtn">Import</button>
+      </div>
+    </div>
+    <div class="clist" id="clist"></div>
+    <div class="foot">
+      <span id="cstat">0 clients</span>
+      <button class="sm ghost" id="lockBtn">Lock</button>
+    </div>
+  </aside>
+  <main class="main" id="main">
+    <div class="empty">
+      <div style="font-size:40px">▚</div>
+      <div>Select a client, or add one.</div>
+    </div>
+  </main>
+</div>
+
+<!-- IMPORT DIALOG -->
+<dialog id="importDlg">
+  <h3 style="margin-bottom:8px">Import clients</h3>
+  <p class="note" style="margin-bottom:10px">Paste a <code>warroom-data.json</code>
+    feed (the dashboard format) or an array of intel records. Names are split into
+    the device-only identity store automatically.</p>
+  <textarea id="importTxt" style="min-height:200px" placeholder='{ "clients": [ ... ] }'></textarea>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+    <button class="ghost" onclick="importDlg.close()">Cancel</button>
+    <button id="importGo">Import</button>
+  </div>
+  <div class="err" id="importErr" style="color:var(--danger);font-size:12px;margin-top:8px"></div>
+</dialog>
+
+<script>
+/* ============================================================
+   War Room — local-first encrypted client intel
+   Tier 0 (names)  -> MK_id   (device only)
+   Tier 1 (intel)  -> MK_intel
+   AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
+   ============================================================ */
+
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+/* ---------- crypto ---------- */
+async function deriveKEK(passphrase, salt){
+  const base = await crypto.subtle.importKey('raw', enc.encode(passphrase),
+    'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations:310000, hash:'SHA-256'},
+    base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+const genMasterKey = () =>
+  crypto.subtle.generateKey({name:'AES-GCM', length:256}, true, ['encrypt','decrypt']);
+
+async function aesEncrypt(key, str){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, enc.encode(str));
+  return {iv:b64(iv), ct:b64(ct)};
+}
+async function aesDecrypt(key, blob){
+  const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:ub64(blob.iv)}, key, ub64(blob.ct));
+  return dec.decode(pt);
+}
+async function wrapMaster(kek, key){
+  const raw = await crypto.subtle.exportKey('raw', key);
+  return aesEncrypt(kek, b64(raw));
+}
+async function unwrapMaster(kek, blob){
+  const rawB64 = await aesDecrypt(kek, blob);
+  return crypto.subtle.importKey('raw', ub64(rawB64), {name:'AES-GCM', length:256},
+    true, ['encrypt','decrypt']);
+}
+
+/* ---------- storage (IndexedDB) ---------- */
+let db;
+function openDB(){
+  return new Promise((res, rej)=>{
+    const r = indexedDB.open('warroom_db', 1);
+    r.onupgradeneeded = e=>{
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('identity')) d.createObjectStore('identity',{keyPath:'code'});
+      if(!d.objectStoreNames.contains('intel')) d.createObjectStore('intel',{keyPath:'code'});
+    };
+    r.onsuccess = e=>{db=e.target.result; res(db)};
+    r.onerror = ()=>rej(r.error);
+  });
+}
+const tx = (store, mode)=> db.transaction(store, mode).objectStore(store);
+const idbGet = (store, k)=> new Promise((res,rej)=>{const q=tx(store,'readonly').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+const idbAll = (store)=> new Promise((res,rej)=>{const q=tx(store,'readonly').getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+const idbPut = (store, v)=> new Promise((res,rej)=>{const q=tx(store,'readwrite').put(v);q.onsuccess=()=>res();q.onerror=()=>rej(q.error)});
+const idbDel = (store, k)=> new Promise((res,rej)=>{const q=tx(store,'readwrite').delete(k);q.onsuccess=()=>res();q.onerror=()=>rej(q.error)});
+
+/* ---------- session state ---------- */
+const S = { MK_id:null, MK_intel:null, clients:[], active:null };
+
+async function loadClients(){
+  const [ids, intels] = await Promise.all([idbAll('identity'), idbAll('intel')]);
+  const nameByCode = {};
+  for(const r of ids){ try{ nameByCode[r.code] = JSON.parse(await aesDecrypt(S.MK_id, r.enc)).name; }catch(e){} }
+  const out = [];
+  for(const r of intels){
+    try{
+      const intel = JSON.parse(await aesDecrypt(S.MK_intel, r.enc));
+      out.push({ code:r.code, name:nameByCode[r.code] || '(unnamed)', intel });
+    }catch(e){ console.warn('decrypt fail', r.code, e); }
+  }
+  out.sort((a,b)=> a.name.localeCompare(b.name));
+  S.clients = out;
+}
+async function saveClient(code, name, intel){
+  await idbPut('identity', { code, enc: await aesEncrypt(S.MK_id, JSON.stringify({name})) });
+  await idbPut('intel',    { code, enc: await aesEncrypt(S.MK_intel, JSON.stringify(intel)) });
+}
+async function deleteClient(code){ await idbDel('identity', code); await idbDel('intel', code); }
+const newCode = ()=> 'C-' + Math.random().toString(36).slice(2,7).toUpperCase();
+
+/* ============================================================
+   SEED — Josh, reproduced from the two prep sheets
+   ============================================================ */
+const JOSH = {
+  stage:"Proposal", priority:"WARM", callType:"Follow-Up Planning Review", confidence:65,
+  schedule:{day:"Tuesday, June 3, 2026", time:"11:00 AM", tz:"Pacific"},
+  moveable:"$122K–$233K+",
+  household:{ incomeEst:"$200–215K", magiEst:"~$200–215K", retirementGoal:"Age 65–67 (~10 yrs out)" },
+  kpis:[
+    {label:"2026 Est. Income", value:"$75–100K", note:"Contractor · variable YTD"},
+    {label:"Household Income", value:"~$200–215K", note:"Married · w/ Heidi"},
+    {label:"Transferable", value:"$122–233K+", note:"401k + invest + rollover"},
+    {label:"Crypto", value:"$100K+", note:"Embedded gains · eventual"},
+    {label:"At Empower Now", value:"$72–73K", note:"Former-employer rollover"},
+    {label:"Retirement Goal", value:"Age 65–67", note:"Heidi's pension too"}
+  ],
+  accounts:[
+    {custodian:"Empower Former Employer Plan", value:"$72–73K", tag:"Anchor — already at Empower", anchor:true},
+    {custodian:"Old 401(k) / 403(b)", value:"$50–100K", tag:"Rollover target — verify balance"},
+    {custodian:"Robinhood Brokerage", value:"$50K", tag:"Self-directed — consolidation target"},
+    {custodian:"Possible Investment Account", value:"up to $50K", tag:"Verify exists / link first"},
+    {custodian:"Crypto (undisclosed exchange)", value:"$100K+", tag:"Embedded gains — tax-aware path"},
+    {custodian:"529 Plans (x2 children)", value:"$20K each", tag:"College planning"},
+    {custodian:"Heidi's CalPERS Pension", value:"—", tag:"Spouse income — anchor", anchor:true}
+  ],
+  incomeStreams:[
+    {label:"Josh — Contractor Income (est.)", amount:"$75–100K/yr", note:"Variable"},
+    {label:"Heidi — Teacher Salary (est.)", amount:"~$80–110K/yr", note:"Stable + pension"},
+    {label:"Household MAGI (est.)", amount:"~$200–215K/yr"},
+    {label:"Crypto — Variable Income (est.)", amount:"Eventual / unrealized"}
+  ],
+  fee:{ from:"Scattered self-directed (0.5%+ embedded)", to:"Empower Premier IRA — tiered", savings:"Est. $1–2K/yr on consolidation" },
+  goals:["consolidation","retirement-planning","tax-planning","college-funding"],
+  motivation:["wants one place to manage everything","planning help while staying self-directed"],
+  objections:[
+    {objection:"I don't want to pay fees", response:"Reframe: it's planning + tax coordination, not just management. Show the fee vs. the dollar value of the Solo-401k + Roth-conversion roadmap."},
+    {objection:"I'm not ready to do anything with the crypto", response:"No pressure — leave crypto in place. Position a tax-aware slide path for later; today is about the old 401(k) + rollover."}
+  ],
+  complications:["Accounts linked — VERIFY first before pitching","Contractor income variability (Solo-401k sizing)","Crypto embedded gains — tax timing"],
+  specialFlags:["Crypto concentration risk","Contractor income — irregular","Accounts linked — verify first"],
+  decisionDrivers:["simplicity / one place","tax-aware handling","Solo-401k contribution room"],
+  product:"Premier IRA + Empower Solo 401(k)",
+  productMatch:[
+    {product:"Premier IRA", fit:"PRIMARY", rationale:"Best rollover home for the old 401(k)/403(b); 0.5% tiered; planning + CFP access at $250k+."},
+    {product:"Empower Solo 401(k)", fit:"HIGH", rationale:"Contractor income → large tax-deductible contribution room he isn't using. The hook."},
+    {product:"Empower Brokerage", fit:"LINK", rationale:"Read-only link for Robinhood + crypto visibility; consolidation convenience, no pressure."}
+  ],
+  solutionOffered:"Roll the old 401(k) into a Premier IRA and open an Empower Solo 401(k) for contractor income; link the rest for one view.",
+  closeAction:"Initiate rollover on the old 401(k) — OR — get both Josh and Heidi on the calendar for a joint planning session.",
+  introScript:"Hey Josh — good to reconnect. Last time we talked you were juggling a few accounts in different places and the contractor income was making retirement saving feel a little ad-hoc. I pulled everything together into one picture so today we can just look at it side by side and figure out the one or two moves that actually matter. Sound good?",
+  whatToAsk:[
+    "Did the accounts finish linking on your end, or should we verify together first?",
+    "What does Heidi's CalPERS pension look like — and does she want to be on the next call?",
+    "You mentioned buying a home someday — is that still on the table, and how does it rank vs. the kids' college?",
+    "On the contractor income — roughly what did this year look like? That sizes the Solo-401(k).",
+    "How are you feeling about the crypto position — hold, trim, or just leave it for now?"
+  ],
+  pitchFlow:[
+    {title:"1 · Confirm accounts linked", desc:"Open with the link status. If not fully linked, verify together before pitching — everything downstream depends on it."},
+    {title:"2 · Acknowledge last call + recap", desc:"Recap where you left off so he knows you remember. Earn the next 20 minutes."},
+    {title:"3 · Surface the Solo-401(k) gap", desc:"Contractor income + no Solo-401(k) = large unused tax-deductible room. This is the headline."},
+    {title:"4 · Rollover conversation", desc:"Old 401(k)/403(b) → Premier IRA. Tax-free rollover, one home, better planning."},
+    {title:"5 · Crypto — tax slide path", desc:"No pressure to move it. Position a future tax-aware path; keep today about the 401(k)."},
+    {title:"6 · Household income map (Heidi)", desc:"Bring Heidi's pension into the plan; tee up a joint session as the close."}
+  ],
+  answerKey:[
+    "Best outcome: rollover initiated on the old 401(k).",
+    "Strong outcome: Josh + Heidi booked for a joint planning session.",
+    "Don't pitch crypto moves — protect trust, plant the seed.",
+    "Verify links FIRST. Don't present numbers off stale data."
+  ],
+  callHistory:[
+    {date:"05/20/26", callType:"Discovery / Follow-up", summary:"Engaged; agreed to link outside accounts to get a full picture. Contractor income + scattered accounts.", leftOff:"Link accounts, then full planning review."}
+  ]
+};
+
+/* ============================================================
+   PREP SHEET GENERATOR  (intel -> two Remarkable-format pages)
+   ============================================================ */
+const esc = s => String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function prepDoc(name, c){
+  const kpis = (c.kpis && c.kpis.length) ? c.kpis : deriveKpis(c);
+  const sched = c.schedule ? `${esc(c.schedule.day||'')} · ${esc(c.schedule.time||'')} ${esc(c.schedule.tz||'')}` : '';
+  const badge = (t)=>`<span class="pill2">${esc(t)}</span>`;
+  const headBadges = [c.callType, c.priority?('Priority: '+c.priority):'', c.confidence?('Confidence: '+c.confidence+'%'):'']
+    .filter(Boolean).map(badge).join('');
+
+  // ---- PAGE 1: DATA ----
+  const kpiCells = kpis.map(k=>`<div class="kpi"><div class="kl">${esc(k.label)}</div>
+     <div class="kv2">${esc(k.value)}</div><div class="kn">${esc(k.note||'')}</div></div>`).join('');
+
+  const accRows = (c.accounts||[]).map(a=>`
+    <div class="acc ${a.anchor?'anc':''}">
+      <div class="acc-l"><span class="acc-c">${esc(a.custodian)}</span>
+        <span class="acc-t">${esc(a.tag)}</span></div>
+      <div class="acc-v">${esc(a.value)}</div>
+    </div>`).join('');
+
+  const incRows = (c.incomeStreams||[]).map(s=>`
+    <tr><td>${esc(s.label)}</td><td class="r">${esc(s.amount)}</td></tr>`).join('');
+
+  const flagItems = (c.specialFlags||c.complications||[]).map(f=>`<li>${esc(f)}</li>`).join('');
+  const feeBlock = c.fee ? `
+    <div class="fee"><div><span>From</span><b>${esc(c.fee.from||'—')}</b></div>
+    <div><span>To</span><b>${esc(c.fee.to||'—')}</b></div>
+    <div><span>Est. savings</span><b>${esc(c.fee.savings||'—')}</b></div></div>` : '';
+
+  const page1 = `
+  <div class="page">
+    <div class="hdr">
+      <div><div class="nm">${esc(name)} — Follow-Up Planning Review</div>
+        <div class="bio">Jack · Empower Wealth Management · Transferable to Empower: ${esc(c.moveable||'—')}</div></div>
+      <div class="hb">${headBadges}<div class="when">${sched}</div></div>
+    </div>
+    <div class="kpis">${kpiCells}</div>
+    <div class="cols">
+      <div class="col">
+        <div class="sect"><div class="lbl">Asset Landscape — all known assets</div>${accRows}</div>
+        <div class="sect warn"><div class="lbl">Flags to verify</div><ul>${flagItems}</ul></div>
+      </div>
+      <div class="col">
+        <div class="sect"><div class="lbl">Income &amp; Asset Streams</div>
+          <table class="tbl">${incRows}</table></div>
+        <div class="sect"><div class="lbl">TL;DR — the close</div>
+          <div class="tldr">${esc(c.solutionOffered||'')}</div></div>
+      </div>
+      <div class="col">
+        <div class="sect big"><div class="lbl">Estimated transferable to Empower</div>
+          <div class="bignum">${esc(c.moveable||'—')}</div></div>
+        <div class="sect"><div class="lbl">Fee comparison</div>${feeBlock}</div>
+        <div class="sect"><div class="lbl">Retirement &amp; tax</div>
+          <div class="mini">Goal: <b>${esc(c.household?.retirementGoal||'—')}</b></div>
+          <div class="mini">Household MAGI: <b>${esc(c.household?.magiEst||'—')}</b></div></div>
+      </div>
+    </div>
+  </div>`;
+
+  // ---- PAGE 2: ON-CALL HELPER ----
+  const ask = (c.whatToAsk||[]).map(q=>`<li>${esc(q)}</li>`).join('');
+  const objs = (c.objections||[]).map(o=>`
+    <div class="obj"><div class="o">“${esc(o.objection)}”</div>
+      <div class="r2">${esc(o.response)}</div></div>`).join('');
+  const flow = (c.pitchFlow||[]).map(p=>`
+    <div class="step"><div class="st">${esc(p.title)}</div>
+      <div class="sd">${esc(p.desc)}</div></div>`).join('');
+  const prod = (c.productMatch||[]).map(p=>`
+    <div class="prod"><div class="ph"><b>${esc(p.product)}</b>
+      <span class="fit">${esc(p.fit||'')}</span></div>
+      <div class="pr">${esc(p.rationale)}</div></div>`).join('');
+  const ans = (c.answerKey||[]).map(a=>`<li>${esc(a)}</li>`).join('');
+
+  const page2 = `
+  <div class="page">
+    <div class="hdr">
+      <div><div class="nm">${esc(name)} — On-Call Helper</div>
+        <div class="bio">Pitch flow · objections · best-fit product · answer key</div></div>
+      <div class="hb">${headBadges}</div>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="sect"><div class="lbl">Verbatim intro — open the call</div>
+          <div class="script">${esc(c.introScript||'')}</div></div>
+        <div class="sect"><div class="lbl">What to ask — uncover &amp; move forward</div>
+          <ul class="qs">${ask}</ul></div>
+        <div class="sect"><div class="lbl">Objection handling</div>${objs}</div>
+      </div>
+      <div class="col">
+        <div class="sect"><div class="lbl">Pitch flow</div>${flow}</div>
+      </div>
+      <div class="col">
+        <div class="sect"><div class="lbl">Best-fit Empower product match</div>${prod}</div>
+        <div class="sect closer"><div class="lbl">Answer key — leave with conviction</div>
+          <ul>${ans}</ul>
+          <div class="next">NEXT: ${esc(c.closeAction||'')}</div></div>
+      </div>
+    </div>
+  </div>`;
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>${esc(name)} — War Room Prep</title>
+  <style>${PREP_CSS}</style></head>
+  <body>${page1}${page2}</body></html>`;
+}
+
+function deriveKpis(c){
+  const out=[];
+  if(c.moveable) out.push({label:"Transferable", value:c.moveable, note:"outside / moveable"});
+  if(c.household?.incomeEst) out.push({label:"Household Income", value:c.household.incomeEst});
+  (c.accounts||[]).slice(0,4).forEach(a=>out.push({label:a.custodian.slice(0,22), value:a.value, note:a.tag.slice(0,28)}));
+  return out.slice(0,6);
+}
+
+const PREP_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@600;700&family=IBM+Plex+Sans:wght@500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:209.6mm;background:#fff;font-family:'IBM Plex Sans',sans-serif;color:#000}
+@page{size:209.6mm 157.2mm;margin:0}
+.page{width:209.6mm;height:157.2mm;padding:4mm 5mm;overflow:hidden;
+  page-break-after:always;break-after:page;display:grid;grid-template-rows:auto auto 1fr;gap:2.5mm;background:#fff}
+.page:last-child{page-break-after:avoid;break-after:avoid;grid-template-rows:auto 1fr}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;
+  border-bottom:1.5pt solid #000;padding-bottom:1.5mm}
+.nm{font-size:14pt;font-weight:700}
+.bio{font-size:7pt;font-weight:600;margin-top:.5mm}
+.hb{text-align:right}
+.pill2{display:inline-block;font-size:5.5pt;font-weight:700;border:1pt solid #000;
+  border-radius:2pt;padding:.4mm 1.2mm;margin-left:1mm;text-transform:uppercase}
+.when{font-size:6pt;font-weight:600;margin-top:1mm;color:#1a1a1a}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:1.5mm}
+.kpi{border:1pt solid #000;padding:1.2mm 1.5mm}
+.kl{font-size:5.2pt;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.kv2{font-size:9.5pt;font-weight:700;margin-top:.3mm}
+.kn{font-size:5pt;font-weight:600;color:#1a1a1a}
+.cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3mm;min-height:0;overflow:hidden}
+.col{display:flex;flex-direction:column;gap:2mm;min-height:0}
+.sect{border:1pt solid #000;padding:1.5mm 2mm}
+.sect.warn{border-color:#7a1208}
+.sect.big{text-align:center}
+.sect.closer{border-width:1.5pt}
+.lbl{font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  border-bottom:.5pt solid #000;padding-bottom:.6mm;margin-bottom:1mm}
+.acc{display:flex;justify-content:space-between;gap:2mm;padding:.7mm 0;
+  border-bottom:.4pt solid #bbb}
+.acc:last-child{border-bottom:none}
+.acc-c{font-size:6.7pt;font-weight:700;display:block}
+.acc-t{font-size:5.6pt;font-weight:600;color:#1a1a1a}
+.acc-v{font-size:7pt;font-weight:700;white-space:nowrap}
+.acc.anc .acc-c,.acc.anc .acc-v{color:#555}
+.sect ul{margin:0;padding-left:3.2mm}
+.sect li{font-size:6.4pt;font-weight:600;line-height:1.45;margin-bottom:.4mm}
+.tbl{width:100%;border-collapse:collapse}
+.tbl td{font-size:6.5pt;font-weight:600;padding:.7mm 0;border-bottom:.4pt solid #ccc}
+.tbl td.r{text-align:right;font-weight:700;white-space:nowrap}
+.tldr{font-size:7pt;font-weight:600;line-height:1.5}
+.bignum{font-size:18pt;font-weight:700;margin:1mm 0}
+.fee>div{display:flex;justify-content:space-between;font-size:6.4pt;padding:.6mm 0;border-bottom:.4pt solid #ccc}
+.fee span{font-weight:600;color:#1a1a1a}.fee b{font-weight:700;text-align:right}
+.mini{font-size:6.6pt;font-weight:600;margin-top:.6mm}
+.script{font-size:7pt;font-weight:600;line-height:1.55;font-style:italic}
+.qs li{font-size:6.4pt}
+.obj{margin-bottom:1.2mm}
+.obj .o{font-size:6.6pt;font-weight:700;color:#7a1208}
+.obj .r2{font-size:6.2pt;font-weight:600;line-height:1.4}
+.step{margin-bottom:1.1mm}
+.step .st{font-size:6.8pt;font-weight:700}
+.step .sd{font-size:6.2pt;font-weight:600;color:#1a1a1a;line-height:1.4}
+.prod{margin-bottom:1.2mm}
+.prod .ph{display:flex;justify-content:space-between;font-size:6.8pt}
+.prod .fit{font-size:5.4pt;font-weight:700;border:.8pt solid #000;border-radius:2pt;padding:0 1mm;align-self:center}
+.prod .pr{font-size:6.1pt;font-weight:600;line-height:1.4}
+.next{font-size:7pt;font-weight:700;margin-top:1.5mm;border-top:1pt solid #000;padding-top:1mm}
+`;
+
+function openPrep(client){
+  const html = prepDoc(client.name, client.intel);
+  const w = window.open('', '_blank');
+  if(!w){ alert('Allow popups to open the prep sheet.'); return; }
+  w.document.write(html); w.document.close();
+}
+
+/* ============================================================
+   IMPORT (warroom-data.json -> intel records)
+   ============================================================ */
+function unescapeMd(s){ return s.replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1'); }
+async function importPayload(raw){
+  let data;
+  try{ data = JSON.parse(raw); }
+  catch(e){ try{ data = JSON.parse(unescapeMd(raw)); }catch(e2){ throw new Error('Not valid JSON.'); } }
+  const list = Array.isArray(data) ? data : (data.clients || data.pipeline || []);
+  if(!list.length) throw new Error('No clients/pipeline array found.');
+  let n=0;
+  for(const src of list){
+    const name = src.name || src.code || 'Unnamed';
+    const intel = mapImport(src);
+    await saveClient(newCode(), name, intel);
+    n++;
+  }
+  return n;
+}
+function mapImport(s){
+  // accepts both the dashboard model and our intel model
+  const accounts = (s.accounts||[]).map(a=>({
+    custodian:a.custodian||a.name||'', value:a.value||'', tag:a.tag||'',
+    anchor:/anchor|in[- ]plan|stays in plan|employer/i.test(a.tag||'')
+  }));
+  return {
+    stage: s.stage || 'Discovery',
+    priority: s.priority || 'PIPELINE',
+    callType: s.callType || s.calltype || 'Follow-Up',
+    confidence: s.confidence || 60,
+    schedule: (s.day||s.time)?{day:s.day||'',time:s.time||''}:undefined,
+    moveable: s.totalAssetsMoveable || s.totalAssets || s.moveable || '',
+    accounts,
+    incomeStreams: s.incomeStreams || [],
+    household: s.household || {},
+    fee: s.fee || {from:s.feeFrom,to:s.feeTo,savings:s.feeSavings},
+    goals: s.goals || (s.whyConsolidate||[]),
+    motivation: s.motivation || [],
+    objections: Array.isArray(s.objections)?s.objections:(s.objection?[{objection:s.objection,response:s.objectionResponse||''}]:[]),
+    complications: s.complications || s.flags || [],
+    specialFlags: s.specialFlags || s.flags || [],
+    decisionDrivers: s.decisionDrivers || [],
+    product: s.product || '',
+    productMatch: s.productMatch || (s.product?[{product:s.product,fit:'PRIMARY',rationale:s.solutionOffered||''}]:[]),
+    solutionOffered: s.solutionOffered || s.script || '',
+    closeAction: s.closeAction || '',
+    introScript: s.introScript || '',
+    whatToAsk: s.whatToAsk || [],
+    pitchFlow: s.pitchFlow || [],
+    answerKey: s.answerKey || [],
+    callHistory: s.callHistory || (s.lastCall?[{date:'',callType:s.callType||'',summary:s.lastCall,leftOff:s.closeAction||''}]:[])
+  };
+}
+
+/* ============================================================
+   UI
+   ============================================================ */
+const $ = s => document.querySelector(s);
+
+function renderList(){
+  const el = $('#clist'); el.innerHTML='';
+  $('#cstat').textContent = S.clients.length + (S.clients.length===1?' client':' clients');
+  for(const c of S.clients){
+    const d = document.createElement('div');
+    d.className = 'citem'+(S.active===c.code?' active':'');
+    d.innerHTML = `<div class="nm">${esc(c.name)}
+      <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'PIPELINE')}</span></div>
+      <div class="sub">${esc(c.intel.callType||'')} · ${esc(c.intel.moveable||'')}</div>`;
+    d.onclick = ()=>{ S.active=c.code; renderList(); renderDetail(c); };
+    el.appendChild(d);
+  }
+}
+
+function renderDetail(c){
+  const i = c.intel;
+  const accs = (i.accounts||[]).map(a=>`<div class="kv ${a.anchor?'anchor':''}">
+    <span class="k">${esc(a.custodian)}<br><span class="tag">${esc(a.tag)}</span></span>
+    <span class="v">${esc(a.value)}</span></div>`).join('');
+  const pills = arr => (arr||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join('') || '<span class="note">—</span>';
+  const objs = (i.objections||[]).map(o=>`<div class="kv"><span class="k">“${esc(o.objection)}”</span>
+    <span class="v" style="font-weight:500;max-width:55%">${esc(o.response)}</span></div>`).join('') || '<span class="note">—</span>';
+  const prod = (i.productMatch||[]).map(p=>`<div class="kv"><span class="k"><b>${esc(p.product)}</b> ${esc(p.fit||'')}<br>
+    <span class="tag">${esc(p.rationale)}</span></span></div>`).join('') || '<span class="note">—</span>';
+
+  $('#main').innerHTML = `<div class="pad">
+    <div class="head">
+      <div><h2>${esc(c.name)}
+        <span class="badge b-${esc(i.priority||'PIPELINE')}">${esc(i.priority||'PIPELINE')}</span></h2>
+        <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%
+        ${i.schedule?(' · '+esc(i.schedule.day||'')+' '+esc(i.schedule.time||'')):''}</div></div>
+      <div class="btns">
+        <button id="prepBtn">▚ Generate Prep</button>
+        <button class="ghost" id="editBtn">Edit</button>
+        <button class="danger sm" id="delBtn">Delete</button>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card"><h3>Asset Landscape</h3>${accs||'<span class="note">No accounts</span>'}</div>
+      <div>
+        <div class="card"><h3>Transferable</h3>
+          <div style="font-size:30px;font-weight:700">${esc(i.moveable||'—')}</div>
+          <div class="note">${esc(i.solutionOffered||'')}</div></div>
+        <div class="card"><h3>Goals</h3>${pills(i.goals)}</div>
+        <div class="card"><h3>Special Flags</h3>${pills(i.specialFlags||i.complications)}</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card"><h3>Objections</h3>${objs}</div>
+      <div class="card"><h3>Product Match</h3>${prod}</div>
+    </div>
+    <div class="card"><h3>Close Action</h3><div>${esc(i.closeAction||'—')}</div></div>
+  </div>`;
+  $('#prepBtn').onclick = ()=>openPrep(c);
+  $('#editBtn').onclick = ()=>renderEditor(c);
+  $('#delBtn').onclick = async ()=>{
+    if(!confirm('Delete '+c.name+'? This removes their profile entirely (the way a closed client drops out).')) return;
+    await deleteClient(c.code); S.active=null; await loadClients(); renderList();
+    $('#main').innerHTML='<div class="empty"><div>Client deleted.</div></div>';
+  };
+}
+
+/* ---- Editor (focused structured form) ---- */
+function renderEditor(c){
+  const isNew = !c;
+  const i = c ? structuredClone(c.intel) : {priority:'PIPELINE',stage:'Discovery',confidence:60,accounts:[],incomeStreams:[],objections:[],productMatch:[],goals:[],specialFlags:[],whatToAsk:[],pitchFlow:[],answerKey:[]};
+  const name = c ? c.name : '';
+  const lines = a => (a||[]).join('\n');
+
+  $('#main').innerHTML = `<div class="pad">
+    <div class="head"><h2>${isNew?'New client':'Edit '+esc(name)}</h2></div>
+
+    <div class="secsplit">Identity (device-only)</div>
+    <div class="field"><label>Name</label><input id="f-name" value="${esc(name)}"></div>
+
+    <div class="secsplit">Header</div>
+    <div class="grid">
+      <div class="field"><label>Call type</label><input id="f-callType" value="${esc(i.callType||'')}"></div>
+      <div class="field"><label>Priority</label>
+        <select id="f-priority">${['CRITICAL','HOT','WARM','PIPELINE','INTRO'].map(p=>`<option ${i.priority===p?'selected':''}>${p}</option>`).join('')}</select></div>
+    </div>
+    <div class="grid">
+      <div class="field"><label>Stage</label>
+        <select id="f-stage">${['Inbound','Discovery','Proposal','Decision'].map(p=>`<option ${i.stage===p?'selected':''}>${p}</option>`).join('')}</select></div>
+      <div class="field"><label>Confidence (0-100)</label><input id="f-confidence" type="number" value="${i.confidence||60}"></div>
+    </div>
+    <div class="grid">
+      <div class="field"><label>Schedule day</label><input id="f-day" value="${esc(i.schedule?.day||'')}"></div>
+      <div class="field"><label>Schedule time</label><input id="f-time" value="${esc(i.schedule?.time||'')}"></div>
+    </div>
+    <div class="field"><label>Transferable / moveable</label><input id="f-moveable" value="${esc(i.moveable||'')}"></div>
+
+    <div class="secsplit">Accounts (numbers — encrypted)</div>
+    <div id="accBox"></div>
+    <button class="addrow" data-add="acc">+ account</button>
+
+    <div class="secsplit">Income streams</div>
+    <div id="incBox"></div>
+    <button class="addrow" data-add="inc">+ income stream</button>
+
+    <div class="secsplit">Signals</div>
+    <div class="field"><label>Goals (one per line)</label><textarea id="f-goals">${esc(lines(i.goals))}</textarea></div>
+    <div class="field"><label>Special flags (one per line)</label><textarea id="f-flags">${esc(lines(i.specialFlags))}</textarea></div>
+
+    <div class="secsplit">Objections</div>
+    <div id="objBox"></div>
+    <button class="addrow" data-add="obj">+ objection</button>
+
+    <div class="secsplit">Product match</div>
+    <div id="prodBox"></div>
+    <button class="addrow" data-add="prod">+ product</button>
+
+    <div class="secsplit">On-call helper</div>
+    <div class="field"><label>Intro script</label><textarea id="f-intro">${esc(i.introScript||'')}</textarea></div>
+    <div class="field"><label>What to ask (one per line)</label><textarea id="f-ask">${esc(lines(i.whatToAsk))}</textarea></div>
+    <div class="field"><label>Pitch flow (one per line — "Title :: description")</label>
+      <textarea id="f-flow">${esc((i.pitchFlow||[]).map(p=>p.title+' :: '+p.desc).join('\n'))}</textarea></div>
+    <div class="field"><label>Answer key (one per line)</label><textarea id="f-ans">${esc(lines(i.answerKey))}</textarea></div>
+    <div class="field"><label>Solution offered (TL;DR)</label><textarea id="f-sol">${esc(i.solutionOffered||'')}</textarea></div>
+    <div class="field"><label>Close action / next step</label><textarea id="f-close">${esc(i.closeAction||'')}</textarea></div>
+
+    <div class="editfoot">
+      <button id="saveBtn">Save</button>
+      <button class="ghost" id="cancelBtn">Cancel</button>
+    </div>
+  </div>`;
+
+  // dynamic row state
+  const state = {
+    acc: i.accounts||[], inc: i.incomeStreams||[], obj: i.objections||[], prod: i.productMatch||[]
+  };
+  const drawAcc = ()=>{ const b=$('#accBox'); b.innerHTML='';
+    state.acc.forEach((a,idx)=>{ const r=document.createElement('div'); r.className='row acct';
+      r.innerHTML=`<input placeholder="custodian" value="${esc(a.custodian||'')}">
+        <input placeholder="value" value="${esc(a.value||'')}">
+        <input placeholder="tag" value="${esc(a.tag||'')}">
+        <label style="margin:0;display:flex;align-items:center;gap:3px;font-size:9px">⚓<input type="checkbox" style="width:auto" ${a.anchor?'checked':''}></label>
+        <button class="xbtn" data-x>×</button>`;
+      const[c1,c2,c3]=r.querySelectorAll('input[placeholder]');const cb=r.querySelector('input[type=checkbox]');
+      c1.oninput=e=>a.custodian=e.target.value;c2.oninput=e=>a.value=e.target.value;
+      c3.oninput=e=>a.tag=e.target.value;cb.onchange=e=>a.anchor=e.target.checked;
+      r.querySelector('[data-x]').onclick=()=>{state.acc.splice(idx,1);drawAcc()};
+      b.appendChild(r); }); };
+  const drawInc = ()=>{ const b=$('#incBox'); b.innerHTML='';
+    state.inc.forEach((s,idx)=>{ const r=document.createElement('div'); r.className='row two';
+      r.innerHTML=`<input placeholder="label" value="${esc(s.label||'')}">
+        <input placeholder="amount" value="${esc(s.amount||'')}"><button class="xbtn" data-x>×</button>`;
+      const[a1,a2]=r.querySelectorAll('input');a1.oninput=e=>s.label=e.target.value;a2.oninput=e=>s.amount=e.target.value;
+      r.querySelector('[data-x]').onclick=()=>{state.inc.splice(idx,1);drawInc()};b.appendChild(r); }); };
+  const drawObj = ()=>{ const b=$('#objBox'); b.innerHTML='';
+    state.obj.forEach((o,idx)=>{ const r=document.createElement('div'); r.className='row obj';
+      r.innerHTML=`<input placeholder="objection" value="${esc(o.objection||'')}">
+        <input placeholder="response" value="${esc(o.response||'')}"><button class="xbtn" data-x>×</button>`;
+      const[a1,a2]=r.querySelectorAll('input');a1.oninput=e=>o.objection=e.target.value;a2.oninput=e=>o.response=e.target.value;
+      r.querySelector('[data-x]').onclick=()=>{state.obj.splice(idx,1);drawObj()};b.appendChild(r); }); };
+  const drawProd = ()=>{ const b=$('#prodBox'); b.innerHTML='';
+    state.prod.forEach((p,idx)=>{ const r=document.createElement('div'); r.className='row acct';
+      r.innerHTML=`<input placeholder="product" value="${esc(p.product||'')}">
+        <input placeholder="fit" value="${esc(p.fit||'')}">
+        <input placeholder="rationale" value="${esc(p.rationale||'')}"><span></span><button class="xbtn" data-x>×</button>`;
+      const[a1,a2,a3]=r.querySelectorAll('input');a1.oninput=e=>p.product=e.target.value;
+      a2.oninput=e=>p.fit=e.target.value;a3.oninput=e=>p.rationale=e.target.value;
+      r.querySelector('[data-x]').onclick=()=>{state.prod.splice(idx,1);drawProd()};b.appendChild(r); }); };
+  drawAcc();drawInc();drawObj();drawProd();
+  document.querySelectorAll('[data-add]').forEach(btn=>btn.onclick=()=>{
+    const t=btn.dataset.add;
+    if(t==='acc'){state.acc.push({custodian:'',value:'',tag:'',anchor:false});drawAcc();}
+    if(t==='inc'){state.inc.push({label:'',amount:''});drawInc();}
+    if(t==='obj'){state.obj.push({objection:'',response:''});drawObj();}
+    if(t==='prod'){state.prod.push({product:'',fit:'',rationale:''});drawProd();}
+  });
+
+  $('#cancelBtn').onclick = ()=> c ? renderDetail(c) : ($('#main').innerHTML='<div class="empty"><div>Cancelled.</div></div>');
+  $('#saveBtn').onclick = async ()=>{
+    const v = id => $('#'+id).value.trim();
+    const list = id => v(id).split('\n').map(x=>x.trim()).filter(Boolean);
+    const nm = v('f-name'); if(!nm){ alert('Name is required.'); return; }
+    const intel = {
+      callType:v('f-callType'), priority:v('f-priority'), stage:v('f-stage'),
+      confidence:+v('f-confidence')||60,
+      schedule:{day:v('f-day'),time:v('f-time')},
+      moveable:v('f-moveable'),
+      accounts:state.acc.filter(a=>a.custodian),
+      incomeStreams:state.inc.filter(s=>s.label),
+      goals:list('f-goals'), specialFlags:list('f-flags'),
+      objections:state.obj.filter(o=>o.objection),
+      productMatch:state.prod.filter(p=>p.product),
+      introScript:v('f-intro'), whatToAsk:list('f-ask'),
+      pitchFlow:list('f-flow').map(l=>{const[t,...d]=l.split('::');return{title:(t||'').trim(),desc:d.join('::').trim()}}),
+      answerKey:list('f-ans'), solutionOffered:v('f-sol'), closeAction:v('f-close'),
+      household:i.household||{}, fee:i.fee||{}, kpis:i.kpis||[], callHistory:i.callHistory||[]
+    };
+    const code = c ? c.code : newCode();
+    await saveClient(code, nm, intel);
+    await loadClients(); S.active=code; renderList();
+    renderDetail(S.clients.find(x=>x.code===code));
+  };
+}
+
+/* ---- lock / init ---- */
+async function initFlow(){
+  await openDB();
+  const meta = await idbGet('meta','vault');
+  if(meta){ $('#lockTitle').textContent='Unlock vault'; $('#lockMsg').textContent=
+    'Enter your passphrase. It derives the encryption keys on this device — never stored or sent.'; }
+  else { $('#lockTitle').textContent='Create your vault';
+    $('#lockMsg').textContent='Choose a strong passphrase. It is the ONLY key — there is no recovery if lost. It never leaves this device.';
+    $('#pass2Field').classList.remove('hidden'); }
+  $('#unlockBtn').textContent = meta ? 'Unlock' : 'Create vault';
+}
+
+async function doUnlock(){
+  const err=$('#lockErr'); err.textContent='';
+  const pass=$('#pass').value;
+  if(pass.length<6){ err.textContent='Passphrase must be at least 6 characters.'; return; }
+  const meta = await idbGet('meta','vault');
+  try{
+    if(!meta){
+      if(pass!==$('#pass2').value){ err.textContent='Passphrases do not match.'; return; }
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const kek = await deriveKEK(pass, salt);
+      S.MK_id = await genMasterKey(); S.MK_intel = await genMasterKey();
+      await idbPut('meta', { id:'vault', salt:b64(salt),
+        idKey: await wrapMaster(kek, S.MK_id),
+        intelKey: await wrapMaster(kek, S.MK_intel),
+        verifier: await aesEncrypt(kek, 'WARROOM_OK') });
+      await saveClient(newCode(), 'Josh', JOSH); // seed
+    } else {
+      const kek = await deriveKEK(pass, ub64(meta.salt));
+      try{ const v = await aesDecrypt(kek, meta.verifier); if(v!=='WARROOM_OK') throw 0; }
+      catch(e){ err.textContent='Wrong passphrase.'; return; }
+      S.MK_id = await unwrapMaster(kek, meta.idKey);
+      S.MK_intel = await unwrapMaster(kek, meta.intelKey);
+    }
+  }catch(e){ err.textContent='Unlock failed: '+e.message; return; }
+  $('#pass').value=''; if($('#pass2')) $('#pass2').value='';
+  $('#lock').classList.add('hidden'); $('#app').classList.remove('hidden');
+  await loadClients(); renderList();
+  if(S.clients.length){ S.active=S.clients[0].code; renderList(); renderDetail(S.clients[0]); }
+}
+
+function lock(){
+  S.MK_id=null; S.MK_intel=null; S.clients=[]; S.active=null;
+  $('#app').classList.add('hidden'); $('#lock').classList.remove('hidden');
+}
+
+/* ---- wire up ---- */
+$('#unlockBtn').onclick = doUnlock;
+$('#pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
+if($('#pass2')) $('#pass2').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
+$('#lockBtn').onclick = lock;
+$('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
+$('#importBtn').onclick = ()=> $('#importDlg').showModal();
+$('#importGo').onclick = async ()=>{
+  $('#importErr').textContent='';
+  try{ const n = await importPayload($('#importTxt').value); $('#importDlg').close();
+    $('#importTxt').value=''; await loadClients(); renderList();
+    alert('Imported '+n+' client(s).');
+  }catch(e){ $('#importErr').textContent = e.message; }
+};
+
+initFlow();
+</script>
+</body>
+</html>
