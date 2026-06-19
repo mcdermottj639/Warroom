@@ -163,6 +163,7 @@
   /* Accordion panels */
   .groupttl{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);
     font-weight:800;margin:18px 0 8px;scroll-margin-top:66px}
+  #topAnchor{display:block;height:0;scroll-margin-top:calc(env(safe-area-inset-top) + 8px)}
   .secnav{position:sticky;top:0;z-index:30;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
     background:var(--bg);padding:10px 0;margin-bottom:6px;border-bottom:1px solid var(--line)}
   .secnav button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
@@ -1080,7 +1081,7 @@ function renderDashboard(){
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
     <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '';
 
-  $('#main').innerHTML = `<div class="pad">
+  $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head"><div><h2>⚔️ Command Center</h2>
       <div class="meta">${active.length} tracked · Weighted pipeline ${fmtVal(weighted)}</div></div></div>
 
@@ -1128,6 +1129,7 @@ function renderDashboard(){
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
   $('#topFab').onclick = ()=> scrollMainTop();
+  scrollMainTop();   // land at the top of Command Center consistently (same as client intel)
 }
 
 function renderList(){
@@ -1217,7 +1219,7 @@ function renderDetail(c){
     P(has(i.answerKey)||i.closeAction,'Answer key &amp; next step','',(has(i.answerKey)?ulBody(i.answerKey):'')+(i.closeAction?`<div class="nextbox">NEXT: ${esc(i.closeAction)}</div>`:''))
   ].join('');
 
-  $('#main').innerHTML = `<div class="pad">
+  $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head">
       <div><h2>${esc(c.name)}
         <span class="badge b-${esc(i.priority||'PIPELINE')}">${esc(i.priority||'PIPELINE')}</span></h2>
@@ -1281,10 +1283,13 @@ function renderDetail(c){
   };
   scrollMainTop();   // land on the intel like you've navigated into the page
 }
-// bring the main panel's top to the top of the screen (scrolls past the list on mobile)
+// bring the top of the main panel just below the iOS notch — consistent for every entry point
 function scrollMainTop(){
-  $('#main').scrollTop = 0;
-  requestAnimationFrame(()=>{ try{ $('#main').scrollIntoView({block:'start'}); }catch(e){} });
+  const m=$('#main'); if(m) m.scrollTop = 0;
+  requestAnimationFrame(()=>{ try{
+    const a=document.getElementById('topAnchor');
+    if(a) a.scrollIntoView({block:'start'}); else if(m) m.scrollIntoView({block:'start'});
+  }catch(e){} });
 }
 
 /* ---- Editor (focused structured form) ---- */
