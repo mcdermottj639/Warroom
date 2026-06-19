@@ -234,7 +234,8 @@
     .kstrip{grid-template-columns:1fr 1fr}
     .row.acct,.row.two,.row.obj{grid-template-columns:1fr;gap:6px}
     .card{overflow-x:auto}
-    dialog{width:94vw}
+    dialog{width:94vw;max-width:94vw;padding:16px}
+    dialog input,dialog textarea{font-size:16px}
   }
 
   /* iOS safe areas (notch / status bar / home indicator) for installed PWA */
@@ -363,14 +364,12 @@
   <div class="field"><label>Subject</label><input id="reengSubject"></div>
   <div class="field"><label>Body (edit freely before sending)</label><textarea id="reengBody" style="min-height:230px"></textarea></div>
   <p class="note" style="margin-bottom:10px">Send through your normal Empower email. "Open in mail" prefills a draft (add the recipient there).</p>
-  <div style="display:flex;gap:10px;justify-content:space-between;align-items:center">
-    <button class="ghost sm" id="reengTouched">✓ Mark re-engaged today</button>
-    <div style="display:flex;gap:10px">
-      <button class="ghost" onclick="reengDlg.close()">Close</button>
-      <button class="ghost" id="reengMail">Mail</button>
-      <button class="ghost" id="reengCopy">Copy</button>
-      <button id="reengDrive">📄 Save to Drive</button>
-    </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="ghost sm" id="reengTouched" style="margin-right:auto">✓ Re-engaged</button>
+    <button class="ghost sm" onclick="reengDlg.close()">Close</button>
+    <button class="ghost sm" id="reengMail">Mail</button>
+    <button class="ghost sm" id="reengCopy">Copy</button>
+    <button class="sm" id="reengDrive">📄 Save to Drive</button>
   </div>
 </dialog>
 
