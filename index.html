@@ -830,31 +830,26 @@ function genIntro(name, o){
     : (o.product ? ('a cleaner setup with '+o.product) : 'getting your accounts working together');
   return `Hey ${fn} — good to reconnect. Last time we were looking at ${hook}. I pulled your full picture together so today we can focus on the one or two moves that actually matter. Sound good?`;
 }
-// Objection-aware re-engagement email, built from the client's own data
+// Re-engagement email — focused on (1) did they decide and (2) want a call soon, with a brief value recap.
 function genReengage(c){
   const i=c.intel, fn=firstName(c.name);
   const days=coolDays(c), tier=dealState(c).state||'';
   const obj=((i.objections&&i.objections[0]&&i.objections[0].objection)||'').toLowerCase();
-  let angle;
-  if(/spouse|wife|husband|partner|marea|involve|loop|3-?way|talk to/.test(obj))
-    angle=`When we last spoke you wanted to loop in your spouse before deciding — I’d be glad to set up a quick 3-way call so you’re both looking at the same plan.`;
-  else if(/tax|rmd|roth/.test(obj))
-    angle=`Your main question was the tax impact — I’ve mapped a tax-aware path that avoids a big hit, and it only takes about 10 minutes to walk through.`;
-  else if(/fee|cost|pay/.test(obj))
-    angle=`Fees were top of mind last time. Quick reminder: ${i.fee&&i.fee.savings?('this saves you '+i.fee.savings):'consolidating actually lowers what you’re paying'} — happy to walk the exact numbers again.`;
-  else if(/fisher|edward jones|baird|advisor|\bfa\b|relationship|loyal|happy with/.test(obj))
-    angle=`I know you’ve got a relationship with your current advisor — this isn’t about replacing them, it’s the planning and coordination piece that’s missing today.`;
-  else
-    angle=`I had a thought on ${lc1(strip(i.solutionOffered))||'your plan'} that I think moves things forward.`;
-  const hook = (i.fee&&i.fee.savings) ? `\n\nThe headline: ${i.fee.savings}.` : '';
-  const next = i.closeAction ? lc1(strip(i.closeAction)) : 'map out the next step together';
+  // brief, client-facing value recap (never dump internal notes)
+  let recap;
+  if(i.fee && i.fee.savings) recap=`As a quick recap: the move still stands to save you ${strip(i.fee.savings).replace(/\s*(per year|\/yr|a year|annually)\s*$/i,'')} a year and keep everything coordinated in one place.`;
+  else if(i.product) recap=`As a quick recap: ${i.product} still looks like the right fit — one coordinated plan instead of accounts spread around.`;
+  else if(i.solutionOffered) recap=`As a quick recap: ${lc1(strip(i.solutionOffered))}.`;
+  else recap=`As a quick recap: the plan we put together still stands whenever you’re ready.`;
+  // call line, spouse-aware when relevant
+  const callLine = /spouse|wife|husband|partner|marea|both|involve|loop/.test(obj)
+    ? `Want to grab 15 minutes in the next few days — and feel free to have your spouse join?`
+    : `Want to grab 15 minutes in the next few days to talk it through?`;
   const subject = (tier==='Stale')
-    ? `${fn} — should I close out your file, or is this still worth a look?`
-    : `${fn} — quick follow-up on your Empower plan`;
-  const intro = (tier==='Stale')
-    ? `It’s been a while since we talked through ${i.product?('the '+i.product):'your plan'}, and I don’t want to keep bugging you — but I also don’t want to leave money on the table for you.`
-    : `It’s been about ${days||'a couple'} days since we went through ${i.product?('the '+i.product):'your plan'}, and I didn’t want it to slip off your radar.`;
-  const body = `Hi ${fn},\n\n${intro}\n\n${angle}${hook}\n\nWorth 15 minutes this week? Happy to ${next}.\n\nBest,\nJack`;
+    ? `${fn} — where did you land on the Empower plan?`
+    : `${fn} — did you land on a decision?`;
+  const opener = `It’s been about ${days||'a couple'} days since we walked through ${i.product?('the '+i.product):'the plan'}, so I wanted to check in.`;
+  const body = `Hi ${fn},\n\n${opener}\n\n${recap}\n\nTwo quick things:\n1) Have you had a chance to land on a decision, or are you still weighing it?\n2) ${callLine}\n\nEither way, happy to answer any last questions.\n\nBest,\nJack`;
   return { subject, body };
 }
 
