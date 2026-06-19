@@ -144,6 +144,32 @@
   .fitc{font-size:9.5px;font-weight:800;border:1px solid var(--line);border-radius:4px;padding:0 5px}
   .bodynote{color:var(--muted);font-size:13px;padding-top:13px}
   .nextbox{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-weight:700;font-size:13.5px}
+
+  /* nav + command center */
+  .navrow{padding:8px 10px 0}
+  .navbtn{width:100%;text-align:left;background:var(--panel2);color:var(--txt);
+    border:1px solid var(--line);font-weight:700;font-size:13px;padding:10px 12px}
+  .navbtn.active{background:var(--accent);border-color:var(--accent)}
+  .dtbl{width:100%;border-collapse:collapse;margin-top:6px}
+  .dtbl th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+    text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  .dtbl td{font-size:12.5px;padding:7px 8px;border-bottom:1px solid var(--line)}
+  .dtbl tr:last-child td{border-bottom:none}
+  .dtbl tr.click{cursor:pointer}
+  .dtbl tr.click:hover td{background:var(--panel2)}
+  .dtbl .r{text-align:right;font-weight:700;white-space:nowrap}
+  .rank{display:inline-flex;width:20px;height:20px;border-radius:5px;background:var(--panel2);
+    border:1px solid var(--line);align-items:center;justify-content:center;font-size:11px;font-weight:700}
+  .frow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .frow:last-child{border-bottom:none}
+  .frow.done .ft{text-decoration:line-through;color:var(--muted)}
+  .frow .fc{color:var(--muted);font-size:11px}
+  .winrow{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .winrow:last-child{border-bottom:none}
+  .riskbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:10px}
+  .risk-CRITICAL,.risk-HIGH{background:var(--crit);color:#fff}
+  .risk-MEDIUM{background:var(--warm);color:#241a00}
+  .risk-LOW{background:var(--pipe);color:#fff}
 </style>
 </head>
 <body>
@@ -176,6 +202,7 @@
         <button class="sm ghost" id="importBtn">Import</button>
       </div>
     </div>
+    <div class="navrow"><button class="navbtn" id="dashBtn">⚔️ Command Center</button></div>
     <div class="clist" id="clist"></div>
     <div class="foot">
       <span id="cstat">0 clients</span>
@@ -268,7 +295,7 @@ const idbPut = (store, v)=> new Promise((res,rej)=>{const q=tx(store,'readwrite'
 const idbDel = (store, k)=> new Promise((res,rej)=>{const q=tx(store,'readwrite').delete(k);q.onsuccess=()=>res();q.onerror=()=>rej(q.error)});
 
 /* ---------- session state ---------- */
-const S = { MK_id:null, MK_intel:null, clients:[], active:null };
+const S = { MK_id:null, MK_intel:null, clients:[], active:null, flagsDone:new Set() };
 
 async function loadClients(){
   const [ids, intels] = await Promise.all([idbAll('identity'), idbAll('intel')]);
@@ -619,9 +646,144 @@ function mapImport(s){
    UI
    ============================================================ */
 const $ = s => document.querySelector(s);
+const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAY_ORDER = {Monday:1,Tuesday:2,Wednesday:3,Thursday:4,Friday:5,Saturday:6,Sunday:7};
+
+/* ---- expected-value ranking (stage-aware, ported from the scheduled-task model) ---- */
+function moveableNum(i){
+  const v = assetVal(i.moveable);
+  if(v) return v;
+  return (i.accounts||[]).filter(a=>!a.anchor).reduce((t,a)=>t+assetVal(a.value),0);
+}
+function stageProb(i){
+  const st = (i.stage||'').toLowerCase();
+  let p, cap;
+  if(st==='decision'){ p=0.80; cap=0.90; }
+  else if(st==='proposal'){ p = ['HOT','CRITICAL'].includes(i.priority)?0.75:0.55; cap=0.85; }
+  else if(st==='discovery'){ p=0.30; cap=0.40; }
+  else { p=0.15; cap=0.20; }                       // inbound / pre-intro
+  const nudge = Math.max(-0.10, Math.min(0.10, ((i.confidence||60)-60)/100));
+  return Math.max(0.05, Math.min(cap, p + nudge));
+}
+function recencyFactor(i){
+  const today = new Date();
+  let best = null;
+  for(const h of (i.callHistory||[])){
+    const m = (h.date||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if(m){ let y=+m[3]; if(y<100) y+=2000; const dt=new Date(y,+m[1]-1,+m[2]); if(!best||dt>best) best=dt; }
+  }
+  if(!best) return 0.7;
+  const days = (today - best)/86400000;
+  return days<=14?1.0:days<=30?0.85:days<=60?0.6:0.4;
+}
+const expectedValue = i => Math.round(moveableNum(i)*stageProb(i)*recencyFactor(i));
+
+/* ---- follow-up flag done-state (encrypted) ---- */
+async function loadAux(){
+  S.flagsDone = new Set();
+  try{ const m = await idbGet('meta','flagsdone'); if(m) S.flagsDone = new Set(JSON.parse(await aesDecrypt(S.MK_intel, m.enc))); }catch(e){}
+}
+async function saveFlagsDone(){
+  await idbPut('meta', { id:'flagsdone', enc: await aesEncrypt(S.MK_intel, JSON.stringify([...S.flagsDone])) });
+}
+
+function renderDashboard(){
+  S.active = '__dash__'; renderList();
+  const active = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  const ranked = active.map(c => ({c, ev:expectedValue(c.intel), p:stageProb(c.intel)}))
+    .sort((a,b)=> b.ev - a.ev);
+  const weighted = ranked.reduce((s,r)=>s+r.ev, 0);
+  const todayName = DAYS_FULL[new Date().getDay()];
+  const todays = active.filter(c => (c.intel.schedule?.day||'').toLowerCase().includes(todayName.toLowerCase()));
+
+  // This week — anything with a schedule, sorted by weekday then time
+  const scheduled = active.filter(c => c.intel.schedule && (c.intel.schedule.day||c.intel.schedule.time));
+  const dayOf = c => { const d=(c.intel.schedule.day||'').match(/Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/i); return d?d[0].replace(/^./,x=>x.toUpperCase()):''; };
+  const t2m = t => { const m=(t||'').match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i); if(!m) return 9999; let h=+m[1]%12; if(/pm/i.test(m[3]||'')) h+=12; return h*60+(+(m[2]||0)); };
+  scheduled.sort((a,b)=> (DAY_ORDER[dayOf(a)]||9)-(DAY_ORDER[dayOf(b)]||9) || t2m(a.intel.schedule.time)-t2m(b.intel.schedule.time));
+
+  const schedRows = scheduled.length ? scheduled.map(c=>`<tr class="click" data-code="${c.code}">
+    <td>${esc(dayOf(c))}</td><td>${esc(c.intel.schedule.time||'')}</td>
+    <td>${esc(c.name)} <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'')}</span></td>
+    <td>${esc(c.intel.callType||'')}</td><td class="r">${esc(c.intel.moveable||'—')}</td></tr>`).join('')
+    : `<tr><td colspan="5" style="color:var(--muted)">No scheduled calls.</td></tr>`;
+
+  const oppRows = ranked.map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
+    <td><span class="rank">${idx+1}</span></td>
+    <td>${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
+    <td>${esc(r.c.intel.stage||'')}</td>
+    <td class="r">${esc(r.c.intel.moveable||'—')}</td>
+    <td class="r">${Math.round(r.p*100)}%</td>
+    <td class="r">${fmtVal(r.ev)}</td></tr>`).join('');
+
+  // Pending decisions = clients at Proposal/Decision stage
+  const pend = active.filter(c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase()))
+    .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
+  const pendRows = pend.length ? pend.map(c=>`<div class="winrow">
+    <div style="flex:1"><b>${esc(c.name)}</b><div class="fc">${esc((c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending')}</div></div>
+    <span class="riskbadge risk-${c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM'}">${esc(c.intel.priority||'')}</span>
+    <div style="flex:1;font-size:12px;color:var(--muted)">${esc(c.intel.closeAction||'')}</div></div>`).join('')
+    : '<div class="bodynote" style="padding-top:0">No proposals or decisions outstanding.</div>';
+
+  // Follow-up flags = every active client's flags
+  let flagRows = '';
+  for(const c of active){
+    (c.intel.specialFlags||c.intel.complications||[]).forEach((f,idx)=>{
+      const key = c.code+'::'+idx, done = S.flagsDone.has(key);
+      flagRows += `<div class="frow ${done?'done':''}"><input type="checkbox" class="fchk" data-key="${key}" ${done?'checked':''} style="width:auto">
+        <div class="ft" style="flex:1">${esc(f)}</div><div class="fc">${esc(c.name)}</div></div>`;
+    });
+  }
+  if(!flagRows) flagRows = '<div class="bodynote" style="padding-top:0">No open flags.</div>';
+  const openFlags = active.reduce((s,c)=>s+(c.intel.specialFlags||c.intel.complications||[]).filter((f,idx)=>!S.flagsDone.has(c.code+'::'+idx)).length,0);
+
+  // Wins
+  const wins = S.clients.filter(c=>c.intel.status==='won');
+  const winTotal = wins.reduce((s,c)=>s+assetVal(c.intel.wonAmount||c.intel.moveable),0);
+  const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 <b>${esc(c.name)}</b></div>
+    <div class="r">${esc(c.intel.wonAmount||c.intel.moveable||'—')}</div>
+    <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
+    <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '';
+
+  $('#main').innerHTML = `<div class="pad">
+    <div class="head"><div><h2>⚔️ Command Center</h2>
+      <div class="meta">${active.length} tracked · ${todays.length} call${todays.length===1?'':'s'} today · Weighted pipeline ${fmtVal(weighted)}</div></div></div>
+
+    <div class="kstrip">
+      <div class="kchip"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n">EV across ${active.length}</div></div>
+      <div class="kchip"><div class="kc-l">Calls today</div><div class="kc-v">${todays.length}</div><div class="kc-n">${esc(todayName)}</div></div>
+      <div class="kchip"><div class="kc-l">Proposals / decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n">awaiting close</div></div>
+      <div class="kchip"><div class="kc-l">Open flags</div><div class="kc-v">${openFlags}</div><div class="kc-n">to clear</div></div>
+    </div>
+
+    <div class="groupttl">📅 This Week</div>
+    <div class="card"><table class="dtbl"><thead><tr><th>Day</th><th>Time</th><th>Client</th><th>Type</th><th class="r">Transferable</th></tr></thead><tbody>${schedRows}</tbody></table></div>
+
+    <div class="groupttl">🎯 Top Opportunities — ranked by expected value</div>
+    <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
+
+    <div class="groupttl">⏳ Pending Decisions</div>
+    <div class="card">${pendRows}</div>
+
+    <div class="groupttl">📞 Follow-Up Flags <span style="color:var(--muted);font-weight:600">· ${openFlags} open</span></div>
+    <div class="card">${flagRows}</div>
+
+    ${wins.length?`<div class="groupttl">🏆 Wins · ${fmtVal(winTotal)}</div><div class="card">${winRows}</div>`:''}
+  </div>`;
+
+  document.querySelectorAll('.dtbl tr.click').forEach(tr=> tr.onclick = ()=>{
+    const c = S.clients.find(x=>x.code===tr.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
+  });
+  document.querySelectorAll('.fchk').forEach(cb=> cb.onchange = async ()=>{
+    if(cb.checked) S.flagsDone.add(cb.dataset.key); else S.flagsDone.delete(cb.dataset.key);
+    cb.closest('.frow').classList.toggle('done', cb.checked);
+    await saveFlagsDone();
+  });
+}
 
 function renderList(){
   const el = $('#clist'); el.innerHTML='';
+  const db = $('#dashBtn'); if(db) db.classList.toggle('active', S.active==='__dash__');
   $('#cstat').textContent = S.clients.length + (S.clients.length===1?' client':' clients');
   for(const c of S.clients){
     const d = document.createElement('div');
@@ -679,10 +841,13 @@ function renderDetail(c){
       <div class="btns">
         <button id="prepBtn">▚ Print Prep</button>
         <button class="ghost" id="editBtn">Edit</button>
+        ${i.status==='won'?'<button class="ghost sm" id="reopenBtn">↩ Reopen</button>'
+          :'<button class="ghost sm" id="wonBtn">✓ Won</button><button class="ghost sm" id="lostBtn">Lost</button>'}
         <button class="danger sm" id="delBtn">Delete</button>
       </div>
     </div>
 
+    ${i.status?`<div class="meta" style="margin:-8px 0 14px">Status: <b>${esc(i.status.toUpperCase())}</b>${i.wonAmount?(' · '+esc(i.wonAmount)):''}${i.wonDate?(' · '+esc(i.wonDate)):''}</div>`:''}
     <div class="kstrip">${kstrip}</div>
 
     <div class="groupttl">📊 Planning Data</div>
@@ -706,6 +871,16 @@ function renderDetail(c){
     h.onclick = ()=> h.parentElement.classList.toggle('open'));
   $('#prepBtn').onclick = ()=>openPrep(c);
   $('#editBtn').onclick = ()=>renderEditor(c);
+  const setStatus = async (status, amount)=>{
+    const intel = {...c.intel, status};
+    if(status==='won'){ intel.wonAmount = amount||c.intel.moveable||''; intel.wonDate = new Date().toISOString().slice(0,10); }
+    await saveClient(c.code, c.name, intel);
+    await loadClients(); const upd = S.clients.find(x=>x.code===c.code);
+    renderList(); renderDetail(upd);
+  };
+  if($('#wonBtn')) $('#wonBtn').onclick = ()=>{ const a = prompt('Won amount (optional, e.g. $325k):', c.intel.moveable||''); setStatus('won', a||undefined); };
+  if($('#lostBtn')) $('#lostBtn').onclick = ()=>{ if(confirm('Mark '+c.name+' as lost? They drop out of the active pipeline.')) setStatus('lost'); };
+  if($('#reopenBtn')) $('#reopenBtn').onclick = ()=> setStatus(undefined);
   $('#delBtn').onclick = async ()=>{
     if(!confirm('Delete '+c.name+'? This removes their profile entirely (the way a closed client drops out).')) return;
     await deleteClient(c.code); S.active=null; await loadClients(); renderList();
@@ -888,12 +1063,12 @@ async function doUnlock(){
   }catch(e){ err.textContent='Unlock failed: '+e.message; return; }
   $('#pass').value=''; if($('#pass2')) $('#pass2').value='';
   $('#lock').classList.add('hidden'); $('#app').classList.remove('hidden');
-  await loadClients(); renderList();
-  if(S.clients.length){ S.active=S.clients[0].code; renderList(); renderDetail(S.clients[0]); }
+  await loadClients(); await loadAux();
+  if(S.clients.length){ renderDashboard(); } else renderList();
 }
 
 function lock(){
-  S.MK_id=null; S.MK_intel=null; S.clients=[]; S.active=null;
+  S.MK_id=null; S.MK_intel=null; S.clients=[]; S.active=null; S.flagsDone=new Set();
   $('#app').classList.add('hidden'); $('#lock').classList.remove('hidden');
 }
 
@@ -902,12 +1077,13 @@ $('#unlockBtn').onclick = doUnlock;
 $('#pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
 if($('#pass2')) $('#pass2').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
 $('#lockBtn').onclick = lock;
+$('#dashBtn').onclick = ()=> renderDashboard();
 $('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
 $('#importBtn').onclick = ()=> $('#importDlg').showModal();
 $('#importGo').onclick = async ()=>{
   $('#importErr').textContent='';
   try{ const n = await importPayload($('#importTxt').value); $('#importDlg').close();
-    $('#importTxt').value=''; await loadClients(); renderList();
+    $('#importTxt').value=''; await loadClients(); renderDashboard();
     alert('Imported '+n+' client(s).');
   }catch(e){ $('#importErr').textContent = e.message; }
 };
