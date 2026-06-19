@@ -571,19 +571,28 @@ async function importPayload(raw){
   }
   return n;
 }
+// asset parsing — ported from the existing dashboard for consistency
+function assetVal(s){if(!s)return 0;const mm=String(s).replace(/,/g,'').match(/(\d+(?:\.\d+)?)\s*([kKmM])?/);if(!mm)return 0;let n=parseFloat(mm[1])||0;const suf=(mm[2]||'').toLowerCase();return suf==='m'?n*1e6:suf==='k'?n*1e3:n;}
+function fmtVal(v){return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${Math.round(v/1e3)}k`:`$${v}`;}
+const isAnchor = tag => /\banchor\b|stay in plan|empower.*plan|employer plan|\bplan\b.*anchor|in[- ]plan|stays in plan|employer/i.test(tag||'');
+
 function mapImport(s){
   // accepts both the dashboard model and our intel model
   const accounts = (s.accounts||[]).map(a=>({
     custodian:a.custodian||a.name||'', value:a.value||'', tag:a.tag||'',
-    anchor:/anchor|in[- ]plan|stays in plan|employer/i.test(a.tag||'')
+    anchor:isAnchor(a.tag)
   }));
+  // Transferable = sum of non-anchor accounts (moveable), not the gross total
+  const moveableSum = accounts.filter(a=>!a.anchor).reduce((t,a)=>t+assetVal(a.value),0);
+  const moveable = s.totalAssetsMoveable || s.moveable ||
+    (moveableSum>0 ? fmtVal(moveableSum) : (s.totalAssets||''));
   return {
     stage: s.stage || 'Discovery',
     priority: s.priority || 'PIPELINE',
     callType: s.callType || s.calltype || 'Follow-Up',
     confidence: s.confidence || 60,
     schedule: (s.day||s.time)?{day:s.day||'',time:s.time||''}:undefined,
-    moveable: s.totalAssetsMoveable || s.totalAssets || s.moveable || '',
+    moveable,
     accounts,
     incomeStreams: s.incomeStreams || [],
     household: s.household || {},
