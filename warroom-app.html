@@ -110,6 +110,40 @@
     border-radius:14px;padding:20px;width:560px;max-width:92vw}
   dialog::backdrop{background:rgba(0,0,0,.6)}
   code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
+
+  /* KPI strip in detail */
+  .kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:18px}
+  .kchip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700}
+  .kc-v{font-size:18px;font-weight:700;margin-top:2px}
+  .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px}
+
+  /* Accordion panels */
+  .groupttl{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);
+    font-weight:800;margin:18px 0 8px}
+  .apanel{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+    margin-bottom:8px;overflow:hidden}
+  .ahead{display:flex;align-items:center;gap:10px;padding:13px 15px;cursor:pointer;user-select:none}
+  .ahead:hover{background:var(--panel2)}
+  .ahead .ttl{font-weight:700;font-size:14px;flex:1}
+  .ahead .ameta{font-size:11px;color:var(--muted);font-weight:600}
+  .ahead .chev{color:var(--muted);transition:transform .15s;font-size:12px}
+  .apanel.open .ahead .chev{transform:rotate(90deg)}
+  .abody{display:none;padding:0 15px 15px;border-top:1px solid var(--line)}
+  .apanel.open .abody{display:block}
+  .abody.tldr{font-size:14px;line-height:1.55;padding-top:13px}
+  .abody.scriptbox{font-style:italic;font-size:14px;line-height:1.6;padding-top:13px}
+  .step2{padding:9px 0;border-bottom:1px solid var(--line)}
+  .step2:last-child{border-bottom:none}
+  .step2 .st2{font-weight:700;font-size:13.5px}
+  .step2 .sd2{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+  .objc{padding:9px 0;border-bottom:1px solid var(--line)}
+  .objc:last-child{border-bottom:none}
+  .objc .oo{font-weight:700;font-size:13px;color:#ff8a8a}
+  .objc .orr{font-size:12.5px;margin-top:3px;line-height:1.45}
+  .fitc{font-size:9.5px;font-weight:800;border:1px solid var(--line);border-radius:4px;padding:0 5px}
+  .bodynote{color:var(--muted);font-size:13px;padding-top:13px}
+  .nextbox{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-weight:700;font-size:13.5px}
 </style>
 </head>
 <body>
@@ -593,14 +627,39 @@ function renderList(){
 
 function renderDetail(c){
   const i = c.intel;
-  const accs = (i.accounts||[]).map(a=>`<div class="kv ${a.anchor?'anchor':''}">
+  const has = a => Array.isArray(a) && a.length;
+  const none = '<div class="bodynote">— nothing recorded —</div>';
+
+  const kpis = (i.kpis && i.kpis.length) ? i.kpis : deriveKpis(i);
+  const kstrip = kpis.map(k=>`<div class="kchip"><div class="kc-l">${esc(k.label)}</div>
+     <div class="kc-v">${esc(k.value)}</div><div class="kc-n">${esc(k.note||'')}</div></div>`).join('');
+
+  const kvList = (arr,fmt)=> has(arr) ? arr.map(fmt).join('') : none;
+  const accBody = kvList(i.accounts, a=>`<div class="kv ${a.anchor?'anchor':''}">
     <span class="k">${esc(a.custodian)}<br><span class="tag">${esc(a.tag)}</span></span>
-    <span class="v">${esc(a.value)}</span></div>`).join('');
-  const pills = arr => (arr||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join('') || '<span class="note">—</span>';
-  const objs = (i.objections||[]).map(o=>`<div class="kv"><span class="k">“${esc(o.objection)}”</span>
-    <span class="v" style="font-weight:500;max-width:55%">${esc(o.response)}</span></div>`).join('') || '<span class="note">—</span>';
-  const prod = (i.productMatch||[]).map(p=>`<div class="kv"><span class="k"><b>${esc(p.product)}</b> ${esc(p.fit||'')}<br>
-    <span class="tag">${esc(p.rationale)}</span></span></div>`).join('') || '<span class="note">—</span>';
+    <span class="v">${esc(a.value)}</span></div>`);
+  const incBody = kvList(i.incomeStreams, s=>`<div class="kv">
+    <span class="k">${esc(s.label)}</span><span class="v">${esc(s.amount)}</span></div>`);
+  const feeBody = `<div class="kv"><span class="k">Transferable</span>
+      <span class="v">${esc(i.moveable||'—')}</span></div>
+    <div class="kv"><span class="k">Fee — from</span><span class="v">${esc(i.fee?.from||'—')}</span></div>
+    <div class="kv"><span class="k">Fee — to</span><span class="v">${esc(i.fee?.to||'—')}</span></div>
+    <div class="kv"><span class="k">Est. savings</span><span class="v">${esc(i.fee?.savings||'—')}</span></div>
+    <div class="kv"><span class="k">Retirement goal</span><span class="v">${esc(i.household?.retirementGoal||'—')}</span></div>`;
+  const ulBody = arr => has(arr) ? '<ul class="clean" style="padding-top:13px">'+arr.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>' : none;
+  const pillBody = arr => has(arr) ? '<div style="padding-top:13px">'+arr.map(x=>`<span class="pill">${esc(x)}</span>`).join('')+'</div>' : none;
+  const flowBody = kvList(i.pitchFlow, p=>`<div class="step2"><div class="st2">${esc(p.title)}</div>
+    <div class="sd2">${esc(p.desc)}</div></div>`);
+  const objBody = kvList(i.objections, o=>`<div class="objc"><div class="oo">“${esc(o.objection)}”</div>
+    <div class="orr">${esc(o.response)}</div></div>`);
+  const prodBody = kvList(i.productMatch, p=>`<div class="kv"><span class="k">
+    <b>${esc(p.product)}</b> <span class="fitc">${esc(p.fit||'')}</span><br>
+    <span class="tag">${esc(p.rationale)}</span></span></div>`);
+
+  const panel = (ttl,meta,body,cls='',open=false)=>`<div class="apanel ${open?'open':''}">
+    <div class="ahead"><span class="ttl">${ttl}</span><span class="ameta">${esc(meta||'')}</span><span class="chev">▸</span></div>
+    <div class="abody ${cls}">${body}</div></div>`;
+  const cnt = (a,word)=> has(a) ? a.length+' '+word+(a.length>1?'s':'') : '—';
 
   $('#main').innerHTML = `<div class="pad">
     <div class="head">
@@ -609,27 +668,33 @@ function renderDetail(c){
         <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%
         ${i.schedule?(' · '+esc(i.schedule.day||'')+' '+esc(i.schedule.time||'')):''}</div></div>
       <div class="btns">
-        <button id="prepBtn">▚ Generate Prep</button>
+        <button id="prepBtn">▚ Print Prep</button>
         <button class="ghost" id="editBtn">Edit</button>
         <button class="danger sm" id="delBtn">Delete</button>
       </div>
     </div>
-    <div class="grid">
-      <div class="card"><h3>Asset Landscape</h3>${accs||'<span class="note">No accounts</span>'}</div>
-      <div>
-        <div class="card"><h3>Transferable</h3>
-          <div style="font-size:30px;font-weight:700">${esc(i.moveable||'—')}</div>
-          <div class="note">${esc(i.solutionOffered||'')}</div></div>
-        <div class="card"><h3>Goals</h3>${pills(i.goals)}</div>
-        <div class="card"><h3>Special Flags</h3>${pills(i.specialFlags||i.complications)}</div>
-      </div>
-    </div>
-    <div class="grid">
-      <div class="card"><h3>Objections</h3>${objs}</div>
-      <div class="card"><h3>Product Match</h3>${prod}</div>
-    </div>
-    <div class="card"><h3>Close Action</h3><div>${esc(i.closeAction||'—')}</div></div>
+
+    <div class="kstrip">${kstrip}</div>
+
+    <div class="groupttl">📊 Planning Data</div>
+    ${panel('TL;DR — the close', i.solutionOffered?'':'(empty)', esc(i.solutionOffered||'— add a one-line solution —'), 'tldr', true)}
+    ${panel('Asset Landscape', cnt(i.accounts,'account'), accBody)}
+    ${panel('Income &amp; Asset Streams', cnt(i.incomeStreams,'stream'), incBody)}
+    ${panel('Transferable &amp; Fee', esc(i.moveable||''), feeBody)}
+    ${panel('Goals', cnt(i.goals,'goal'), pillBody(i.goals))}
+    ${panel('Flags to verify', cnt(i.specialFlags||i.complications,'flag'), pillBody(i.specialFlags||i.complications))}
+
+    <div class="groupttl">🎯 On-Call Helper</div>
+    ${panel('Intro script', i.introScript?'open the call':'—', esc(i.introScript||'— add an intro —'), 'scriptbox')}
+    ${panel('What to ask', cnt(i.whatToAsk,'question'), ulBody(i.whatToAsk))}
+    ${panel('Pitch flow — the steps', cnt(i.pitchFlow,'step'), flowBody)}
+    ${panel('Objection handling', cnt(i.objections,'objection'), objBody)}
+    ${panel('Best-fit product match', cnt(i.productMatch,'product'), prodBody)}
+    ${panel('Answer key &amp; next step', '', ulBody(i.answerKey)+`<div class="nextbox">NEXT: ${esc(i.closeAction||'—')}</div>`)}
   </div>`;
+
+  document.querySelectorAll('.ahead').forEach(h=>
+    h.onclick = ()=> h.parentElement.classList.toggle('open'));
   $('#prepBtn').onclick = ()=>openPrep(c);
   $('#editBtn').onclick = ()=>renderEditor(c);
   $('#delBtn').onclick = async ()=>{
