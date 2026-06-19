@@ -923,8 +923,9 @@ function renderDashboard(){
 function renderList(){
   const el = $('#clist'); el.innerHTML='';
   const db = $('#dashBtn'); if(db) db.classList.toggle('active', S.active==='__dash__');
-  $('#cstat').textContent = S.clients.length + (S.clients.length===1?' client':' clients');
-  for(const c of S.clients){
+  const visible = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  $('#cstat').textContent = visible.length + (visible.length===1?' client':' clients');
+  for(const c of visible){
     const d = document.createElement('div');
     d.className = 'citem'+(S.active===c.code?' active':'');
     d.innerHTML = `<div class="nm">${esc(c.name)}
@@ -1033,12 +1034,14 @@ function renderDetail(c){
   const setStatus = async (status, amount)=>{
     const intel = {...c.intel, status};
     if(status==='won'){ intel.wonAmount = amount||c.intel.moveable||''; intel.wonDate = new Date().toISOString().slice(0,10); }
+    else if(status===undefined){ delete intel.status; delete intel.wonAmount; delete intel.wonDate; }
     await saveClient(c.code, c.name, intel);
-    await loadClients(); const upd = S.clients.find(x=>x.code===c.code);
-    renderList(); renderDetail(upd);
+    await loadClients(); S.active = status ? '__dash__' : c.code; renderList();
+    if(status){ renderDashboard(); }            // won/lost → leave the now-hidden profile
+    else { renderDetail(S.clients.find(x=>x.code===c.code)); } // reopen → stay
   };
   if($('#wonBtn')) $('#wonBtn').onclick = ()=>{ const a = prompt('Won amount (optional, e.g. $325k):', c.intel.moveable||''); setStatus('won', a||undefined); };
-  if($('#lostBtn')) $('#lostBtn').onclick = ()=>{ if(confirm('Mark '+c.name+' as lost? They drop out of the active pipeline.')) setStatus('lost'); };
+  if($('#lostBtn')) $('#lostBtn').onclick = ()=>{ if(confirm('Mark '+c.name+' as lost? They drop out of the pipeline (not tracked).')) setStatus('lost'); };
   if($('#reopenBtn')) $('#reopenBtn').onclick = ()=> setStatus(undefined);
   $('#delBtn').onclick = async ()=>{
     if(!confirm('Delete '+c.name+'? This removes their profile entirely (the way a closed client drops out).')) return;
@@ -1394,11 +1397,17 @@ async function syncFromDrive(){
       const nm = f.name.replace(/\s*[—-]\s*Profile.*$/i,'').replace(/\.md$/i,'').trim();
       if(!byName[nm] || f.modifiedTime > byName[nm].modifiedTime) byName[nm] = {...f, client:nm};
     }
-    const codeByName={}; S.clients.forEach(c=> codeByName[c.name]=c.code);
+    const codeByName={}, exByName={}; S.clients.forEach(c=>{ codeByName[c.name]=c.code; exByName[c.name]=c.intel; });
     let n=0;
     for(const nm in byName){
       const md = await gapiText(`https://www.googleapis.com/drive/v3/files/${byName[nm].id}?alt=media`);
       const intel = mapImport(parseProfile(md, nm));
+      // preserve user-set fields that aren't in the Drive profile (so a re-sync doesn't wipe them)
+      const ex = exByName[nm];
+      if(ex){
+        if(ex.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; }
+        if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
+      }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
     }
