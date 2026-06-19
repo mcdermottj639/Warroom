@@ -712,6 +712,50 @@ function inferStage(s){
 }
 const priorityFromStage = st => ({Decision:'CRITICAL',Proposal:'HOT',Discovery:'WARM',Inbound:'PIPELINE'}[st]||'PIPELINE');
 
+// ---- auto-draft the On-Call Helper + goals from the data a profile DOES have ----
+const firstName = n => (n||'').trim().split(/\s+/)[0] || 'there';
+const lc1 = s => s ? s.charAt(0).toLowerCase()+s.slice(1) : s;
+const strip = s => (s||'').replace(/\s*\.\s*$/,'').trim();
+function genIntro(name, o){
+  const fn = firstName(name);
+  const hook = o.solutionOffered ? lc1(strip(o.solutionOffered))
+    : (o.product ? ('a cleaner setup with '+o.product) : 'getting your accounts working together');
+  return `Hey ${fn} — good to reconnect. Last time we were looking at ${hook}. I pulled your full picture together so today we can focus on the one or two moves that actually matter. Sound good?`;
+}
+function genWhatToAsk(o){
+  const q=['What’s changed since we last talked?'];
+  const f=(o.specialFlags||o.complications||[]);
+  if(f[0]) q.push(`Where do things stand on: ${strip(f[0])}?`);
+  if(o.objections&&o.objections[0]) q.push(`How are you feeling about ${lc1(strip(o.objections[0].objection))}?`);
+  q.push('When you picture this fully settled, what does it look like for you?');
+  if(o.closeAction) q.push(`Are you ready to move on ${lc1(strip(o.closeAction))}?`);
+  return q.slice(0,5);
+}
+function genPitchFlow(o){
+  const raw=[['Reconnect + recap','Acknowledge the last conversation so they know you remember — earn the next few minutes.'],
+    ['Confirm the picture',`Verify the accounts and the ${o.moveable||'moveable assets'} in play before pitching.`]];
+  if(o.objections&&o.objections[0]) raw.push(['Address the concern',strip(o.objections[0].objection)+'. '+strip(o.objections[0].response)]);
+  if(o.solutionOffered) raw.push(['Present the solution',o.solutionOffered+(o.product?` (${o.product})`:'')]);
+  const f=(o.specialFlags||o.complications||[]); if(f.length) raw.push(['Surface the watch-items',f.slice(0,3).join('; ')]);
+  if(o.closeAction) raw.push(['Close',o.closeAction]);
+  return raw.map((r,i)=>({title:(i+1)+' · '+r[0],desc:r[1]}));
+}
+function genAnswerKey(o){
+  const a=[];
+  if(o.closeAction) a.push('Best outcome: '+o.closeAction);
+  if(o.objections&&o.objections[0]&&o.objections[0].response) a.push('If they push back: '+o.objections[0].response);
+  const f=(o.specialFlags||o.complications||[]); if(f.length) a.push('Don’t forget: '+f.slice(0,2).join('; '));
+  return a;
+}
+function enrichIntel(o, name){
+  if(!o.introScript) o.introScript = genIntro(name, o);
+  if(!(o.whatToAsk && o.whatToAsk.length)) o.whatToAsk = genWhatToAsk(o);
+  if(!(o.pitchFlow && o.pitchFlow.length)) o.pitchFlow = genPitchFlow(o);
+  if(!(o.answerKey && o.answerKey.length)) o.answerKey = genAnswerKey(o);
+  o._generated = true; // mark so editing can override
+  return o;
+}
+
 function mapImport(s){
   // accepts both the dashboard model and our intel model
   const accounts = (s.accounts||[]).map(a=>({
@@ -723,7 +767,7 @@ function mapImport(s){
   const moveable = s.totalAssetsMoveable || s.moveable ||
     (moveableSum>0 ? fmtVal(moveableSum) : (s.totalAssets||''));
   const stage = s.stage || inferStage(s);
-  return {
+  const out = {
     stage,
     priority: s.priority || priorityFromStage(stage),
     callType: s.callType || s.calltype || 'Follow-Up',
@@ -750,6 +794,7 @@ function mapImport(s){
     answerKey: s.answerKey || [],
     callHistory: s.callHistory || (s.lastCall?[{date:'',callType:s.callType||'',summary:s.lastCall,leftOff:s.closeAction||''}]:[])
   };
+  return enrichIntel(out, s.name);
 }
 
 /* ============================================================
@@ -1256,6 +1301,7 @@ function parseProfile(md, name){
   const cm = get(/^[-*]\s*Confidence:\s*(.+)$/i).match(/\d+/);
   const confidence = cm ? parseInt(cm[0],10) : 50;
   const solution = get(/^[-*]\s*Solution offered:\s*(.+)$/i);
+  const why = get(/^[-*]\s*Why consolidate:\s*(.+)$/i);
   const objection = get(/^[-*]\s*Objection:\s*(.+)$/i);
   const response = get(/^[-*]\s*Response:\s*(.+)$/i);
 
@@ -1300,9 +1346,10 @@ function parseProfile(md, name){
   };
   const stageClean = normStage(stage) || normStage(lastCall) || 'Discovery';
 
+  const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    closeAction, flags, lastCall };
+    whyConsolidate, closeAction, flags, lastCall };
 }
 
 async function gapiJSON(url){
