@@ -170,6 +170,12 @@
   .secnav button:hover{border-color:var(--gold);filter:none}
   .secnav button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .secnav .jumpc{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-right:2px}
+  .fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;
+    background:var(--metal-gold);color:var(--accent-ink);font-weight:800;border-radius:24px;
+    padding:12px 18px;font-size:13px;
+    box-shadow:0 6px 20px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.2) inset}
+  .fab:active{transform:translateY(1px)}
+  .fab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .apanel{background:var(--panel);border:1px solid var(--line);border-radius:11px;
     margin-bottom:8px;overflow:hidden}
   .ahead{display:flex;align-items:center;gap:10px;padding:13px 15px;cursor:pointer;user-select:none}
@@ -1240,6 +1246,7 @@ function renderDetail(c){
 
     ${planning?`<div class="groupttl" id="p-planning">📊 Planning Data</div>${planning}`:''}
     ${helper?`<div class="groupttl" id="p-helper">🎯 On-Call Helper</div>${helper}`:''}
+    <button class="fab" id="backFab" aria-label="Back to Command Center">⚔️ Command Center</button>
   </div>`;
 
   document.querySelectorAll('.ahead').forEach(h=>
@@ -1249,6 +1256,7 @@ function renderDetail(c){
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
   $('#editBtn').onclick = ()=>renderEditor(c);
+  $('#backFab').onclick = ()=>renderDashboard();
   if($('#reengBtn')) $('#reengBtn').onclick = ()=>openReengage(c.code);
   const setStatus = async (status, amount)=>{
     const intel = {...c.intel, status};
