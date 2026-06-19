@@ -261,16 +261,15 @@
       <div class="actions">
         <button class="sm" id="addBtn">+ Client</button>
         <button class="sm ghost" id="importBtn">Import</button>
+        <button class="sm ghost" id="driveBtn">☁️ Drive</button>
+        <button class="sm ghost" id="themeBtn" title="Light / dark">🌙 Theme</button>
       </div>
     </div>
     <div class="navrow"><button class="navbtn" id="dashBtn">⚔️ Command Center</button></div>
     <div class="clist" id="clist"></div>
     <div class="foot">
       <span id="cstat">0 clients</span>
-      <div style="display:flex;gap:6px">
-        <button class="themebtn" id="themeBtn" title="Toggle light / dark">◐</button>
-        <button class="sm ghost" id="lockBtn">Lock</button>
-      </div>
+      <button class="sm ghost" id="lockBtn">Lock</button>
     </div>
   </aside>
   <main class="main" id="main">
@@ -800,10 +799,11 @@ function renderDashboard(){
   // Pending decisions = clients at Proposal/Decision stage
   const pend = active.filter(c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase()))
     .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
-  const pendRows = pend.length ? pend.map(c=>`<div class="winrow">
+  const pendRows = pend.length ? pend.slice(0,10).map(c=>`<div class="winrow">
     <div style="flex:1"><b>${esc(c.name)}</b><div class="fc">${esc(c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending')}</div></div>
     <span class="riskbadge risk-${c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM'}">${esc(c.intel.priority||'')}</span>
     <div style="flex:1;font-size:12px;color:var(--muted)">${esc(c.intel.closeAction||'')}</div></div>`).join('')
+      + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more at proposal/decision</div>`:'')
     : '<div class="bodynote" style="padding-top:0">No proposals or decisions outstanding.</div>';
 
   // Follow-up flags = every active client's flags
@@ -1187,11 +1187,17 @@ $('#resetVault').onclick = async ()=>{
 $('#pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
 if($('#pass2')) $('#pass2').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
 $('#lockBtn').onclick = lock;
+function applyThemeBtn(){
+  const dark = document.documentElement.dataset.theme !== 'light';
+  $('#themeBtn').textContent = dark ? '🌙 Theme' : '☀️ Theme';
+}
 $('#themeBtn').onclick = ()=>{
   const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
   document.documentElement.dataset.theme = next;
   try{ localStorage.setItem('warroom_theme', next); }catch(e){}
+  applyThemeBtn();
 };
+applyThemeBtn();
 $('#dashBtn').onclick = ()=> renderDashboard();
 $('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
 $('#importBtn').onclick = ()=> $('#importDlg').showModal();
