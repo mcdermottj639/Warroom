@@ -760,7 +760,7 @@ function renderDashboard(){
   const pend = active.filter(c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase()))
     .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
   const pendRows = pend.length ? pend.map(c=>`<div class="winrow">
-    <div style="flex:1"><b>${esc(c.name)}</b><div class="fc">${esc((c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending')}</div></div>
+    <div style="flex:1"><b>${esc(c.name)}</b><div class="fc">${esc(c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending')}</div></div>
     <span class="riskbadge risk-${c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM'}">${esc(c.intel.priority||'')}</span>
     <div style="flex:1;font-size:12px;color:var(--muted)">${esc(c.intel.closeAction||'')}</div></div>`).join('')
     : '<div class="bodynote" style="padding-top:0">No proposals or decisions outstanding.</div>';
@@ -872,6 +872,19 @@ function renderDetail(c){
     <div class="abody ${cls}">${body}</div></div>`;
   const cnt = (a,word)=> has(a) ? a.length+' '+word+(a.length>1?'s':'') : '—';
 
+  // Pending decision — only when it's specific to this client (explicit, or at a decision point)
+  const stLow = (i.stage||'').toLowerCase();
+  const hasPending = !!i.pendingDecision || ['proposal','decision'].includes(stLow);
+  const pendIssue = i.pendingDecision || (i.complications||i.specialFlags||[])[0]
+    || (i.objections && i.objections[0] && i.objections[0].objection) || 'Decision pending';
+  const pendRisk = i.priority==='CRITICAL'?'CRITICAL':i.priority==='HOT'?'HIGH':'MEDIUM';
+  const pendBody = `<div style="padding-top:13px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+      <span class="riskbadge risk-${pendRisk}">${pendRisk}</span>
+      <span style="font-weight:700">${esc(pendIssue)}</span></div>
+    <div class="bodynote" style="padding-top:0">Action: ${esc(i.closeAction||'—')}</div></div>`;
+  const hasFlags = has(i.specialFlags||i.complications);
+
   $('#main').innerHTML = `<div class="pad">
     <div class="head">
       <div><h2>${esc(c.name)}
@@ -896,7 +909,8 @@ function renderDetail(c){
     ${panel('Income &amp; Asset Streams', cnt(i.incomeStreams,'stream'), incBody)}
     ${panel('Transferable &amp; Fee', esc(i.moveable||''), feeBody)}
     ${panel('Goals', cnt(i.goals,'goal'), pillBody(i.goals))}
-    ${panel('Flags to verify', cnt(i.specialFlags||i.complications,'flag'), pillBody(i.specialFlags||i.complications))}
+    ${hasFlags ? panel('📞 Follow-up flags', cnt(i.specialFlags||i.complications,'flag'), pillBody(i.specialFlags||i.complications)) : ''}
+    ${hasPending ? panel('⏳ Pending decision', pendRisk, pendBody, '', stLow==='decision') : ''}
 
     <div class="groupttl">🎯 On-Call Helper</div>
     ${panel('Intro script', i.introScript?'open the call':'—', esc(i.introScript||'— add an intro —'), 'scriptbox')}
@@ -986,6 +1000,7 @@ function renderEditor(c){
     <div class="field"><label>Answer key (one per line)</label><textarea id="f-ans">${esc(lines(i.answerKey))}</textarea></div>
     <div class="field"><label>Solution offered (TL;DR)</label><textarea id="f-sol">${esc(i.solutionOffered||'')}</textarea></div>
     <div class="field"><label>Close action / next step</label><textarea id="f-close">${esc(i.closeAction||'')}</textarea></div>
+    <div class="field"><label>Pending decision (the open question blocking the close — leave blank to auto-derive)</label><textarea id="f-pending">${esc(i.pendingDecision||'')}</textarea></div>
 
     <div class="editfoot">
       <button id="saveBtn">Save</button>
@@ -1056,6 +1071,7 @@ function renderEditor(c){
       introScript:v('f-intro'), whatToAsk:list('f-ask'),
       pitchFlow:list('f-flow').map(l=>{const[t,...d]=l.split('::');return{title:(t||'').trim(),desc:d.join('::').trim()}}),
       answerKey:list('f-ans'), solutionOffered:v('f-sol'), closeAction:v('f-close'),
+      pendingDecision:v('f-pending'),
       household:i.household||{}, fee:i.fee||{}, kpis:i.kpis||[], callHistory:i.callHistory||[]
     };
     const code = c ? c.code : newCode();
