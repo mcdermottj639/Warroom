@@ -236,6 +236,23 @@
     .card{overflow-x:auto}
     dialog{width:94vw}
   }
+
+  /* iOS safe areas (notch / status bar / home indicator) for installed PWA */
+  @supports (padding: env(safe-area-inset-top)){
+    body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);
+      background:var(--panel);z-index:60}
+    .side .top{padding-top:calc(16px + env(safe-area-inset-top))}
+    .secnav{top:env(safe-area-inset-top)}
+    .main{padding-bottom:env(safe-area-inset-bottom)}
+    .clist{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+    .lockcard{margin-top:env(safe-area-inset-top)}
+    .pad{padding-left:max(30px,env(safe-area-inset-left));padding-right:max(30px,env(safe-area-inset-right))}
+  }
+  @media (max-width:820px){
+    @supports (padding: env(safe-area-inset-top)){
+      .pad{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+    }
+  }
 </style>
 </head>
 <body>
