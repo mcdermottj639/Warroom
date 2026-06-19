@@ -1699,19 +1699,21 @@ $('#driveConnectGo').onclick = ()=>{
 
 /* ---- re-engagement dialog ---- */
 let reengCode=null;
+// Estimate markers => not transcript-verified => default the savings line OFF.
+const looksEstimated = s => /[~]|\best\b|\bestimat|approx|around|roughly|up to|\bballpark\b/i.test(s||'');
 function openReengage(code){
   const c=S.clients.find(x=>x.code===code); if(!c) return;
   reengCode=code;
-  const {subject,body}=genReengage(c);
+  const sv = c.intel.fee && c.intel.fee.savings;
+  const inclDefault = !!sv && !looksEstimated(sv);   // clean/exact figure (transcript) -> on; estimate -> off
+  const {subject,body}=genReengage(c,{includeSavings:inclDefault});
   const t=dealState(c);
   const tail = (t.days!=null) ? (' · '+t.days+(t.overdue?'d overdue':'d quiet')) : '';
   $('#reengName').textContent=c.name;
   $('#reengMeta').textContent = t.state ? (t.state.toUpperCase()+tail) : '';
   $('#reengSubject').value=subject; $('#reengBody').value=body;
-  // savings toggle — only offered when the profile has a savings figure
-  const sv = c.intel.fee && c.intel.fee.savings;
-  $('#reengInclSave').checked=false;
-  if(sv){ $('#reengSaveAmt').textContent=strip(c.intel.fee.savings); $('#reengSaveRow').classList.remove('hidden'); }
+  $('#reengInclSave').checked=inclDefault;
+  if(sv){ $('#reengSaveAmt').textContent=strip(sv); $('#reengSaveRow').classList.remove('hidden'); }
   else { $('#reengSaveRow').classList.add('hidden'); }
   $('#reengDlg').showModal();
 }
