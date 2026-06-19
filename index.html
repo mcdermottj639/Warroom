@@ -1233,10 +1233,7 @@ async function doUnlock(){
   $('#lock').classList.add('hidden'); $('#app').classList.remove('hidden');
   await loadClients(); await loadAux();
   if(S.clients.length){ renderDashboard(); } else renderList();
-  // Auto-pull from Drive on open if connected (silent if Google can; otherwise a quick account tap)
-  if(driveClientId() && window.google && google.accounts && google.accounts.oauth2){
-    setTimeout(()=>{ try{ startDriveAuth(true); }catch(e){} }, 600);
-  }
+  // No auto-sync on open — tap ☁️ Drive to refresh (keeps Google sign-in from interrupting you).
 }
 
 function lock(){
@@ -1419,9 +1416,10 @@ async function syncFromDrive(){
   }finally{ setDriveBtn('☁️ Drive'); }
 }
 
-// Always open the setup dialog (Client ID prefilled + editable), so it can be fixed/re-pasted.
+// Tap ☁️ Drive to refresh when already connected; otherwise open the setup dialog.
 function connectDrive(){
-  $('#driveClientId').value = driveClientId();
+  if(driveClientId()){ startDriveAuth(false); return; }
+  $('#driveClientId').value = '';
   $('#driveErr').textContent = '';
   $('#driveDlg').showModal();
 }
