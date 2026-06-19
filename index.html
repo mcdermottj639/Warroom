@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@600;700&display=swap" rel="stylesheet">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('warroom_theme')||'dark';}catch(e){document.documentElement.dataset.theme='dark';}</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --bg:#0b0c10; --panel:#14161c; --panel2:#1b1e26; --line:#2b2f3a;
@@ -294,6 +295,36 @@
     <button id="importGo">Import</button>
   </div>
   <div class="err" id="importErr" style="color:var(--danger);font-size:12px;margin-top:8px"></div>
+</dialog>
+
+<!-- DRIVE DIALOG -->
+<dialog id="driveDlg">
+  <h3 style="margin-bottom:8px">☁️ Connect Google Drive</h3>
+  <p class="note" style="margin-bottom:10px">Reads your <code>1Remarkable</code> folder and
+    pulls every <code>— Profile.md</code> in, then re-reads on demand to stay current. Read-only.
+    The connection runs in <b>your</b> browser; nothing is stored on a server.</p>
+  <div class="field"><label>Google OAuth Client ID</label>
+    <input id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com"></div>
+  <p class="note" style="margin-bottom:10px">First time? You need a free Google Cloud OAuth Client ID
+    (one-time, ~10 min). Tap <b>Setup steps</b> below for the walkthrough.</p>
+  <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:6px">
+    <button class="ghost sm" id="driveHelp">Setup steps</button>
+    <div style="display:flex;gap:10px">
+      <button class="ghost" onclick="driveDlg.close()">Cancel</button>
+      <button id="driveConnectGo">Save &amp; Connect</button>
+    </div>
+  </div>
+  <div id="driveHelpBox" class="hidden" style="margin-top:12px;font-size:12px;line-height:1.6;color:var(--muted);border-top:1px solid var(--line);padding-top:12px">
+    <b>One-time Google setup:</b><br>
+    1. Go to <code>console.cloud.google.com</code> → create a project (any name).<br>
+    2. <b>APIs &amp; Services → Library</b> → search <b>Google Drive API</b> → <b>Enable</b>.<br>
+    3. <b>APIs &amp; Services → OAuth consent screen</b> → <b>External</b> → fill app name + your email → add yourself under <b>Test users</b>.<br>
+    4. <b>Credentials → Create Credentials → OAuth client ID</b> → type <b>Web application</b>.<br>
+    5. Under <b>Authorized JavaScript origins</b> add: <code>https://mcdermottj639.github.io</code><br>
+    6. Create → copy the <b>Client ID</b> → paste it above → Save &amp; Connect.<br>
+    <span style="color:var(--warm)">Google will warn "unverified app" — that's expected for a personal tool; choose your account and Continue.</span>
+  </div>
+  <div class="err" id="driveErr" style="color:var(--danger);font-size:12px;margin-top:8px"></div>
 </dialog>
 
 <script>
@@ -1216,6 +1247,151 @@ $('#importFile').onchange = e=>{
   r.readAsText(f);
 };
 $('#importGo').onclick = ()=> runImport($('#importTxt').value);
+
+/* ============================================================
+   GOOGLE DRIVE — live connect (read-only) for the 1Remarkable folder
+   ============================================================ */
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+const DRIVE_FOLDER_NAME = '1Remarkable';
+let driveToken = null;
+
+const driveClientId = ()=> { try{ return localStorage.getItem('warroom_gdrive_client')||''; }catch(e){ return ''; } };
+
+// Profile.md -> import-shaped source (then mapImport turns it into intel)
+function parseProfile(md, name){
+  const t = md.replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');
+  const lines = t.split(/\r?\n/);
+  const get = re => { for(const l of lines){ const m=l.match(re); if(m) return (m[1]||'').trim(); } return ''; };
+  const section = headerRe => { let out=[],on=false; for(const l of lines){ if(/^#{2}\s/.test(l)){ on=headerRe.test(l); continue; } if(on) out.push(l); } return out.join('\n').trim(); };
+
+  const stage = get(/^[-*]\s*Stage:\s*(.+)$/i);
+  const moveable = get(/Outside\s*\/?\s*moveable assets:\s*(.+)$/i).replace(/\s*\(.*\)\s*$/,'').trim();
+  const product = get(/^[-*]\s*Product:\s*(.+)$/i);
+  const feeLine = get(/^[-*]\s*Fee:\s*(.+)$/i);
+  const cm = get(/^[-*]\s*Confidence:\s*(.+)$/i).match(/\d+/);
+  const confidence = cm ? parseInt(cm[0],10) : 50;
+  const solution = get(/^[-*]\s*Solution offered:\s*(.+)$/i);
+  const objection = get(/^[-*]\s*Objection:\s*(.+)$/i);
+  const response = get(/^[-*]\s*Response:\s*(.+)$/i);
+
+  // accounts: indented bullets under "- Accounts:"
+  const accounts=[]; let inAcc=false;
+  for(const l of lines){
+    if(/^[-*]\s*Accounts:/i.test(l)){ inAcc=true; continue; }
+    if(inAcc){
+      if(/^\s+[-*]\s+/.test(l)){
+        const item = l.replace(/^\s+[-*]\s+/,'').trim();
+        const parts = item.split(/\s+[—–-]\s+/);
+        accounts.push({ custodian:(parts[0]||item).trim(), value:(parts[1]||'').trim(), tag:parts.slice(2).join(' — ').trim() });
+      } else if(l.trim()!=='') { inAcc=false; }
+    }
+  }
+
+  // close action block + flags ("Watch: ...")
+  const closeBlock = section(/Close Action/i);
+  const closeAction = closeBlock.split(/\n\s*\n/)[0].replace(/\s*Watch:.*$/is,'').trim();
+  const watch = (closeBlock.match(/Watch:\s*(.+)/is)||[])[1]||'';
+  const flags = watch.split(/;|\.\s/).map(s=>s.trim()).filter(s=>s.length>3).slice(0,4);
+
+  // most recent call summary + a personal snippet => lastCall
+  const callLog = section(/Call Log/i);
+  const summaries = [...callLog.matchAll(/^[-*]\s*Summary:\s*(.+)$/gim)].map(m=>m[1].trim());
+  const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
+  const lastCall = [summaries[summaries.length-1], personal].filter(Boolean).join(' ').slice(0,600);
+
+  // fee from/to
+  let feeFrom='', feeTo='';
+  const fm = feeLine.match(/from\s+(.+?)\s*(?:→|->|to)\s+(.+)$/i);
+  if(fm){ feeFrom=fm[1].trim(); feeTo=fm[2].replace(/^to\s+/i,'').trim(); } else if(feeLine){ feeTo=feeLine.replace(/^(→|->|to)\s*/i,'').trim(); }
+
+  // normalize the free-text Stage into a clean enum (the ranking needs this)
+  const normStage = txt => {
+    const x = (txt||'').toLowerCase();
+    if(/decision/.test(x)) return 'Decision';
+    if(/proposal/.test(x)) return 'Proposal';
+    if(/discovery|wss|\big\b|investment guide|review/.test(x)) return 'Discovery';
+    if(/inbound|intro|\blead\b/.test(x)) return 'Inbound';
+    return '';
+  };
+  const stageClean = normStage(stage) || normStage(lastCall) || 'Discovery';
+
+  return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
+    feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
+    closeAction, flags, lastCall };
+}
+
+async function gapiJSON(url){
+  const r = await fetch(url, {headers:{Authorization:'Bearer '+driveToken}});
+  if(!r.ok) throw new Error('Drive API '+r.status+(r.status===403?' (check the Drive API is enabled + you accepted the scope)':''));
+  return r.json();
+}
+async function gapiText(url){
+  const r = await fetch(url, {headers:{Authorization:'Bearer '+driveToken}});
+  if(!r.ok) throw new Error('Drive read '+r.status);
+  return r.text();
+}
+
+function setDriveBtn(t){ $('#driveBtn').textContent = t; }
+
+async function syncFromDrive(){
+  setDriveBtn('☁️ Syncing…');
+  try{
+    const fq = encodeURIComponent(`name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const folder = await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id,name)&pageSize=10`);
+    const folderId = folder.files && folder.files[0] && folder.files[0].id;
+    if(!folderId) throw new Error(`Couldn't find a '${DRIVE_FOLDER_NAME}' folder in your Drive.`);
+
+    const pq = encodeURIComponent(`'${folderId}' in parents and name contains 'Profile' and trashed=false`);
+    let files=[], pageToken='';
+    do{
+      const res = await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${pq}&fields=nextPageToken,files(id,name,modifiedTime)&pageSize=100${pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:''}`);
+      files = files.concat(res.files||[]); pageToken = res.nextPageToken||'';
+    } while(pageToken);
+
+    // dedupe by client name, keep newest
+    const byName={};
+    for(const f of files){
+      const nm = f.name.replace(/\s*[—-]\s*Profile.*$/i,'').replace(/\.md$/i,'').trim();
+      if(!byName[nm] || f.modifiedTime > byName[nm].modifiedTime) byName[nm] = {...f, client:nm};
+    }
+    const codeByName={}; S.clients.forEach(c=> codeByName[c.name]=c.code);
+    let n=0;
+    for(const nm in byName){
+      const md = await gapiText(`https://www.googleapis.com/drive/v3/files/${byName[nm].id}?alt=media`);
+      const intel = mapImport(parseProfile(md, nm));
+      await saveClient(codeByName[nm] || newCode(), nm, intel);
+      n++;
+    }
+    driveToken = null;
+    await loadClients(); renderDashboard();
+    alert('Synced '+n+' client(s) from your 1Remarkable folder.');
+  }catch(e){
+    alert('Drive sync failed: '+e.message);
+  }finally{ setDriveBtn('☁️ Drive'); }
+}
+
+function connectDrive(){
+  const cid = driveClientId();
+  if(!cid){ $('#driveClientId').value=''; $('#driveErr').textContent=''; $('#driveDlg').showModal(); return; }
+  if(!(window.google && google.accounts && google.accounts.oauth2)){
+    alert('Google sign-in library not loaded yet — check your connection and try again in a moment.'); return;
+  }
+  const tc = google.accounts.oauth2.initTokenClient({
+    client_id: cid, scope: DRIVE_SCOPE,
+    callback: async (resp)=>{ if(resp.error){ alert('Google sign-in failed: '+resp.error); return; }
+      driveToken = resp.access_token; await syncFromDrive(); }
+  });
+  tc.requestAccessToken({prompt:''});
+}
+
+$('#driveBtn').onclick = connectDrive;
+$('#driveHelp').onclick = ()=> $('#driveHelpBox').classList.toggle('hidden');
+$('#driveConnectGo').onclick = ()=>{
+  const cid = $('#driveClientId').value.trim();
+  if(!/\.apps\.googleusercontent\.com$/.test(cid)){ $('#driveErr').textContent='That doesn’t look like a Client ID (should end in .apps.googleusercontent.com).'; return; }
+  try{ localStorage.setItem('warroom_gdrive_client', cid); }catch(e){}
+  $('#driveDlg').close(); connectDrive();
+};
 
 initFlow();
 </script>
