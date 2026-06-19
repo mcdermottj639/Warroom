@@ -368,6 +368,7 @@
     <div style="display:flex;gap:10px">
       <button class="ghost" onclick="reengDlg.close()">Close</button>
       <button class="ghost" id="reengCopy">Copy</button>
+      <button class="ghost" id="reengDrive">📄 Save to Drive</button>
       <button id="reengMail">Open in mail</button>
     </div>
   </div>
@@ -1497,11 +1498,37 @@ $('#importGo').onclick = ()=> runImport($('#importTxt').value);
 /* ============================================================
    GOOGLE DRIVE — live connect (read-only) for the 1Remarkable folder
    ============================================================ */
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file';
 const DRIVE_FOLDER_NAME = '1Remarkable';
 let driveToken = null;
 
 const driveClientId = ()=> { try{ return localStorage.getItem('warroom_gdrive_client')||''; }catch(e){ return ''; } };
+
+// run a callback with a valid Drive token (request one silently if needed)
+function withDriveToken(cb){
+  if(driveToken){ cb(); return; }
+  const cid=driveClientId();
+  if(!cid || !(window.google&&google.accounts&&google.accounts.oauth2)){ connectDrive(); return; }
+  const tc=google.accounts.oauth2.initTokenClient({ client_id:cid, scope:DRIVE_SCOPE,
+    callback:r=>{ if(r.error){ alert('Google sign-in failed: '+(r.error_description||r.error)); return; } driveToken=r.access_token; cb(); },
+    error_callback:e=>alert('Google sign-in error: '+(e&&(e.message||e.type)||'unknown')) });
+  tc.requestAccessToken({prompt:''});
+}
+// create a Google Doc with the email text in the 1Remarkable folder
+async function driveSaveEmail(name, subject, body){
+  const fq=encodeURIComponent(`name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const fr=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id)&pageSize=1`);
+  const folderId=fr.files&&fr.files[0]&&fr.files[0].id;
+  const meta={ name:`✉ ${name} — re-engage ${new Date().toISOString().slice(0,10)}`, mimeType:'application/vnd.google-apps.document' };
+  if(folderId) meta.parents=[folderId];
+  const boundary='wr'+Date.now();
+  const content=`Subject: ${subject}\n\n${body}`;
+  const multipart=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${content}\r\n--${boundary}--`;
+  const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',{
+    method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+boundary}, body:multipart });
+  if(!res.ok) throw new Error('Drive save '+res.status);
+  return res.json();
+}
 
 // Profile.md -> import-shaped source (then mapImport turns it into intel)
 function parseProfile(md, name){
@@ -1682,6 +1709,16 @@ $('#reengCopy').onclick = async ()=>{
   catch(e){ $('#reengBody').select(); alert('Press Cmd/Ctrl-C to copy.'); }
 };
 $('#reengMail').onclick = ()=>{ window.location.href=`mailto:?subject=${encodeURIComponent($('#reengSubject').value)}&body=${encodeURIComponent($('#reengBody').value)}`; };
+$('#reengDrive').onclick = ()=>{
+  const subject=$('#reengSubject').value, body=$('#reengBody').value, name=$('#reengName').textContent;
+  const btn=$('#reengDrive'); btn.textContent='Saving…';
+  withDriveToken(async ()=>{
+    try{ const f=await driveSaveEmail(name,subject,body); btn.textContent='Saved ✓';
+      if(f.webViewLink && confirm('Saved to your 1Remarkable folder. Open it now?')) window.open(f.webViewLink,'_blank');
+    }catch(e){ alert('Could not save to Drive: '+e.message); btn.textContent='📄 Save to Drive'; }
+    setTimeout(()=>btn.textContent='📄 Save to Drive', 1500);
+  });
+};
 $('#reengTouched').onclick = async ()=>{ if(reengCode){ S.touchLog[reengCode]=new Date().toISOString().slice(0,10); await saveTouchLog(); } $('#reengDlg').close(); renderDashboard(); };
 
 initFlow();
