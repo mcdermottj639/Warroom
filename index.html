@@ -1370,27 +1370,35 @@ async function syncFromDrive(){
   }finally{ setDriveBtn('☁️ Drive'); }
 }
 
+// Always open the setup dialog (Client ID prefilled + editable), so it can be fixed/re-pasted.
 function connectDrive(){
+  $('#driveClientId').value = driveClientId();
+  $('#driveErr').textContent = '';
+  $('#driveDlg').showModal();
+}
+function startDriveAuth(){
   const cid = driveClientId();
-  if(!cid){ $('#driveClientId').value=''; $('#driveErr').textContent=''; $('#driveDlg').showModal(); return; }
   if(!(window.google && google.accounts && google.accounts.oauth2)){
     alert('Google sign-in library not loaded yet — check your connection and try again in a moment.'); return;
   }
   const tc = google.accounts.oauth2.initTokenClient({
     client_id: cid, scope: DRIVE_SCOPE,
-    callback: async (resp)=>{ if(resp.error){ alert('Google sign-in failed: '+resp.error); return; }
-      driveToken = resp.access_token; await syncFromDrive(); }
+    callback: async (resp)=>{ if(resp.error){ alert('Google sign-in failed: '+(resp.error_description||resp.error)); return; }
+      driveToken = resp.access_token; await syncFromDrive(); },
+    error_callback: (err)=>{ alert('Google sign-in error: '+(err && (err.message||err.type) || 'unknown')); }
   });
-  tc.requestAccessToken({prompt:''});
+  tc.requestAccessToken({prompt:'consent'});
 }
 
 $('#driveBtn').onclick = connectDrive;
 $('#driveHelp').onclick = ()=> $('#driveHelpBox').classList.toggle('hidden');
 $('#driveConnectGo').onclick = ()=>{
-  const cid = $('#driveClientId').value.trim();
-  if(!/\.apps\.googleusercontent\.com$/.test(cid)){ $('#driveErr').textContent='That doesn’t look like a Client ID (should end in .apps.googleusercontent.com).'; return; }
+  const cid = $('#driveClientId').value.trim().replace(/\s+/g,'');
+  if(!/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(cid)){
+    $('#driveErr').textContent='That doesn’t look like a full Client ID (it should look like 1234567890-abc123.apps.googleusercontent.com).'; return;
+  }
   try{ localStorage.setItem('warroom_gdrive_client', cid); }catch(e){}
-  $('#driveDlg').close(); connectDrive();
+  $('#driveDlg').close(); startDriveAuth();
 };
 
 initFlow();
