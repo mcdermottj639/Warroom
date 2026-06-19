@@ -851,7 +851,8 @@ function genReengage(c, opts){
   const i=c.intel, fn=firstName(c.name);
   const days=coolDays(c), tier=dealState(c).state||'';
   const obj=((i.objections&&i.objections[0]&&i.objections[0].objection)||'').toLowerCase();
-  const prod = cleanProduct(i.product);
+  let prod = cleanProduct(i.product);
+  if(/^(tbd|unknown|n\/a|none|—|-|to be determined)$/i.test(prod)) prod='';   // don't assert a placeholder product
   // Reasons from documented notes — drop $/savings (unverified) and stage/timing notes; keep human ones.
   let reasons=(i.goals||[])
         .filter(g=> !/\$|\bsav(?:e|es|ed|ing|ings)\b|lower (?:the )?fee|decision\b|imminent|pending|\bstage\b|watch:/i.test(g))
@@ -860,6 +861,7 @@ function genReengage(c, opts){
   let recap;
   if(prod && reasons.length) recap=`As a quick recap, my recommendation was ${prod} — the goal being to get everything into one coordinated plan, especially given ${reasons.join(' and ')}.`;
   else if(prod) recap=`As a quick recap, my recommendation was ${prod} — really just getting your accounts into one coordinated plan.`;
+  else if(reasons.length) recap=`As a quick recap, the goal we talked about was getting everything into one coordinated plan, especially given ${reasons.join(' and ')}.`;
   else recap=`As a quick recap, the goal we talked about was getting your accounts into one coordinated plan.`;
   // call line, spouse-aware when relevant
   const callLine = /spouse|wife|husband|partner|marea|both|involve|loop/.test(obj)
