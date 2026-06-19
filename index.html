@@ -1178,6 +1178,10 @@ async function doUnlock(){
   $('#lock').classList.add('hidden'); $('#app').classList.remove('hidden');
   await loadClients(); await loadAux();
   if(S.clients.length){ renderDashboard(); } else renderList();
+  // Auto-pull from Drive on open if connected (silent if Google can; otherwise a quick account tap)
+  if(driveClientId() && window.google && google.accounts && google.accounts.oauth2){
+    setTimeout(()=>{ try{ startDriveAuth(true); }catch(e){} }, 600);
+  }
 }
 
 function lock(){
@@ -1359,18 +1363,18 @@ function connectDrive(){
   $('#driveErr').textContent = '';
   $('#driveDlg').showModal();
 }
-function startDriveAuth(){
+function startDriveAuth(auto){
   const cid = driveClientId();
   if(!(window.google && google.accounts && google.accounts.oauth2)){
-    alert('Google sign-in library not loaded yet — check your connection and try again in a moment.'); return;
+    if(!auto) alert('Google sign-in library not loaded yet — check your connection and try again in a moment.'); return;
   }
   const tc = google.accounts.oauth2.initTokenClient({
     client_id: cid, scope: DRIVE_SCOPE,
-    callback: async (resp)=>{ if(resp.error){ alert('Google sign-in failed: '+(resp.error_description||resp.error)); return; }
+    callback: async (resp)=>{ if(resp.error){ if(!auto) alert('Google sign-in failed: '+(resp.error_description||resp.error)); return; }
       driveToken = resp.access_token; await syncFromDrive(); },
-    error_callback: (err)=>{ alert('Google sign-in error: '+(err && (err.message||err.type) || 'unknown')); }
+    error_callback: (err)=>{ if(!auto) alert('Google sign-in error: '+(err && (err.message||err.type) || 'unknown')); }
   });
-  tc.requestAccessToken({prompt:'consent'});
+  tc.requestAccessToken({prompt:''});   // silent if Google can; first time shows account/consent
 }
 
 $('#driveBtn').onclick = connectDrive;
