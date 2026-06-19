@@ -1113,6 +1113,7 @@ function renderDashboard(){
     <div class="card">${pendRows}</div>
 
     ${wins.length?`<div class="groupttl" id="sec-wins">🏆 Wins · ${fmtVal(winTotal)}</div><div class="card">${winRows}</div>`:''}
+    <button class="fab" id="topFab" aria-label="Back to top of Command Center">↑ Top</button>
   </div>`;
 
   document.querySelectorAll('.dtbl tr.click').forEach(tr=> tr.onclick = ()=>{
@@ -1126,6 +1127,7 @@ function renderDashboard(){
     const el = document.getElementById(b.dataset.target);
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
+  $('#topFab').onclick = ()=> scrollMainTop();
 }
 
 function renderList(){
@@ -1277,6 +1279,12 @@ function renderDetail(c){
     await deleteClient(c.code); S.active=null; await loadClients(); renderList();
     $('#main').innerHTML='<div class="empty"><div>Client deleted.</div></div>';
   };
+  scrollMainTop();   // land on the intel like you've navigated into the page
+}
+// bring the main panel's top to the top of the screen (scrolls past the list on mobile)
+function scrollMainTop(){
+  $('#main').scrollTop = 0;
+  requestAnimationFrame(()=>{ try{ $('#main').scrollIntoView({block:'start'}); }catch(e){} });
 }
 
 /* ---- Editor (focused structured form) ---- */
