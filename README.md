@@ -40,7 +40,7 @@ Profile  ->  Encrypted intel record  ->  generates  ->  [Data sheet] + [On-Call 
 
 It's a single self-contained file — no build, no server:
 
-1. Open `warroom-app.html` in Chrome.
+1. Open `index.html` in Chrome.
 2. First run: create a passphrase (this builds the vault and seeds the **Josh**
    example).
 3. Pick a client → **Generate Prep** → print to PDF.

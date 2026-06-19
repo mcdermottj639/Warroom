@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>War Room — Client Intel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>War Room</title>
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="War Room">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root{
     --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
@@ -170,6 +176,23 @@
   .risk-CRITICAL,.risk-HIGH{background:var(--crit);color:#fff}
   .risk-MEDIUM{background:var(--warm);color:#241a00}
   .risk-LOW{background:var(--pipe);color:#fff}
+
+  /* phone / tablet */
+  @media (max-width:820px){
+    body{height:auto;overflow:auto}
+    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;min-height:100dvh}
+    .side{border-right:none;border-bottom:1px solid var(--line)}
+    .clist{max-height:40vh}
+    .pad{padding:16px 14px}
+    .grid{grid-template-columns:1fr}
+    .head{flex-direction:column;gap:10px}
+    .head .btns{flex-wrap:wrap}
+    .head h2{font-size:21px}
+    .kstrip{grid-template-columns:1fr 1fr}
+    .row.acct,.row.two,.row.obj{grid-template-columns:1fr;gap:6px}
+    .card{overflow-x:auto}
+    dialog{width:94vw}
+  }
 </style>
 </head>
 <body>
@@ -1054,6 +1077,10 @@ async function initFlow(){
 
 async function doUnlock(){
   const err=$('#lockErr'); err.textContent='';
+  if(!window.crypto || !crypto.subtle){
+    err.innerHTML='This device blocked the encryption engine.<br>Open the app in <b>Chrome on a computer</b>, or from an <b>https:// web link</b> — not as a file downloaded on iPhone/iPad.';
+    return;
+  }
   const pass=$('#pass').value;
   if(pass.length<6){ err.textContent='Passphrase must be at least 6 characters.'; return; }
   const meta = await idbGet('meta','vault');
