@@ -827,6 +827,11 @@ function extractNextCall(text){
 const firstName = n => (n||'').trim().split(/\s+/)[0] || 'there';
 const lc1 = s => s ? s.charAt(0).toLowerCase()+s.slice(1) : s;
 const strip = s => (s||'').replace(/\s*\.\s*$/,'').trim();
+// product name without the fee/pricing notation ("Premier IRA @ 0.50% ($2,070/yr)" -> "Premier IRA")
+const cleanProduct = p => (p||'').split(/\s*[@(=]|\s+[—–]\s+/)[0].trim();
+// lowercase the first letter of a reason for mid-sentence flow, but keep brands/acronyms intact
+const PROPER=/^(Vanguard|Fisher|Schwab|Fidelity|Edward|Empower|Premier|Personal|Putnam|Jackson|Lincoln|TIAA|Baird|LPL|Principal|Mission|Morgan|Knights|Equitable|Ascensus|Merrill|Wells|Ally|Roth|Medicare|Google|Viasat|CalPERS|Schneider|Lockheed|Primerica|Robinhood|E-Trade)\b/;
+const deCap = s => (!s||/^[A-Z]{2,}/.test(s)||PROPER.test(s)) ? s : s.charAt(0).toLowerCase()+s.slice(1);
 function genIntro(name, o){
   const fn = firstName(name);
   const hook = o.solutionOffered ? lc1(strip(o.solutionOffered))
@@ -840,17 +845,16 @@ function genReengage(c, opts){
   const i=c.intel, fn=firstName(c.name);
   const days=coolDays(c), tier=dealState(c).state||'';
   const obj=((i.objections&&i.objections[0]&&i.objections[0].objection)||'').toLowerCase();
-  // Advisory recap — "I recommended X because of Y, Z" from documented reasons.
-  // No projected $ savings (estimates can't go in a client email); neutralize any that slip in from notes.
+  const prod = cleanProduct(i.product);
+  // Reasons from documented notes — drop $/savings (unverified) and stage/timing notes; keep human ones.
   let reasons=(i.goals||[])
-        .filter(g=> !/\$|\bsav(?:e|es|ed|ing|ings)\b|lower (?:the )?fee/i.test(g))   // never assert unverified $ / savings
-        .map(g=> strip(g).replace(/\s*=\s*/g,', '))
+        .filter(g=> !/\$|\bsav(?:e|es|ed|ing|ings)\b|lower (?:the )?fee|decision\b|imminent|pending|\bstage\b|watch:/i.test(g))
+        .map(g=> deCap(strip(g).replace(/\s*=\s*/g,', ')))
         .filter(Boolean).slice(0,2);
   let recap;
-  if(i.product && reasons.length) recap=`As a quick recap, I recommended ${i.product} because of ${reasons.join(' and ')} — really it comes down to simplifying and coordinating everything in one place.`;
-  else if(i.product) recap=`As a quick recap, I recommended ${i.product} to bring your accounts into one coordinated plan.`;
-  else if(i.solutionOffered) recap=`As a quick recap, the goal we discussed was ${lc1(strip(i.solutionOffered))}.`;
-  else recap=`As a quick recap, the goal we discussed was consolidating your accounts into one coordinated plan.`;
+  if(prod && reasons.length) recap=`As a quick recap, my recommendation was ${prod} — the goal being to get everything into one coordinated plan, especially given ${reasons.join(' and ')}.`;
+  else if(prod) recap=`As a quick recap, my recommendation was ${prod} — really just getting your accounts into one coordinated plan.`;
+  else recap=`As a quick recap, the goal we talked about was getting your accounts into one coordinated plan.`;
   // call line, spouse-aware when relevant
   const callLine = /spouse|wife|husband|partner|marea|both|involve|loop/.test(obj)
     ? `Want to grab 15 minutes in the next few days — and feel free to have your spouse join?`
@@ -858,7 +862,7 @@ function genReengage(c, opts){
   const subject = (tier==='Stale')
     ? `${fn} — where did you land on the Empower plan?`
     : `${fn} — did you land on a decision?`;
-  const opener = `It’s been about ${days||'a couple'} days since we walked through ${i.product?('the '+i.product):'the plan'}, so I wanted to check in.`;
+  const opener = `It’s been about ${days||'a couple'} days since we talked through your options, so I wanted to check in.`;
   const saveLine = (opts.includeSavings && i.fee && i.fee.savings)
     ? `\n\nOn cost, we’d gone over ${strip(i.fee.savings)} in fee savings — that still holds.` : '';
   const body = `Hi ${fn},\n\n${opener}\n\n${recap}${saveLine}\n\nTwo quick things:\n1) Have you had a chance to land on a decision, or are you still weighing it?\n2) ${callLine}\n\nEither way, happy to answer any last questions.\n\nBest,\nJack`;
