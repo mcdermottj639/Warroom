@@ -243,10 +243,12 @@
 <!-- IMPORT DIALOG -->
 <dialog id="importDlg">
   <h3 style="margin-bottom:8px">Import clients</h3>
-  <p class="note" style="margin-bottom:10px">Paste a <code>warroom-data.json</code>
-    feed (the dashboard format) or an array of intel records. Names are split into
-    the device-only identity store automatically.</p>
-  <textarea id="importTxt" style="min-height:200px" placeholder='{ "clients": [ ... ] }'></textarea>
+  <p class="note" style="margin-bottom:10px">Pick your <code>warroom-import.json</code> file
+    (easiest), or paste the JSON below. Names are split into the device-only identity
+    store automatically.</p>
+  <div class="field"><label>Choose a .json file</label>
+    <input id="importFile" type="file" accept=".json,application/json,text/plain"></div>
+  <textarea id="importTxt" style="min-height:150px" placeholder='…or paste { "clients": [ ... ] } here'></textarea>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
     <button class="ghost" onclick="importDlg.close()">Cancel</button>
     <button id="importGo">Import</button>
@@ -1122,13 +1124,21 @@ $('#lockBtn').onclick = lock;
 $('#dashBtn').onclick = ()=> renderDashboard();
 $('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
 $('#importBtn').onclick = ()=> $('#importDlg').showModal();
-$('#importGo').onclick = async ()=>{
+async function runImport(text){
   $('#importErr').textContent='';
-  try{ const n = await importPayload($('#importTxt').value); $('#importDlg').close();
-    $('#importTxt').value=''; await loadClients(); renderDashboard();
+  try{ const n = await importPayload(text); $('#importDlg').close();
+    $('#importTxt').value=''; $('#importFile').value=''; await loadClients(); renderDashboard();
     alert('Imported '+n+' client(s).');
   }catch(e){ $('#importErr').textContent = e.message; }
+}
+$('#importFile').onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ $('#importTxt').value = r.result; runImport(r.result); };
+  r.onerror = ()=>{ $('#importErr').textContent = 'Could not read that file.'; };
+  r.readAsText(f);
 };
+$('#importGo').onclick = ()=> runImport($('#importTxt').value);
 
 initFlow();
 </script>
