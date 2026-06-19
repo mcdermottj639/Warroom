@@ -233,14 +233,23 @@
     <h1 id="lockTitle">Unlock vault</h1>
     <p id="lockMsg">Enter your passphrase. It derives the encryption keys on this
       device — it is never stored or sent anywhere.</p>
-    <div class="field">
-      <input id="pass" type="password" placeholder="Passphrase" autocomplete="off">
+    <div class="field" style="position:relative">
+      <input id="pass" type="password" placeholder="Passphrase" autocomplete="off"
+        autocapitalize="none" autocorrect="off" spellcheck="false">
     </div>
     <div class="field hidden" id="pass2Field">
-      <input id="pass2" type="password" placeholder="Confirm passphrase" autocomplete="off">
+      <input id="pass2" type="password" placeholder="Confirm passphrase" autocomplete="off"
+        autocapitalize="none" autocorrect="off" spellcheck="false">
     </div>
+    <label style="display:flex;align-items:center;gap:7px;text-transform:none;font-weight:500;
+      color:var(--muted);margin:-4px 0 12px"><input id="showPass" type="checkbox" style="width:auto">
+      Show passphrase</label>
     <button id="unlockBtn" style="width:100%">Unlock</button>
     <div class="err" id="lockErr"></div>
+    <div style="text-align:center;margin-top:14px">
+      <button id="resetVault" class="ghost sm" style="color:var(--danger);border-color:transparent;background:transparent">
+        Forgot passphrase? Reset vault</button>
+    </div>
   </div>
 </div>
 
@@ -1164,6 +1173,17 @@ function lock(){
 
 /* ---- wire up ---- */
 $('#unlockBtn').onclick = doUnlock;
+$('#showPass').onchange = e=>{
+  const t = e.target.checked ? 'text' : 'password';
+  $('#pass').type = t; if($('#pass2')) $('#pass2').type = t;
+};
+$('#resetVault').onclick = async ()=>{
+  if(!confirm('Reset the vault on THIS device? This permanently erases the local encrypted data here (your clients can be re-imported from your file). This cannot be undone.')) return;
+  try{ if(db) db.close(); }catch(e){}
+  indexedDB.deleteDatabase('warroom_db');
+  try{ localStorage.removeItem('warroom_theme'); }catch(e){}
+  setTimeout(()=>location.reload(), 300);
+};
 $('#pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
 if($('#pass2')) $('#pass2').addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
 $('#lockBtn').onclick = lock;
