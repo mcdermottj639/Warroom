@@ -363,7 +363,10 @@
   <p class="note" id="reengMeta" style="margin-bottom:10px"></p>
   <div class="field"><label>Subject</label><input id="reengSubject"></div>
   <div class="field"><label>Body (edit freely before sending)</label><textarea id="reengBody" style="min-height:230px"></textarea></div>
-  <p class="note" style="margin-bottom:10px">Send through your normal Empower email. "Open in mail" prefills a draft (add the recipient there).</p>
+  <label id="reengSaveRow" class="hidden" style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font-weight:500;color:var(--txt);margin-bottom:10px">
+    <input type="checkbox" id="reengInclSave" style="width:auto;margin-top:2px">
+    <span>Include the fee-savings figure (<b id="reengSaveAmt"></b>) — tick only if it was discussed &amp; verified.</span></label>
+  <p class="note" style="margin-bottom:10px">Send through your normal Empower email. Don’t state any number you haven’t verified.</p>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <button class="ghost sm" id="reengTouched" style="margin-right:auto">✓ Re-engaged</button>
     <button class="ghost sm" onclick="reengDlg.close()">Close</button>
@@ -831,7 +834,9 @@ function genIntro(name, o){
   return `Hey ${fn} — good to reconnect. Last time we were looking at ${hook}. I pulled your full picture together so today we can focus on the one or two moves that actually matter. Sound good?`;
 }
 // Re-engagement email — focused on (1) did they decide and (2) want a call soon, with a brief value recap.
-function genReengage(c){
+// opts.includeSavings: advisor opted to include the (verified) fee-savings figure.
+function genReengage(c, opts){
+  opts=opts||{};
   const i=c.intel, fn=firstName(c.name);
   const days=coolDays(c), tier=dealState(c).state||'';
   const obj=((i.objections&&i.objections[0]&&i.objections[0].objection)||'').toLowerCase();
@@ -854,7 +859,9 @@ function genReengage(c){
     ? `${fn} — where did you land on the Empower plan?`
     : `${fn} — did you land on a decision?`;
   const opener = `It’s been about ${days||'a couple'} days since we walked through ${i.product?('the '+i.product):'the plan'}, so I wanted to check in.`;
-  const body = `Hi ${fn},\n\n${opener}\n\n${recap}\n\nTwo quick things:\n1) Have you had a chance to land on a decision, or are you still weighing it?\n2) ${callLine}\n\nEither way, happy to answer any last questions.\n\nBest,\nJack`;
+  const saveLine = (opts.includeSavings && i.fee && i.fee.savings)
+    ? `\n\nOn cost, we’d gone over ${strip(i.fee.savings)} in fee savings — that still holds.` : '';
+  const body = `Hi ${fn},\n\n${opener}\n\n${recap}${saveLine}\n\nTwo quick things:\n1) Have you had a chance to land on a decision, or are you still weighing it?\n2) ${callLine}\n\nEither way, happy to answer any last questions.\n\nBest,\nJack`;
   return { subject, body };
 }
 
@@ -1701,8 +1708,18 @@ function openReengage(code){
   $('#reengName').textContent=c.name;
   $('#reengMeta').textContent = t.state ? (t.state.toUpperCase()+tail) : '';
   $('#reengSubject').value=subject; $('#reengBody').value=body;
+  // savings toggle — only offered when the profile has a savings figure
+  const sv = c.intel.fee && c.intel.fee.savings;
+  $('#reengInclSave').checked=false;
+  if(sv){ $('#reengSaveAmt').textContent=strip(c.intel.fee.savings); $('#reengSaveRow').classList.remove('hidden'); }
+  else { $('#reengSaveRow').classList.add('hidden'); }
   $('#reengDlg').showModal();
 }
+$('#reengInclSave').onchange = ()=>{
+  const c=S.clients.find(x=>x.code===reengCode); if(!c) return;
+  const e=genReengage(c,{includeSavings:$('#reengInclSave').checked});
+  $('#reengSubject').value=e.subject; $('#reengBody').value=e.body;
+};
 $('#reengCopy').onclick = async ()=>{
   try{ await navigator.clipboard.writeText($('#reengSubject').value+'\n\n'+$('#reengBody').value); $('#reengCopy').textContent='Copied ✓'; setTimeout(()=>$('#reengCopy').textContent='Copy',1200); }
   catch(e){ $('#reengBody').select(); alert('Press Cmd/Ctrl-C to copy.'); }
