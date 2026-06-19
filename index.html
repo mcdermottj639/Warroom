@@ -606,7 +606,7 @@ function prepDoc(name, c){
 
 function deriveKpis(c){
   const out=[];
-  if(c.moveable) out.push({label:"Transferable", value:c.moveable, note:"outside / moveable"});
+  if(c.moveable) out.push({label:"Transferable", value:moneyShort(c.moveable), note:"outside / moveable"});
   if(c.household?.incomeEst) out.push({label:"Household Income", value:c.household.incomeEst});
   (c.accounts||[]).slice(0,4).forEach(a=>out.push({label:a.custodian.slice(0,22), value:a.value, note:a.tag.slice(0,28)}));
   return out.slice(0,6);
@@ -702,6 +702,8 @@ async function importPayload(raw){
 // asset parsing — ported from the existing dashboard for consistency
 function assetVal(s){if(!s)return 0;const mm=String(s).replace(/,/g,'').match(/(\d+(?:\.\d+)?)\s*([kKmM])?/);if(!mm)return 0;let n=parseFloat(mm[1])||0;const suf=(mm[2]||'').toLowerCase();return suf==='m'?n*1e6:suf==='k'?n*1e3:n;}
 function fmtVal(v){return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${Math.round(v/1e3)}k`:`$${v}`;}
+// short, table-safe money label from any (possibly descriptive) moveable string
+function moneyShort(s){ if(!s) return '—'; const m=String(s).match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/); return m?m[0].replace(/\s+/g,''):(String(s).length>12?String(s).slice(0,12)+'…':String(s)); }
 const isAnchor = tag => /\banchor\b|stay in plan|empower.*plan|employer plan|\bplan\b.*anchor|in[- ]plan|stays in plan|employer/i.test(tag||'');
 
 // Infer pipeline stage from the most advanced call HELD (narrative), then callType.
@@ -879,14 +881,14 @@ function renderDashboard(){
   const schedRows = scheduled.length ? scheduled.map(c=>`<tr class="click" data-code="${c.code}">
     <td>${esc(dayOf(c))}</td><td>${esc(c.intel.schedule.time||'')}</td>
     <td>${esc(c.name)} <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'')}</span></td>
-    <td>${esc(c.intel.callType||'')}</td><td class="r">${esc(c.intel.moveable||'—')}</td></tr>`).join('')
+    <td>${esc(c.intel.callType||'')}</td><td class="r">${esc(moneyShort(c.intel.moveable))}</td></tr>`).join('')
     : `<tr><td colspan="5" style="color:var(--muted)">No scheduled calls.</td></tr>`;
 
   const oppRows = ranked.slice(0,10).map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
     <td><span class="rank">${idx+1}</span></td>
     <td>${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
     <td>${esc(r.c.intel.stage||'')}</td>
-    <td class="r">${esc(r.c.intel.moveable||'—')}</td>
+    <td class="r">${esc(moneyShort(r.c.intel.moveable))}</td>
     <td class="r">${Math.round(r.p*100)}%</td>
     <td class="r">${fmtVal(r.ev)}</td></tr>`).join('');
 
@@ -971,7 +973,7 @@ function renderDetail(c){
   const incBody = kvList(i.incomeStreams, s=>`<div class="kv">
     <span class="k">${esc(s.label)}</span><span class="v">${esc(s.amount)}</span></div>`);
   const feeRows = [
-    i.moveable && ['Transferable', i.moveable],
+    i.moveable && ['Transferable', moneyShort(i.moveable)],
     i.fee&&i.fee.from && ['Fee — from', i.fee.from],
     i.fee&&i.fee.to && ['Fee — to', i.fee.to],
     i.fee&&i.fee.savings && ['Est. savings', i.fee.savings],
@@ -1327,7 +1329,9 @@ function parseProfile(md, name){
   const section = headerRe => { let out=[],on=false; for(const l of lines){ if(/^#{2}\s/.test(l)){ on=headerRe.test(l); continue; } if(on) out.push(l); } return out.join('\n').trim(); };
 
   const stage = get(/^[-*]\s*Stage:\s*(.+)$/i);
-  const moveable = get(/Outside\s*\/?\s*moveable assets:\s*(.+)$/i).replace(/\s*\(.*\)\s*$/,'').trim();
+  const mvLine = get(/Outside\s*\/?\s*moveable assets:\s*(.+)$/i);
+  const mvTok = mvLine.match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/);
+  const moveable = mvTok ? mvTok[0].replace(/\s+/g,'') : '';
   const product = get(/^[-*]\s*Product:\s*(.+)$/i);
   const feeLine = get(/^[-*]\s*Fee:\s*(.+)$/i);
   const cm = get(/^[-*]\s*Confidence:\s*(.+)$/i).match(/\d+/);
