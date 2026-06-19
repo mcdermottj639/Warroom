@@ -603,6 +603,20 @@ function assetVal(s){if(!s)return 0;const mm=String(s).replace(/,/g,'').match(/(
 function fmtVal(v){return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${Math.round(v/1e3)}k`:`$${v}`;}
 const isAnchor = tag => /\banchor\b|stay in plan|empower.*plan|employer plan|\bplan\b.*anchor|in[- ]plan|stays in plan|employer/i.test(tag||'');
 
+// Infer pipeline stage from the most advanced call HELD (narrative), then callType.
+function inferStage(s){
+  const held = (s.lastCall||'').toLowerCase();
+  const all  = (held+' '+(s.callType||'')+' '+(s.closeAction||'')+' '+(s.script||'')).toLowerCase();
+  const pick = t =>
+    /decision\s*call|\bdecision\b/.test(t) ? 'Decision' :
+    /proposal/.test(t)                     ? 'Proposal' :
+    /wss|wealth strategy|discovery|empower hour|\big\b|investment guide|\breview\b/.test(t) ? 'Discovery' :
+    /inbound|intro|\blead\b/.test(t)       ? 'Inbound'  : null;
+  // narrative (held calls) is the strongest signal; closeAction proposals are only "scheduled", not held
+  return pick(held) || pick(all) || 'Discovery';
+}
+const priorityFromStage = st => ({Decision:'CRITICAL',Proposal:'HOT',Discovery:'WARM',Inbound:'PIPELINE'}[st]||'PIPELINE');
+
 function mapImport(s){
   // accepts both the dashboard model and our intel model
   const accounts = (s.accounts||[]).map(a=>({
@@ -613,9 +627,10 @@ function mapImport(s){
   const moveableSum = accounts.filter(a=>!a.anchor).reduce((t,a)=>t+assetVal(a.value),0);
   const moveable = s.totalAssetsMoveable || s.moveable ||
     (moveableSum>0 ? fmtVal(moveableSum) : (s.totalAssets||''));
+  const stage = s.stage || inferStage(s);
   return {
-    stage: s.stage || 'Discovery',
-    priority: s.priority || 'PIPELINE',
+    stage,
+    priority: s.priority || priorityFromStage(stage),
     callType: s.callType || s.calltype || 'Follow-Up',
     confidence: s.confidence || 60,
     schedule: (s.day||s.time)?{day:s.day||'',time:s.time||''}:undefined,
