@@ -789,7 +789,7 @@ function renderDashboard(){
     <td>${esc(c.intel.callType||'')}</td><td class="r">${esc(c.intel.moveable||'—')}</td></tr>`).join('')
     : `<tr><td colspan="5" style="color:var(--muted)">No scheduled calls.</td></tr>`;
 
-  const oppRows = ranked.map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
+  const oppRows = ranked.slice(0,10).map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
     <td><span class="rank">${idx+1}</span></td>
     <td>${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
     <td>${esc(r.c.intel.stage||'')}</td>
@@ -840,7 +840,7 @@ function renderDashboard(){
     <div class="groupttl">📅 This Week</div>
     <div class="card"><table class="dtbl"><thead><tr><th>Day</th><th>Time</th><th>Client</th><th>Type</th><th class="r">Transferable</th></tr></thead><tbody>${schedRows}</tbody></table></div>
 
-    <div class="groupttl">🎯 Top Opportunities — ranked by expected value</div>
+    <div class="groupttl">🎯 Top 10 Opportunities — ranked by expected value</div>
     <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
 
     <div class="groupttl">⏳ Pending Decisions</div>
