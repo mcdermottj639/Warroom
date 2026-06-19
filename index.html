@@ -332,6 +332,23 @@
   <div class="err" id="driveErr" style="color:var(--danger);font-size:12px;margin-top:8px"></div>
 </dialog>
 
+<!-- RE-ENGAGE DIALOG -->
+<dialog id="reengDlg">
+  <h3 style="margin-bottom:4px">✉️ Re-engage <span id="reengName"></span></h3>
+  <p class="note" id="reengMeta" style="margin-bottom:10px"></p>
+  <div class="field"><label>Subject</label><input id="reengSubject"></div>
+  <div class="field"><label>Body (edit freely before sending)</label><textarea id="reengBody" style="min-height:230px"></textarea></div>
+  <p class="note" style="margin-bottom:10px">Send through your normal Empower email. "Open in mail" prefills a draft (add the recipient there).</p>
+  <div style="display:flex;gap:10px;justify-content:space-between;align-items:center">
+    <button class="ghost sm" id="reengTouched">✓ Mark re-engaged today</button>
+    <div style="display:flex;gap:10px">
+      <button class="ghost" onclick="reengDlg.close()">Close</button>
+      <button class="ghost" id="reengCopy">Copy</button>
+      <button id="reengMail">Open in mail</button>
+    </div>
+  </div>
+</dialog>
+
 <script>
 /* ============================================================
    War Room — local-first encrypted client intel
@@ -396,7 +413,7 @@ const idbPut = (store, v)=> new Promise((res,rej)=>{const q=tx(store,'readwrite'
 const idbDel = (store, k)=> new Promise((res,rej)=>{const q=tx(store,'readwrite').delete(k);q.onsuccess=()=>res();q.onerror=()=>rej(q.error)});
 
 /* ---------- session state ---------- */
-const S = { MK_id:null, MK_intel:null, clients:[], active:null, flagsDone:new Set() };
+const S = { MK_id:null, MK_intel:null, clients:[], active:null, flagsDone:new Set(), touchLog:{} };
 
 async function loadClients(){
   const [ids, intels] = await Promise.all([idbAll('identity'), idbAll('intel')]);
@@ -704,6 +721,53 @@ function assetVal(s){if(!s)return 0;const mm=String(s).replace(/,/g,'').match(/(
 function fmtVal(v){return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${Math.round(v/1e3)}k`:`$${v}`;}
 // short, table-safe money label from any (possibly descriptive) moveable string
 function moneyShort(s){ if(!s) return '—'; const m=String(s).match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/); return m?m[0].replace(/\s+/g,''):(String(s).length>12?String(s).slice(0,12)+'…':String(s)); }
+
+// ---- staleness / cooling-deal engine ----
+const MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function parseLogDate(s){
+  if(!s) return null;
+  let m=s.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);   // MM/DD or MM/DD/YY (year optional)
+  if(m){ let y=m[3]?+m[3]:2026; if(y<100) y+=2000; const d=new Date(y,+m[1]-1,+m[2]); return isNaN(d)?null:d; }
+  m=s.match(/(early|mid|late)[\s-]+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+  if(m){ return new Date(2026, MONTHS[m[2].slice(0,3).toLowerCase()], {early:5,mid:15,late:26}[m[1].toLowerCase()]); }
+  m=s.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})/i);
+  if(m){ return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], +m[2]); }
+  return null;
+}
+function daysSince(iso){ if(!iso) return null; const d=new Date(iso+'T00:00:00'); if(isNaN(d)) return null; return Math.max(0, Math.floor((Date.now()-d)/86400000)); }
+function coolTier(days){ if(days==null) return null; if(days<=7) return 'Fresh'; if(days<=14) return 'Cooling'; if(days<=30) return 'Cold'; return 'Stale'; }
+function cadenceStep(days){ if(days==null) return ''; if(days<=7) return 'Day 3 — value touch'; if(days<=14) return 'Day 7 — check-in'; if(days<=21) return 'Day 14 — new angle'; if(days<=30) return 'Day 21 — break-up'; return 'Break-up / last chance'; }
+// effective last touch = latest of (profile last call) and (your last manual re-engage)
+function effTouch(c){ const t=(S.touchLog||{})[c.code]||''; const a=c.intel.lastTouch||''; return (t>a)?t:(a||t); }
+function coolDays(c){ return daysSince(effTouch(c)); }
+const isProposalStage = c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase());
+
+// The client's own words drive timing: a stated/scheduled next contact date.
+function nextExpectedDate(i){
+  if(i.nextCall){ const d=parseLogDate(i.nextCall); if(d) return d; }
+  const text=(i.closeAction||'')+' '+(i.lastCall||'');
+  let d=parseLogDate(text); if(d) return d;                       // explicit / early-mid-late / month+day
+  let m=text.match(/end of\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+  if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 28);
+  m=text.match(/\b(back\b|reconnect|reach out|circle back|follow up|touch base)[^.]*\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
+  if(m) return new Date(2026, MONTHS[m[2].slice(0,3).toLowerCase()], 15);  // "back in August" => mid-month
+  return null;
+}
+// Logic-driven deal state. Scheduled = on track (leave alone). Otherwise measure the fade.
+function dealState(c){
+  if(!isProposalStage(c)) return {state:null};
+  const today=new Date(); today.setHours(0,0,0,0);
+  const exp=nextExpectedDate(c.intel);
+  if(exp && exp>=today) return {state:'Scheduled', when:exp};      // they told us when — respect it
+  const base = (exp && exp<today) ? exp : (effTouch(c) ? new Date(effTouch(c)+'T00:00:00') : null);
+  if(!base) return {state:'Unknown'};
+  const days = Math.max(0, Math.floor((Date.now()-base)/86400000));
+  const overdue = !!(exp && exp<today);
+  let tier = coolTier(days);
+  if(overdue && tier==='Fresh') tier='Cooling';                    // missed a promised date = at least cooling
+  return {state:tier, days, overdue, since:base};
+}
+const isCooling = c => ['Cooling','Cold','Stale'].includes(dealState(c).state);
 const isAnchor = tag => /\banchor\b|stay in plan|empower.*plan|employer plan|\bplan\b.*anchor|in[- ]plan|stays in plan|employer/i.test(tag||'');
 
 // Infer pipeline stage from the most advanced call HELD (narrative), then callType.
@@ -742,6 +806,34 @@ function genIntro(name, o){
     : (o.product ? ('a cleaner setup with '+o.product) : 'getting your accounts working together');
   return `Hey ${fn} — good to reconnect. Last time we were looking at ${hook}. I pulled your full picture together so today we can focus on the one or two moves that actually matter. Sound good?`;
 }
+// Objection-aware re-engagement email, built from the client's own data
+function genReengage(c){
+  const i=c.intel, fn=firstName(c.name);
+  const days=coolDays(c), tier=dealState(c).state||'';
+  const obj=((i.objections&&i.objections[0]&&i.objections[0].objection)||'').toLowerCase();
+  let angle;
+  if(/spouse|wife|husband|partner|marea|involve|loop|3-?way|talk to/.test(obj))
+    angle=`When we last spoke you wanted to loop in your spouse before deciding — I’d be glad to set up a quick 3-way call so you’re both looking at the same plan.`;
+  else if(/tax|rmd|roth/.test(obj))
+    angle=`Your main question was the tax impact — I’ve mapped a tax-aware path that avoids a big hit, and it only takes about 10 minutes to walk through.`;
+  else if(/fee|cost|pay/.test(obj))
+    angle=`Fees were top of mind last time. Quick reminder: ${i.fee&&i.fee.savings?('this saves you '+i.fee.savings):'consolidating actually lowers what you’re paying'} — happy to walk the exact numbers again.`;
+  else if(/fisher|edward jones|baird|advisor|\bfa\b|relationship|loyal|happy with/.test(obj))
+    angle=`I know you’ve got a relationship with your current advisor — this isn’t about replacing them, it’s the planning and coordination piece that’s missing today.`;
+  else
+    angle=`I had a thought on ${lc1(strip(i.solutionOffered))||'your plan'} that I think moves things forward.`;
+  const hook = (i.fee&&i.fee.savings) ? `\n\nThe headline: ${i.fee.savings}.` : '';
+  const next = i.closeAction ? lc1(strip(i.closeAction)) : 'map out the next step together';
+  const subject = (tier==='Stale')
+    ? `${fn} — should I close out your file, or is this still worth a look?`
+    : `${fn} — quick follow-up on your Empower plan`;
+  const intro = (tier==='Stale')
+    ? `It’s been a while since we talked through ${i.product?('the '+i.product):'your plan'}, and I don’t want to keep bugging you — but I also don’t want to leave money on the table for you.`
+    : `It’s been about ${days||'a couple'} days since we went through ${i.product?('the '+i.product):'your plan'}, and I didn’t want it to slip off your radar.`;
+  const body = `Hi ${fn},\n\n${intro}\n\n${angle}${hook}\n\nWorth 15 minutes this week? Happy to ${next}.\n\nBest,\nJack`;
+  return { subject, body };
+}
+
 function genWhatToAsk(o){
   const q=['What’s changed since we last talked?'];
   const f=(o.specialFlags||o.complications||[]);
@@ -809,6 +901,7 @@ function mapImport(s){
     solutionOffered: s.solutionOffered || s.script || '',
     closeAction: s.closeAction || '',
     nextCall: s.nextCall || extractNextCall(s.closeAction||'') || extractNextCall(s.lastCall||''),
+    lastTouch: s.lastTouch || '',
     introScript: s.introScript || '',
     whatToAsk: s.whatToAsk || [],
     pitchFlow: s.pitchFlow || [],
@@ -854,13 +947,17 @@ function recencyFactor(i){
 }
 const expectedValue = i => Math.round(moveableNum(i)*stageProb(i)*recencyFactor(i));
 
-/* ---- follow-up flag done-state (encrypted) ---- */
+/* ---- follow-up flag done-state + re-engagement touch log (encrypted) ---- */
 async function loadAux(){
-  S.flagsDone = new Set();
+  S.flagsDone = new Set(); S.touchLog = {};
   try{ const m = await idbGet('meta','flagsdone'); if(m) S.flagsDone = new Set(JSON.parse(await aesDecrypt(S.MK_intel, m.enc))); }catch(e){}
+  try{ const m = await idbGet('meta','touchlog'); if(m) S.touchLog = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
 }
 async function saveFlagsDone(){
   await idbPut('meta', { id:'flagsdone', enc: await aesEncrypt(S.MK_intel, JSON.stringify([...S.flagsDone])) });
+}
+async function saveTouchLog(){
+  await idbPut('meta', { id:'touchlog', enc: await aesEncrypt(S.MK_intel, JSON.stringify(S.touchLog||{})) });
 }
 
 function renderDashboard(){
@@ -905,6 +1002,33 @@ function renderDashboard(){
   // Flags live inside each client's profile (not a standalone list); keep a count for the KPI.
   const openFlags = active.reduce((s,c)=>s+(c.intel.specialFlags||c.intel.complications||[]).length,0);
 
+  // Cooling deals — proposals fading, driven by the client's own stated timing (scheduled ones excluded)
+  const cooling = active.filter(isCooling).map(c=>({c, st:dealState(c), ev:expectedValue(c.intel)}))
+    .sort((a,b)=> (b.ev*(b.st.days||1)) - (a.ev*(a.st.days||1)));
+  const atRisk = cooling.reduce((s,r)=>s+r.ev,0);
+  const coolRows = cooling.length ? cooling.map(r=>{
+    const t=r.st, cls = t.state==='Stale'?'CRITICAL':t.state==='Cold'?'HIGH':'MEDIUM';
+    const ago = t.overdue ? `overdue ${t.days}d` : `${t.days}d quiet`;
+    return `<div class="winrow">
+      <div style="flex:1.4;cursor:pointer" data-code="${r.c.code}"><b>${esc(r.c.name)}</b>
+        <div class="fc">${esc(cadenceStep(t.days))}${t.overdue?' · missed planned date':''}</div></div>
+      <span class="riskbadge risk-${cls}">${esc((t.state||'').toUpperCase())}</span>
+      <div style="width:78px;text-align:right;font-size:12px;color:var(--muted)">${ago}</div>
+      <div style="width:64px;text-align:right;font-weight:700">${fmtVal(r.ev)}</div>
+      <button class="sm" data-reeng="${r.c.code}">✉️ Re-engage</button></div>`;
+  }).join('') : '<div class="bodynote" style="padding-top:0">No proposals going cold — you’re on top of it. 👌</div>';
+
+  // Upcoming calls — parsed next-call dates that are still in the future
+  const today0=new Date(); today0.setHours(0,0,0,0);
+  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0)
+    .sort((a,b)=>a.d-b.d).slice(0,12);
+  const upRows = upcoming.length ? upcoming.map(x=>`<tr class="click" data-code="${x.c.code}">
+    <td>${x.d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td>
+    <td>${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span></td>
+    <td>${esc(x.c.intel.nextCall||x.c.intel.callType||'')}</td>
+    <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="color:var(--muted)">No upcoming calls found in profiles.</td></tr>';
+
   // Wins
   const wins = S.clients.filter(c=>c.intel.status==='won');
   const winTotal = wins.reduce((s,c)=>s+assetVal(c.intel.wonAmount||c.intel.moveable),0);
@@ -919,13 +1043,16 @@ function renderDashboard(){
 
     <div class="kstrip">
       <div class="kchip"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n">EV across ${active.length}</div></div>
-      <div class="kchip"><div class="kc-l">Calls today</div><div class="kc-v">${todays.length}</div><div class="kc-n">${esc(todayName)}</div></div>
+      <div class="kchip"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n">scheduled ahead</div></div>
+      <div class="kchip"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n">${cooling.length} fading</div></div>
       <div class="kchip"><div class="kc-l">Proposals / decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n">awaiting close</div></div>
-      <div class="kchip"><div class="kc-l">Open flags</div><div class="kc-v">${openFlags}</div><div class="kc-n">to clear</div></div>
     </div>
 
-    <div class="groupttl">📅 This Week</div>
-    <div class="card"><table class="dtbl"><thead><tr><th>Day</th><th>Time</th><th>Client</th><th>Type</th><th class="r">Transferable</th></tr></thead><tbody>${schedRows}</tbody></table></div>
+    <div class="groupttl">📅 Upcoming Calls</div>
+    <div class="card"><table class="dtbl"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th></tr></thead><tbody>${upRows}</tbody></table></div>
+
+    <div class="groupttl">🧊 Cooling Deals — fading proposals (by stated timing)</div>
+    <div class="card">${coolRows}</div>
 
     <div class="groupttl">🎯 Top 10 Opportunities — ranked by expected value</div>
     <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
@@ -939,6 +1066,10 @@ function renderDashboard(){
   document.querySelectorAll('.dtbl tr.click').forEach(tr=> tr.onclick = ()=>{
     const c = S.clients.find(x=>x.code===tr.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
   });
+  document.querySelectorAll('.winrow [data-code]').forEach(el=> el.onclick = ()=>{
+    const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
+  });
+  document.querySelectorAll('[data-reeng]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openReengage(b.dataset.reeng); });
 }
 
 function renderList(){
@@ -1034,7 +1165,8 @@ function renderDetail(c){
         <span class="badge b-${esc(i.priority||'PIPELINE')}">${esc(i.priority||'PIPELINE')}</span></h2>
         <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%</div></div>
       <div class="btns">
-        <button id="editBtn">Edit</button>
+        ${isProposalStage(c)&&!i.status?'<button id="reengBtn">✉️ Re-engage</button>':''}
+        <button class="${isProposalStage(c)&&!i.status?'ghost':''}" id="editBtn">Edit</button>
         ${i.status==='won'?'<button class="ghost sm" id="reopenBtn">↩ Reopen</button>'
           :'<button class="ghost sm" id="wonBtn">✓ Won</button><button class="ghost sm" id="lostBtn">Lost</button>'}
         <button class="danger sm" id="delBtn">Delete</button>
@@ -1047,6 +1179,9 @@ function renderDetail(c){
       <span class="nc-l">📅 Next call</span>
       <span class="nc-v">${i.nextCall?esc(i.nextCall):'No call scheduled'}</span>
     </div>
+    ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
+        : (ds.state&&!['Fresh',null].includes(ds.state))?`<b style="color:var(--warm)">${ds.overdue?'OVERDUE':ds.state.toUpperCase()}</b>` : '';
+      return `<div class="meta" style="margin:-8px 0 14px">🕑 Last touch: ${lt!=null?lt+' day'+(lt===1?'':'s')+' ago':'—'}${tag?' · '+tag:''}</div>`; })()}
 
     <div class="kstrip">${kstrip}</div>
 
@@ -1057,6 +1192,7 @@ function renderDetail(c){
   document.querySelectorAll('.ahead').forEach(h=>
     h.onclick = ()=> h.parentElement.classList.toggle('open'));
   $('#editBtn').onclick = ()=>renderEditor(c);
+  if($('#reengBtn')) $('#reengBtn').onclick = ()=>openReengage(c.code);
   const setStatus = async (status, amount)=>{
     const intel = {...c.intel, status};
     if(status==='won'){ intel.wonAmount = amount||c.intel.moveable||''; intel.wonDate = new Date().toISOString().slice(0,10); }
@@ -1366,6 +1502,12 @@ function parseProfile(md, name){
   const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
   const lastCall = [summaries[summaries.length-1], personal].filter(Boolean).join(' ').slice(0,600);
 
+  // last-touch date = latest call-log entry header (### date — type), fallback to Updated:
+  let latest=null;
+  for(const m of callLog.matchAll(/^#{3}\s*(.+)$/gm)){ const d=parseLogDate(m[1]); if(d&&(!latest||d>latest)) latest=d; }
+  if(!latest){ const up=t.match(/Updated:\s*(.+)/i); if(up) latest=parseLogDate(up[1]); }
+  const lastTouch = latest ? latest.toISOString().slice(0,10) : '';
+
   // fee from/to
   let feeFrom='', feeTo='';
   const fm = feeLine.match(/from\s+(.+?)\s*(?:→|->|to)\s+(.+)$/i);
@@ -1385,7 +1527,7 @@ function parseProfile(md, name){
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall };
+    whyConsolidate, closeAction, flags, lastCall, lastTouch };
 }
 
 async function gapiJSON(url){
@@ -1475,6 +1617,26 @@ $('#driveConnectGo').onclick = ()=>{
   try{ localStorage.setItem('warroom_gdrive_client', cid); }catch(e){}
   $('#driveDlg').close(); startDriveAuth();
 };
+
+/* ---- re-engagement dialog ---- */
+let reengCode=null;
+function openReengage(code){
+  const c=S.clients.find(x=>x.code===code); if(!c) return;
+  reengCode=code;
+  const {subject,body}=genReengage(c);
+  const t=dealState(c);
+  const tail = (t.days!=null) ? (' · '+t.days+(t.overdue?'d overdue':'d quiet')) : '';
+  $('#reengName').textContent=c.name;
+  $('#reengMeta').textContent = t.state ? (t.state.toUpperCase()+tail) : '';
+  $('#reengSubject').value=subject; $('#reengBody').value=body;
+  $('#reengDlg').showModal();
+}
+$('#reengCopy').onclick = async ()=>{
+  try{ await navigator.clipboard.writeText($('#reengSubject').value+'\n\n'+$('#reengBody').value); $('#reengCopy').textContent='Copied ✓'; setTimeout(()=>$('#reengCopy').textContent='Copy',1200); }
+  catch(e){ $('#reengBody').select(); alert('Press Cmd/Ctrl-C to copy.'); }
+};
+$('#reengMail').onclick = ()=>{ window.location.href=`mailto:?subject=${encodeURIComponent($('#reengSubject').value)}&body=${encodeURIComponent($('#reengBody').value)}`; };
+$('#reengTouched').onclick = async ()=>{ if(reengCode){ S.touchLog[reengCode]=new Date().toISOString().slice(0,10); await saveTouchLog(); } $('#reengDlg').close(); renderDashboard(); };
 
 initFlow();
 </script>
