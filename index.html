@@ -261,7 +261,6 @@
       <div class="brand">▚ WAR ROOM</div>
       <div class="actions">
         <button class="sm" id="addBtn">+ Client</button>
-        <button class="sm ghost" id="importBtn">Import</button>
         <button class="sm ghost" id="driveBtn">☁️ Drive</button>
         <button class="sm ghost" id="themeBtn" title="Light / dark">🌙 Theme</button>
       </div>
@@ -1218,7 +1217,6 @@ $('#themeBtn').onclick = ()=>{
 applyThemeBtn();
 $('#dashBtn').onclick = ()=> renderDashboard();
 $('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
-$('#importBtn').onclick = ()=> $('#importDlg').showModal();
 async function runImport(text){
   $('#importErr').textContent='';
   try{ const n = await importPayload(text); $('#importDlg').close();
