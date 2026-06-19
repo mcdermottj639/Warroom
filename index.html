@@ -835,12 +835,15 @@ function genReengage(c){
   const i=c.intel, fn=firstName(c.name);
   const days=coolDays(c), tier=dealState(c).state||'';
   const obj=((i.objections&&i.objections[0]&&i.objections[0].objection)||'').toLowerCase();
-  // brief, client-facing value recap (never dump internal notes)
+  // brief, advisory value recap — "I recommended X because of Y and Z" (from their own data)
+  let reasons=(i.goals||[]).map(g=>strip(g).replace(/\s*=\s*/g,', ')).filter(Boolean);
+  if(i.fee && i.fee.savings){ const sv=strip(i.fee.savings).replace(/\s*(per year|\/yr|a year|annually)\s*$/i,''); reasons.unshift(`the ${sv}/yr you’d save`); }
+  reasons=reasons.slice(0,2);
   let recap;
-  if(i.fee && i.fee.savings) recap=`As a quick recap: the move still stands to save you ${strip(i.fee.savings).replace(/\s*(per year|\/yr|a year|annually)\s*$/i,'')} a year and keep everything coordinated in one place.`;
-  else if(i.product) recap=`As a quick recap: ${i.product} still looks like the right fit — one coordinated plan instead of accounts spread around.`;
-  else if(i.solutionOffered) recap=`As a quick recap: ${lc1(strip(i.solutionOffered))}.`;
-  else recap=`As a quick recap: the plan we put together still stands whenever you’re ready.`;
+  if(i.product && reasons.length) recap=`As a quick recap, I recommended ${i.product} because of ${reasons.join(' and ')}.`;
+  else if(i.product) recap=`As a quick recap, I recommended ${i.product} as the strongest fit for your situation.`;
+  else if(i.solutionOffered) recap=`As a quick recap, I recommended ${lc1(strip(i.solutionOffered))}.`;
+  else recap=`As a quick recap, the plan we put together still stands whenever you’re ready.`;
   // call line, spouse-aware when relevant
   const callLine = /spouse|wife|husband|partner|marea|both|involve|loop/.test(obj)
     ? `Want to grab 15 minutes in the next few days — and feel free to have your spouse join?`
