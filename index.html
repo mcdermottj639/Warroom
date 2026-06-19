@@ -794,7 +794,7 @@ function mapImport(s){
     answerKey: s.answerKey || [],
     callHistory: s.callHistory || (s.lastCall?[{date:'',callType:s.callType||'',summary:s.lastCall,leftOff:s.closeAction||''}]:[])
   };
-  return enrichIntel(out, s.name);
+  return out; // fidelity mode: no synthesized script/pitch — show only what the profile contains
 }
 
 /* ============================================================
@@ -950,12 +950,14 @@ function renderDetail(c){
     <span class="v">${esc(a.value)}</span></div>`);
   const incBody = kvList(i.incomeStreams, s=>`<div class="kv">
     <span class="k">${esc(s.label)}</span><span class="v">${esc(s.amount)}</span></div>`);
-  const feeBody = `<div class="kv"><span class="k">Transferable</span>
-      <span class="v">${esc(i.moveable||'—')}</span></div>
-    <div class="kv"><span class="k">Fee — from</span><span class="v">${esc(i.fee?.from||'—')}</span></div>
-    <div class="kv"><span class="k">Fee — to</span><span class="v">${esc(i.fee?.to||'—')}</span></div>
-    <div class="kv"><span class="k">Est. savings</span><span class="v">${esc(i.fee?.savings||'—')}</span></div>
-    <div class="kv"><span class="k">Retirement goal</span><span class="v">${esc(i.household?.retirementGoal||'—')}</span></div>`;
+  const feeRows = [
+    i.moveable && ['Transferable', i.moveable],
+    i.fee&&i.fee.from && ['Fee — from', i.fee.from],
+    i.fee&&i.fee.to && ['Fee — to', i.fee.to],
+    i.fee&&i.fee.savings && ['Est. savings', i.fee.savings],
+    i.household&&i.household.retirementGoal && ['Retirement goal', i.household.retirementGoal]
+  ].filter(Boolean);
+  const feeBody = feeRows.map(r=>`<div class="kv"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join('');
   const ulBody = arr => has(arr) ? '<ul class="clean" style="padding-top:13px">'+arr.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>' : none;
   const pillBody = arr => has(arr) ? '<div style="padding-top:13px">'+arr.map(x=>`<span class="pill">${esc(x)}</span>`).join('')+'</div>' : none;
   const flowBody = kvList(i.pitchFlow, p=>`<div class="step2"><div class="st2">${esc(p.title)}</div>
@@ -984,6 +986,26 @@ function renderDetail(c){
     <div class="bodynote" style="padding-top:0">Action: ${esc(i.closeAction||'—')}</div></div>`;
   const hasFlags = has(i.specialFlags||i.complications);
 
+  // render a panel only when it has real content (fidelity mode — nothing fabricated/empty)
+  const P = (cond,ttl,meta,body,cls,open)=> cond ? panel(ttl,meta,body,cls||'',!!open) : '';
+  const planning = [
+    P(i.solutionOffered,'TL;DR — the close','',esc(i.solutionOffered),'tldr',true),
+    P(has(i.accounts),'Asset Landscape',cnt(i.accounts,'account'),accBody),
+    P(has(i.incomeStreams),'Income &amp; Asset Streams',cnt(i.incomeStreams,'stream'),incBody),
+    P(feeRows.length,'Transferable &amp; Fee',esc(i.moveable||''),feeBody),
+    P(has(i.goals),'Goals / why consolidate',cnt(i.goals,'reason'),pillBody(i.goals)),
+    P(hasFlags,'📞 Follow-up flags',cnt(i.specialFlags||i.complications,'flag'),pillBody(i.specialFlags||i.complications)),
+    P(hasPending,'⏳ Pending decision',pendRisk,pendBody,'',stLow==='decision')
+  ].join('');
+  const helper = [
+    P(i.introScript,'Intro script','',esc(i.introScript),'scriptbox'),
+    P(has(i.whatToAsk),'What to ask',cnt(i.whatToAsk,'question'),ulBody(i.whatToAsk)),
+    P(has(i.pitchFlow),'Pitch flow — the steps',cnt(i.pitchFlow,'step'),flowBody),
+    P(has(i.objections),'Objection handling',cnt(i.objections,'objection'),objBody),
+    P(has(i.productMatch),'Best-fit product match',cnt(i.productMatch,'product'),prodBody),
+    P(has(i.answerKey)||i.closeAction,'Answer key &amp; next step','',(has(i.answerKey)?ulBody(i.answerKey):'')+(i.closeAction?`<div class="nextbox">NEXT: ${esc(i.closeAction)}</div>`:''))
+  ].join('');
+
   $('#main').innerHTML = `<div class="pad">
     <div class="head">
       <div><h2>${esc(c.name)}
@@ -1001,22 +1023,8 @@ function renderDetail(c){
     ${i.status?`<div class="meta" style="margin:-8px 0 14px">Status: <b>${esc(i.status.toUpperCase())}</b>${i.wonAmount?(' · '+esc(i.wonAmount)):''}${i.wonDate?(' · '+esc(i.wonDate)):''}</div>`:''}
     <div class="kstrip">${kstrip}</div>
 
-    <div class="groupttl">📊 Planning Data</div>
-    ${panel('TL;DR — the close', i.solutionOffered?'':'(empty)', esc(i.solutionOffered||'— add a one-line solution —'), 'tldr', true)}
-    ${panel('Asset Landscape', cnt(i.accounts,'account'), accBody)}
-    ${panel('Income &amp; Asset Streams', cnt(i.incomeStreams,'stream'), incBody)}
-    ${panel('Transferable &amp; Fee', esc(i.moveable||''), feeBody)}
-    ${panel('Goals', cnt(i.goals,'goal'), pillBody(i.goals))}
-    ${hasFlags ? panel('📞 Follow-up flags', cnt(i.specialFlags||i.complications,'flag'), pillBody(i.specialFlags||i.complications)) : ''}
-    ${hasPending ? panel('⏳ Pending decision', pendRisk, pendBody, '', stLow==='decision') : ''}
-
-    <div class="groupttl">🎯 On-Call Helper</div>
-    ${panel('Intro script', i.introScript?'open the call':'—', esc(i.introScript||'— add an intro —'), 'scriptbox')}
-    ${panel('What to ask', cnt(i.whatToAsk,'question'), ulBody(i.whatToAsk))}
-    ${panel('Pitch flow — the steps', cnt(i.pitchFlow,'step'), flowBody)}
-    ${panel('Objection handling', cnt(i.objections,'objection'), objBody)}
-    ${panel('Best-fit product match', cnt(i.productMatch,'product'), prodBody)}
-    ${panel('Answer key &amp; next step', '', ulBody(i.answerKey)+`<div class="nextbox">NEXT: ${esc(i.closeAction||'—')}</div>`)}
+    ${planning?`<div class="groupttl">📊 Planning Data</div>${planning}`:''}
+    ${helper?`<div class="groupttl">🎯 On-Call Helper</div>${helper}`:''}
   </div>`;
 
   document.querySelectorAll('.ahead').forEach(h=>
