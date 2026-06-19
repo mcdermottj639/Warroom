@@ -153,6 +153,12 @@
   .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700}
   .kc-v{font-size:18px;font-weight:700;margin-top:2px}
   .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px}
+  .nextcall{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+    border-left:4px solid var(--gold);border-radius:11px;padding:12px 16px;margin-bottom:16px}
+  .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800}
+  .nextcall .nc-v{font-size:17px;font-weight:800;color:var(--gold)}
+  .nextcall.none{border-left-color:var(--line)}
+  .nextcall.none .nc-v{font-size:15px;color:var(--muted)}
 
   /* Accordion panels */
   .groupttl{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);
@@ -1024,8 +1030,7 @@ function renderDetail(c){
     <div class="head">
       <div><h2>${esc(c.name)}
         <span class="badge b-${esc(i.priority||'PIPELINE')}">${esc(i.priority||'PIPELINE')}</span></h2>
-        <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%</div>
-        <div class="meta" style="margin-top:3px">📅 Next call: <b style="color:${i.nextCall?'var(--gold)':'var(--muted)'}">${i.nextCall?esc(i.nextCall):'No call scheduled'}</b></div></div>
+        <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%</div></div>
       <div class="btns">
         <button id="editBtn">Edit</button>
         ${i.status==='won'?'<button class="ghost sm" id="reopenBtn">↩ Reopen</button>'
@@ -1035,6 +1040,12 @@ function renderDetail(c){
     </div>
 
     ${i.status?`<div class="meta" style="margin:-8px 0 14px">Status: <b>${esc(i.status.toUpperCase())}</b>${i.wonAmount?(' · '+esc(i.wonAmount)):''}${i.wonDate?(' · '+esc(i.wonDate)):''}</div>`:''}
+
+    <div class="nextcall ${i.nextCall?'':'none'}">
+      <span class="nc-l">📅 Next call</span>
+      <span class="nc-v">${i.nextCall?esc(i.nextCall):'No call scheduled'}</span>
+    </div>
+
     <div class="kstrip">${kstrip}</div>
 
     ${planning?`<div class="groupttl">📊 Planning Data</div>${planning}`:''}
