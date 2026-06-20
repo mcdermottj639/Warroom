@@ -228,6 +228,10 @@
   .crow:hover{background:var(--panel2)}
   .crow .chev{color:var(--muted);font-size:17px;flex-shrink:0}
   .crow .fc{margin-top:1px}
+  .fc{font-size:11.5px;color:var(--muted)}
+  .crow b,.winrow b{font-size:13px;font-weight:700}
+  .crow .ev{font-size:12.5px;font-weight:700;color:var(--txt);white-space:nowrap}
+  .iconbtn{padding:7px 9px;font-size:13px;border-radius:8px;flex-shrink:0}
   .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .winrow:last-child{border-bottom:none}
   .riskbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:10px}
@@ -1066,13 +1070,12 @@ function renderDashboard(){
   const coolRows = cooling.length ? cooling.map(r=>{
     const t=r.st, cls = t.state==='Stale'?'CRITICAL':t.state==='Cold'?'HIGH':'MEDIUM';
     const ago = t.overdue ? `overdue ${t.days}d` : `${t.days}d quiet`;
-    return `<div class="winrow">
-      <div style="flex:1.4;cursor:pointer" data-code="${r.c.code}"><b>${esc(r.c.name)}</b>
-        <div class="fc">${esc(cadenceStep(t.days))}${t.overdue?' · missed planned date':''}</div></div>
+    return `<div class="crow" data-code="${r.c.code}">
       <span class="riskbadge risk-${cls}">${esc((t.state||'').toUpperCase())}</span>
-      <div style="width:78px;text-align:right;font-size:12px;color:var(--muted)">${ago}</div>
-      <div style="width:64px;text-align:right;font-weight:700">${fmtVal(r.ev)}</div>
-      <button class="sm" data-reeng="${r.c.code}">✉️ Re-engage</button></div>`;
+      <div style="flex:1;min-width:0"><b>${esc(r.c.name)}</b>
+        <div class="fc ellip">${ago} · ${esc(cadenceStep(t.days))}</div></div>
+      <span class="ev">${fmtVal(r.ev)}</span>
+      <button class="sm iconbtn" data-reeng="${r.c.code}" aria-label="Re-engage ${esc(r.c.name)}">✉️</button></div>`;
   }).join('') : '<div class="bodynote" style="padding-top:0">No proposals going cold — you’re on top of it. 👌</div>';
 
   // Upcoming calls — parsed next-call dates that are still in the future
