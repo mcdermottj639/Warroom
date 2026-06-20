@@ -177,6 +177,9 @@
     box-shadow:0 6px 20px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.2) inset}
   .fab:active{transform:translateY(1px)}
   .fab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .fabgroup{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;display:flex;gap:10px;align-items:center}
+  .fabgroup .fab{position:static;right:auto;bottom:auto}
+  .fab-icon{padding:12px 14px;border-radius:50%;font-size:15px}
   .apanel{background:var(--panel);border:1px solid var(--line);border-radius:11px;
     margin-bottom:8px;overflow:hidden}
   .ahead{display:flex;align-items:center;gap:10px;padding:13px 15px;cursor:pointer;user-select:none}
@@ -1145,7 +1148,10 @@ function renderDashboard(){
     <div class="card">${pendRows}</div>
 
     ${wins.length?`<div class="groupttl" id="sec-wins">🏆 Wins · ${fmtVal(winTotal)}</div><div class="card">${winRows}</div>`:''}
-    <button class="fab" id="topFab" aria-label="Back to top of Command Center">↑ Top</button>
+    <div class="fabgroup">
+      <button class="fab fab-icon" id="searchFab" aria-label="Search clients">🔍</button>
+      <button class="fab" id="topFab" aria-label="Back to top of Command Center">↑ Top</button>
+    </div>
   </div>`;
 
   document.querySelectorAll('.dtbl tr.click').forEach(tr=> tr.onclick = ()=>{
@@ -1160,6 +1166,7 @@ function renderDashboard(){
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
   $('#topFab').onclick = ()=> scrollMainTop();
+  $('#searchFab').onclick = ()=>{ const inp=$('#clientSearch'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center'}); } };
   scrollMainTop();   // land at the top of Command Center consistently (same as client intel)
 }
 
