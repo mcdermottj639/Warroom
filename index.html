@@ -423,7 +423,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-19 · r31';
+const BUILD = 'build 2026-06-20 · r32';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1198,6 +1198,10 @@ function renderList(){
 function renderDetail(c){
  try{
   const i = c.intel;
+  // next-call label consistent with the Upcoming Calls list (handles fuzzy dates too)
+  const _today0=new Date(); _today0.setHours(0,0,0,0);
+  const _ncDate=nextExpectedDate(i);
+  const ncLabel = i.nextCall || (_ncDate && _ncDate>=_today0 ? _ncDate.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '');
   const has = a => Array.isArray(a) && a.length;
   const none = '<div class="bodynote">— nothing recorded —</div>';
 
@@ -1283,9 +1287,9 @@ function renderDetail(c){
 
     ${i.status?`<div class="meta" style="margin:-8px 0 14px">Status: <b>${esc(i.status.toUpperCase())}</b>${i.wonAmount?(' · '+esc(i.wonAmount)):''}${i.wonDate?(' · '+esc(i.wonDate)):''}</div>`:''}
 
-    <div class="nextcall ${i.nextCall?'':'none'}">
+    <div class="nextcall ${ncLabel?'':'none'}">
       <span class="nc-l">📅 Next call</span>
-      <span class="nc-v">${i.nextCall?esc(i.nextCall):'No call scheduled'}</span>
+      <span class="nc-v">${ncLabel?esc(ncLabel):'No call scheduled'}</span>
     </div>
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
         : (ds.state&&!['Fresh',null].includes(ds.state))?`<b style="color:var(--warm)">${ds.overdue?'OVERDUE':ds.state.toUpperCase()}</b>` : '';
