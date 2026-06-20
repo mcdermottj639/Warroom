@@ -202,10 +202,12 @@
   .nextbox{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-weight:700;font-size:13.5px}
 
   /* nav + command center */
-  .navrow{padding:8px 10px 0}
-  .navbtn{width:100%;text-align:left;background:var(--panel2);color:var(--txt);
+  .navrow{padding:8px 10px 0}  .navbtn{width:100%;text-align:left;background:var(--panel2);color:var(--txt);
     border:1px solid var(--line);font-weight:700;font-size:13px;padding:10px 12px}
   .navbtn.active{background:var(--metal-gold);color:var(--accent-ink);border-color:transparent;font-weight:800}
+  .searchrow{padding:8px 10px 2px}
+  .searchrow input{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:14px}
+  .searchrow input:focus{border-color:var(--gold)}
   .dtbl{width:100%;border-collapse:collapse;margin-top:6px}
   .dtbl th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
     text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
@@ -304,6 +306,7 @@
       </div>
     </div>
     <div class="navrow"><button class="navbtn" id="dashBtn">⚔️ Command Center</button></div>
+    <div class="searchrow"><input id="clientSearch" type="search" placeholder="🔍 Search clients…" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
     <div class="clist" id="clist"></div>
     <div class="foot">
       <span id="cstat">0 clients</span>
@@ -447,7 +450,7 @@ const idbPut = (store, v)=> new Promise((res,rej)=>{const q=tx(store,'readwrite'
 const idbDel = (store, k)=> new Promise((res,rej)=>{const q=tx(store,'readwrite').delete(k);q.onsuccess=()=>res();q.onerror=()=>rej(q.error)});
 
 /* ---------- session state ---------- */
-const S = { MK_id:null, MK_intel:null, clients:[], active:null, flagsDone:new Set(), touchLog:{} };
+const S = { MK_id:null, MK_intel:null, clients:[], active:null, flagsDone:new Set(), touchLog:{}, query:'' };
 
 async function loadClients(){
   const [ids, intels] = await Promise.all([idbAll('identity'), idbAll('intel')]);
@@ -1135,8 +1138,15 @@ function renderDashboard(){
 function renderList(){
   const el = $('#clist'); el.innerHTML='';
   const db = $('#dashBtn'); if(db) db.classList.toggle('active', S.active==='__dash__');
-  const visible = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
-  $('#cstat').textContent = visible.length + (visible.length===1?' client':' clients');
+  const open = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  const q = S.query||'';
+  const visible = q ? open.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.intel.product||'').toLowerCase().includes(q) ||
+      (c.intel.stage||'').toLowerCase().includes(q) ||
+      (c.intel.moveable||'').toLowerCase().includes(q)) : open;
+  $('#cstat').textContent = q ? (visible.length+' of '+open.length) : (open.length + (open.length===1?' client':' clients'));
+  if(q && !visible.length){ el.innerHTML='<div class="bodynote" style="padding:14px">No matches for “'+esc(S.query)+'”.</div>'; }
   for(const c of visible){
     const d = document.createElement('div');
     d.className = 'citem'+(S.active===c.code?' active':'');
@@ -1511,6 +1521,7 @@ $('#themeBtn').onclick = ()=>{
 };
 applyThemeBtn();
 $('#dashBtn').onclick = ()=> renderDashboard();
+$('#clientSearch').oninput = e=>{ S.query = e.target.value.trim().toLowerCase(); renderList(); };
 $('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
 async function runImport(text){
   $('#importErr').textContent='';
