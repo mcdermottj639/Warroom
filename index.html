@@ -1194,6 +1194,7 @@ function renderList(){
 }
 
 function renderDetail(c){
+ try{
   const i = c.intel;
   const has = a => Array.isArray(a) && a.length;
   const none = '<div class="bodynote">— nothing recorded —</div>';
@@ -1332,6 +1333,10 @@ function renderDetail(c){
     $('#main').innerHTML='<div class="empty"><div>Client deleted.</div></div>';
   };
   scrollMainTop();   // land on the intel like you've navigated into the page
+ }catch(__e){
+  console.error('renderDetail error', __e);
+  $('#main').innerHTML = '<div class="pad"><div class="card" style="margin-top:24px">⚠️ Couldn’t render this client.<div class="note" style="margin-top:8px">'+esc((__e&&__e.message)||String(__e))+'</div><button class="ghost" style="margin-top:14px" onclick="renderDashboard()">← Command Center</button></div></div>';
+ }
 }
 // bring the top of the main panel just below the iOS notch — consistent for every entry point
 function scrollMainTop(){
