@@ -1282,9 +1282,12 @@ function renderDetail(c){
       return `<div class="meta" style="margin:-8px 0 14px">🕑 Last touch: ${lt!=null?lt+' day'+(lt===1?'':'s')+' ago':'—'}${tag?' · '+tag:''}</div>`; })()}
 
     <div class="coachrow">
-      <button data-coach="ask" aria-label="Generate questions to ask">❓ Questions</button>
-      <button data-coach="pitch" aria-label="How to pitch">🎯 How to pitch</button>
+      <button data-coach="open">🎬 Opening</button>
+      <button data-coach="ask">❓ Questions</button>
+      <button data-coach="pitch">🎯 How to pitch</button>
+      <button data-coach="why">💎 Why Empower</button>
       <button data-coach="${(i.objections&&i.objections.length)?'obj':'next'}">${(i.objections&&i.objections.length)?'🧯 Reframe objection':'🤝 Next-step play'}</button>
+      <button data-coach="watch">🚩 Watch-outs</button>
     </div>
 
     <div class="kstrip">${kstrip}</div>
@@ -1778,6 +1781,36 @@ function coachContent(c, type){
     if(obj) q.push(`You’d mentioned “${strip(obj.objection)}” — what’s really driving that?`);
     q.push(isProposalStage(c) ? 'If everything lined up, any reason we couldn’t move forward today?' : 'When you picture this settled, what does it look like for you?');
     return {title:`❓ Questions for ${fn}`, items:q.slice(0,6)};
+  }
+  if(type==='open'){
+    const recapBit = i.solutionOffered ? lc1(strip(i.solutionOffered)) : (prod ? ('your '+prod+' options') : 'your full picture');
+    const aim = isProposalStage(c) ? 'I’m here to help you land the decision, not to pitch you' : 'today’s really about understanding your goals and where you want to go';
+    return {title:`🎬 Opening for ${fn}`, items:[
+      `Opener: “Hey ${fn}, good to catch up. Last time we looked at ${recapBit} — ${aim}. Let’s keep it tight and focus on the one or two moves that matter.”`,
+      'Reference the last conversation so they feel remembered.',
+      'Let them talk first — ask before you tell.'
+    ]};
+  }
+  if(type==='why'){
+    const blob=((i.specialFlags||i.complications||[]).join(' ')+' '+(i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o.objection).join(' ')).toLowerCase();
+    const items=['Lead value: one coordinated plan across everything — not scattered accounts.'];
+    if(/self-?directed|no advisor|diy/.test(blob)) items.push('They’re self-directed — position the coordination + accountability they’re missing.');
+    if(/tax|rmd|roth/.test(blob)) items.push('Tax coordination is the edge — RMD sequencing and Roth windows most DIYers miss.');
+    if(/annuit/.test(blob)) items.push('Contrast a flexible managed allocation vs. the annuity lock-up and fees.');
+    if(/concentrat|single-stock|rsu|\bstock\b/.test(blob)) items.push('Address concentration risk — a tax-efficient plan to de-risk the single-stock exposure.');
+    if(/fee|cost|expense|1%/.test(blob)) items.push('Frame cost as value — what the planning + tax work returns, not just the fee.');
+    items.push('Dedicated team + CFP access — depth beyond chasing returns.');
+    return {title:`💎 Why Empower for ${fn}`, items:items.slice(0,5)};
+  }
+  if(type==='watch'){
+    const items=[];
+    (i.specialFlags||i.complications||[]).slice(0,3).forEach(f=> items.push(`Watch: ${strip(f)}.`));
+    const ob=(i.objections||[]).map(o=>o.objection).join(' ').toLowerCase();
+    if(/relative|friend|family/.test(ob)) items.push('Sensitive: their advisor is a relative/friend — don’t bash them, position the gap.');
+    if(/spouse|wife|husband|partner|marea/.test(ob)) items.push('Don’t push to close without the spouse — offer a 3-way.');
+    if(/crypto/.test((i.specialFlags||i.complications||[]).join(' ').toLowerCase())) items.push('Don’t over-pitch the crypto — plant the seed, keep today about the rollover.');
+    items.push('Verify linked accounts before quoting any numbers.');
+    return {title:`🚩 Watch-outs for ${fn}`, items:items.slice(0,5)};
   }
   if(type==='pitch'){
     const items=[];
