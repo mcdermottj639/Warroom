@@ -330,6 +330,7 @@
     <div class="clist" id="clist"></div>
     <div class="foot">
       <span id="cstat">0 clients</span>
+      <span id="buildtag" style="font-size:9px;color:var(--muted);opacity:.7"></span>
       <button class="sm ghost" id="lockBtn">Lock</button>
     </div>
   </aside>
@@ -422,6 +423,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
+const BUILD = 'build 2026-06-19 · r31';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1900,6 +1902,7 @@ $('#reengDrive').onclick = ()=>{
 };
 $('#reengTouched').onclick = async ()=>{ if(reengCode){ S.touchLog[reengCode]=new Date().toISOString().slice(0,10); await saveTouchLog(); } $('#reengDlg').close(); renderDashboard(); };
 
+try{ document.getElementById('buildtag').textContent = BUILD; }catch(e){}
 initFlow();
 </script>
 </body>
