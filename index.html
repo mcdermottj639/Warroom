@@ -159,6 +159,9 @@
   .nextcall .nc-v{font-size:17px;font-weight:800;color:var(--gold)}
   .nextcall.none{border-left-color:var(--line)}
   .nextcall.none .nc-v{font-size:15px;color:var(--muted)}
+  .nextcall .nc-set{margin-left:auto;flex:none;background:transparent;border:1px solid var(--line);
+    color:var(--muted);font-weight:700;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer}
+  .nextcall .nc-set:hover{border-color:var(--gold);color:var(--gold)}
 
   /* Accordion panels */
   .groupttl{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);
@@ -423,7 +426,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-20 · r32';
+const BUILD = 'build 2026-06-20 · r33';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -811,6 +814,8 @@ const isProposalStage = c => ['proposal','decision'].includes((c.intel.stage||''
 
 // The client's own words drive timing: a stated/scheduled next contact date.
 function nextExpectedDate(i){
+  // advisor's manual override wins (empty string = explicitly cleared → no scheduled call)
+  if(i.nextCallSet!==undefined && i.nextCallSet!==null) return i.nextCallSet ? parseLogDate(i.nextCallSet) : null;
   if(i.nextCall){ const d=parseLogDate(i.nextCall); if(d) return d; }
   const text=(i.closeAction||'')+' '+(i.lastCall||'');
   let d=parseLogDate(text); if(d) return d;                       // explicit / early-mid-late / month+day
@@ -818,6 +823,12 @@ function nextExpectedDate(i){
   if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 28);
   m=text.match(/\b(back\b|reconnect|reach out|circle back|follow up|touch base)[^.]*\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
   if(m) return new Date(2026, MONTHS[m[2].slice(0,3).toLowerCase()], 15);  // "back in August" => mid-month
+  // bare ordinal day ("Tuesday the 30th", "the 13th") → next occurrence of that day-of-month
+  m=text.match(/\bthe\s+(\d{1,2})(?:st|nd|rd|th)\b/i);
+  if(m){ const day=+m[1]; if(day>=1&&day<=31){ const t=new Date(); t.setHours(0,0,0,0);
+    let dt=new Date(t.getFullYear(),t.getMonth(),day);
+    if(dt<t) dt=new Date(t.getFullYear(),t.getMonth()+1,day);
+    return isNaN(dt)?null:dt; } }
   return null;
 }
 // Logic-driven deal state. Scheduled = on track (leave alone). Otherwise measure the fade.
@@ -1200,8 +1211,10 @@ function renderDetail(c){
   const i = c.intel;
   // next-call label consistent with the Upcoming Calls list (handles fuzzy dates too)
   const _today0=new Date(); _today0.setHours(0,0,0,0);
+  const _ncOvr = (i.nextCallSet!==undefined && i.nextCallSet!==null);
   const _ncDate=nextExpectedDate(i);
-  const ncLabel = i.nextCall || (_ncDate && _ncDate>=_today0 ? _ncDate.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '');
+  const ncLabel = _ncOvr ? i.nextCallSet
+    : (i.nextCall || (_ncDate && _ncDate>=_today0 ? _ncDate.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''));
   const has = a => Array.isArray(a) && a.length;
   const none = '<div class="bodynote">— nothing recorded —</div>';
 
@@ -1290,6 +1303,7 @@ function renderDetail(c){
     <div class="nextcall ${ncLabel?'':'none'}">
       <span class="nc-l">📅 Next call</span>
       <span class="nc-v">${ncLabel?esc(ncLabel):'No call scheduled'}</span>
+      <button class="nc-set" id="setNcBtn">${ncLabel?'✏️ Change':'+ Set'}</button>
     </div>
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
         : (ds.state&&!['Fresh',null].includes(ds.state))?`<b style="color:var(--warm)">${ds.overdue?'OVERDUE':ds.state.toUpperCase()}</b>` : '';
@@ -1320,6 +1334,17 @@ function renderDetail(c){
   $('#editBtn').onclick = ()=>renderEditor(c);
   $('#backFab').onclick = ()=>renderDashboard();
   if($('#reengBtn')) $('#reengBtn').onclick = ()=>openReengage(c.code);
+  if($('#setNcBtn')) $('#setNcBtn').onclick = async ()=>{
+    const cur = _ncOvr ? (i.nextCallSet||'') : (ncLabel||'');
+    const v = prompt('Set next call — a date like "Jun 30", "7/13", or "Jul 13 at 2pm".\nLeave blank to clear it. Type "auto" to go back to reading it from the notes.', cur);
+    if(v===null) return;                                  // cancelled
+    const intel = {...c.intel};
+    if(v.trim().toLowerCase()==='auto') delete intel.nextCallSet;   // revert to notes-derived
+    else intel.nextCallSet = v.trim();                    // explicit value ('' = cleared)
+    await saveClient(c.code, c.name, intel);
+    await loadClients();
+    renderDetail(S.clients.find(x=>x.code===c.code));
+  };
   document.querySelectorAll('[data-coach]').forEach(b=> b.onclick = ()=> openCoach(c.code, b.dataset.coach));
   const setStatus = async (status, amount)=>{
     const intel = {...c.intel, status};
@@ -1742,6 +1767,7 @@ async function syncFromDrive(){
       if(ex){
         if(ex.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; }
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
+        if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
