@@ -223,6 +223,12 @@
   .frow.done .ft{text-decoration:line-through;color:var(--muted)}
   .frow .fc{color:var(--muted);font-size:11px}
   .winrow{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .crow{display:flex;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+  .crow:last-child{border-bottom:none}
+  .crow:hover{background:var(--panel2)}
+  .crow .chev{color:var(--muted);font-size:17px;flex-shrink:0}
+  .crow .fc{margin-top:1px}
+  .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .winrow:last-child{border-bottom:none}
   .riskbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:10px}
   .risk-CRITICAL,.risk-HIGH{background:var(--crit);color:#fff}
@@ -1039,10 +1045,14 @@ function renderDashboard(){
   // Pending decisions = clients at Proposal/Decision stage
   const pend = active.filter(c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase()))
     .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
-  const pendRows = pend.length ? pend.slice(0,10).map(c=>`<div class="winrow">
-    <div style="flex:1"><b>${esc(c.name)}</b><div class="fc">${esc(c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending')}</div></div>
-    <span class="riskbadge risk-${c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM'}">${esc(c.intel.priority||'')}</span>
-    <div style="flex:1;font-size:12px;color:var(--muted)">${esc(c.intel.closeAction||'')}</div></div>`).join('')
+  const pendRows = pend.length ? pend.slice(0,10).map(c=>{
+    const issue = c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending';
+    const cls = c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
+    return `<div class="crow" data-code="${c.code}">
+      <span class="riskbadge risk-${cls}">${esc(c.intel.priority||'')}</span>
+      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="fc ellip">${esc(issue)}</div></div>
+      <span class="chev">›</span></div>`;
+  }).join('')
       + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more at proposal/decision</div>`:'')
     : '<div class="bodynote" style="padding-top:0">No proposals or decisions outstanding.</div>';
 
@@ -1123,7 +1133,7 @@ function renderDashboard(){
   document.querySelectorAll('.dtbl tr.click').forEach(tr=> tr.onclick = ()=>{
     const c = S.clients.find(x=>x.code===tr.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
   });
-  document.querySelectorAll('.winrow [data-code]').forEach(el=> el.onclick = ()=>{
+  document.querySelectorAll('.winrow [data-code], .crow[data-code]').forEach(el=> el.onclick = ()=>{
     const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
   });
   document.querySelectorAll('[data-reeng]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openReengage(b.dataset.reeng); });
