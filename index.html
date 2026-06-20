@@ -149,10 +149,10 @@
 
   /* KPI strip in detail */
   .kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:18px}
-  .kchip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-  .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700}
-  .kc-v{font-size:18px;font-weight:700;margin-top:2px}
-  .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px}
+  .kchip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;overflow-wrap:anywhere}
+  .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;overflow-wrap:anywhere}
+  .kc-v{font-size:18px;font-weight:700;margin-top:2px;overflow-wrap:anywhere}
+  .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px;overflow-wrap:anywhere}
   .nextcall{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--gold);border-radius:11px;padding:12px 16px;margin-bottom:16px}
   .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800}
@@ -426,7 +426,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-20 · r33';
+const BUILD = 'build 2026-06-20 · r34';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -695,7 +695,7 @@ function deriveKpis(c){
   const out=[];
   if(c.moveable) out.push({label:"Transferable", value:moneyShort(c.moveable), note:"outside / moveable"});
   if(c.household?.incomeEst) out.push({label:"Household Income", value:c.household.incomeEst});
-  (c.accounts||[]).slice(0,4).forEach(a=>out.push({label:a.custodian.slice(0,22), value:a.value, note:a.tag.slice(0,28)}));
+  (c.accounts||[]).slice(0,4).forEach(a=>out.push({label:a.custodian, value:a.value, note:a.tag}));
   return out.slice(0,6);
 }
 
