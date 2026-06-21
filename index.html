@@ -439,7 +439,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-20 · r36';
+const BUILD = 'build 2026-06-20 · r37';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1769,7 +1769,7 @@ function parseProfile(md, name){
         cur={date:p[0].trim(), callType:p.slice(1).join(' — ').trim(), summary:'', leftOff:''}; continue; }
       if(!cur) continue;
       const sm=l.match(/^[-*]\s*Summary:\s*(.+)$/i);            if(sm){ cur.summary=(cur.summary?cur.summary+' ':'')+sm[1].trim(); continue; }
-      const lo=l.match(/^[-*]\s*(?:Left off|Next step|Next|Close):\s*(.+)$/i); if(lo){ cur.leftOff=lo[1].trim(); continue; }
+      const lo=l.match(/^[-*]\s*(?:left off|next step|next|close)[^:]*:\s*(.+)$/i); if(lo){ cur.leftOff=lo[1].trim(); continue; }
       const txt=l.replace(/^[-*]\s*/,'').trim();
       if(txt) cur.summary=(cur.summary?cur.summary+' ':'')+txt;
     }
