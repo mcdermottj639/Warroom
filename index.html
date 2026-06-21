@@ -162,6 +162,19 @@
   .nextcall .nc-set{margin-left:auto;flex:none;background:transparent;border:1px solid var(--line);
     color:var(--muted);font-weight:700;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer}
   .nextcall .nc-set:hover{border-color:var(--gold);color:var(--gold)}
+  .chentry{padding:10px 0;border-bottom:1px solid var(--line)}
+  .chentry:first-child{padding-top:13px}
+  .chentry:last-child{border-bottom:none}
+  .ch-h{font-size:12px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.3px}
+  .ch-s{font-size:13px;color:var(--txt);margin-top:3px;overflow-wrap:anywhere}
+  .ch-l{font-size:12px;color:var(--muted);font-weight:600;margin-top:3px;overflow-wrap:anywhere}
+  .notesbox{padding-top:13px}
+  .noterow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}
+  .noterow .note-main{flex:1;min-width:0;font-size:13px;color:var(--txt);overflow-wrap:anywhere}
+  .noterow .note-d{font-weight:800;color:var(--gold);margin-right:6px;white-space:nowrap}
+  .note-del{flex:none;background:transparent;border:none;color:var(--muted);font-size:14px;
+    cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1}
+  .note-del:hover{color:var(--warm)}
 
   /* Accordion panels */
   .groupttl{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);
@@ -426,7 +439,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-20 · r34';
+const BUILD = 'build 2026-06-20 · r35';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1284,6 +1297,29 @@ function renderDetail(c){
     P(has(i.answerKey)||i.closeAction,'Answer key &amp; next step','',(has(i.answerKey)?ulBody(i.answerKey):'')+(i.closeAction?`<div class="nextbox">NEXT: ${esc(i.closeAction)}</div>`:''))
   ].join('');
 
+  // Complete call history — newest first (dated entries sort down; undated keep their order)
+  const chSorted = (i.callHistory||[]).map((h,idx)=>({h,idx,d:parseLogDate(h.date)}))
+    .sort((a,b)=> (b.d?+b.d:0)-(a.d?+a.d:0) || a.idx-b.idx).map(x=>x.h);
+  const chBody = chSorted.length ? chSorted.map(h=>`<div class="chentry">
+      <div class="ch-h">${esc(h.date||'—')}${h.callType?' · '+esc(h.callType):''}</div>
+      ${h.summary?`<div class="ch-s">${esc(h.summary)}</div>`:''}
+      ${h.leftOff?`<div class="ch-l">Left off: ${esc(h.leftOff)}</div>`:''}
+    </div>`).join('') : '<div class="bodynote" style="padding-top:0">No call log in the profile yet.</div>';
+
+  // My notes — advisor's own running log (manual, never overwritten by a Drive sync)
+  const myNotes = i.notes || [];
+  const notesBody = `<div class="notesbox">
+    ${myNotes.length ? myNotes.map((nt,idx)=>`<div class="noterow">
+        <div class="note-main"><span class="note-d">${esc(nt.d||'')}</span> ${esc(nt.t||'')}</div>
+        <button class="note-del" data-ni="${idx}" aria-label="Delete note">✕</button>
+      </div>`).join('') : '<div class="bodynote" style="padding-top:0">No notes yet — jot a quick reminder like “need statements” or “spoke 6/14, still no decision.”</div>'}
+    <button class="addrow" id="addNoteBtn">+ Add note</button></div>`;
+
+  const histNotes = [
+    panel('📝 My notes', myNotes.length?(myNotes.length+' note'+(myNotes.length>1?'s':'')):'add', notesBody, '', true),
+    panel('📞 Call history', cnt(chSorted,'call'), chBody, '', false)
+  ].join('');
+
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head">
       <div><h2>${esc(c.name)}
@@ -1320,6 +1356,7 @@ function renderDetail(c){
 
     <div class="kstrip">${kstrip}</div>
 
+    <div class="groupttl" id="p-hist">📒 History &amp; Notes</div>${histNotes}
     ${planning?`<div class="groupttl" id="p-planning">📊 Planning Data</div>${planning}`:''}
     ${helper?`<div class="groupttl" id="p-helper">🎯 On-Call Helper</div>${helper}`:''}
     <button class="fab" id="backFab" aria-label="Back to Command Center">⚔️ Command Center</button>
@@ -1334,6 +1371,25 @@ function renderDetail(c){
   $('#editBtn').onclick = ()=>renderEditor(c);
   $('#backFab').onclick = ()=>renderDashboard();
   if($('#reengBtn')) $('#reengBtn').onclick = ()=>openReengage(c.code);
+  const saveNotes = async (notes)=>{
+    const intel = {...c.intel, notes};
+    await saveClient(c.code, c.name, intel);
+    await loadClients();
+    renderDetail(S.clients.find(x=>x.code===c.code));
+  };
+  if($('#addNoteBtn')) $('#addNoteBtn').onclick = async ()=>{
+    const v = prompt('Add a note (e.g. "need to get statements" or "spoke 6/14 — still no decision"):','');
+    if(v===null || !v.trim()) return;
+    const notes = (c.intel.notes||[]).slice();
+    notes.unshift({ d:new Date().toLocaleDateString(undefined,{month:'short',day:'numeric'}), t:v.trim() });  // newest first
+    await saveNotes(notes);
+  };
+  document.querySelectorAll('.note-del').forEach(btn=> btn.onclick = async (e)=>{
+    e.stopPropagation();
+    const ni = +btn.dataset.ni;
+    const notes = (c.intel.notes||[]).slice();
+    if(ni>=0 && ni<notes.length && confirm('Delete this note?')){ notes.splice(ni,1); await saveNotes(notes); }
+  });
   if($('#setNcBtn')) $('#setNcBtn').onclick = async ()=>{
     const cur = _ncOvr ? (i.nextCallSet||'') : (ncLabel||'');
     const v = prompt('Set next call — a date like "Jun 30", "7/13", or "Jul 13 at 2pm".\nLeave blank to clear it. Type "auto" to go back to reading it from the notes.', cur);
@@ -1695,6 +1751,22 @@ function parseProfile(md, name){
   const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
   const lastCall = [summaries[summaries.length-1], personal].filter(Boolean).join(' ').slice(0,600);
 
+  // full call history — every "### <date> — <type>" block in the Call Log, with its details
+  const callHistory=[]; { let cur=null;
+    for(const l of callLog.split('\n')){
+      const h=l.match(/^#{3}\s*(.+)$/);
+      if(h){ if(cur) callHistory.push(cur);
+        const head=h[1].trim(), p=head.split(/\s+[—–-]\s+/);
+        cur={date:p[0].trim(), callType:p.slice(1).join(' — ').trim(), summary:'', leftOff:''}; continue; }
+      if(!cur) continue;
+      const sm=l.match(/^[-*]\s*Summary:\s*(.+)$/i);            if(sm){ cur.summary=(cur.summary?cur.summary+' ':'')+sm[1].trim(); continue; }
+      const lo=l.match(/^[-*]\s*(?:Left off|Next step|Next|Close):\s*(.+)$/i); if(lo){ cur.leftOff=lo[1].trim(); continue; }
+      const txt=l.replace(/^[-*]\s*/,'').trim();
+      if(txt) cur.summary=(cur.summary?cur.summary+' ':'')+txt;
+    }
+    if(cur) callHistory.push(cur);
+  }
+
   // last-touch date = latest call-log entry header (### date — type), fallback to Updated:
   let latest=null;
   for(const m of callLog.matchAll(/^#{3}\s*(.+)$/gm)){ const d=parseLogDate(m[1]); if(d&&(!latest||d>latest)) latest=d; }
@@ -1720,7 +1792,7 @@ function parseProfile(md, name){
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall, lastTouch };
+    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory };
 }
 
 async function gapiJSON(url){
@@ -1768,6 +1840,7 @@ async function syncFromDrive(){
         if(ex.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; }
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
+        if(ex.notes && ex.notes.length) intel.notes=ex.notes;             // advisor's own running notes
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
