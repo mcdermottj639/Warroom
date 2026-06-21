@@ -439,7 +439,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-20 · r35';
+const BUILD = 'build 2026-06-20 · r36';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1320,6 +1320,13 @@ function renderDetail(c){
     panel('📞 Call history', cnt(chSorted,'call'), chBody, '', false)
   ].join('');
 
+  // header jump-nav — only the sections that actually render
+  const secnav = `<nav class="secnav" aria-label="Jump to section"><span class="jumpc">Jump to</span>
+    <button data-target="p-hist" aria-label="Jump to History &amp; Notes">📒 History</button>
+    ${planning?'<button data-target="p-planning" aria-label="Jump to Planning Data">📊 Planning</button>':''}
+    ${helper?'<button data-target="p-helper" aria-label="Jump to On-Call Helper">🎯 On-Call</button>':''}
+  </nav>`;
+
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head">
       <div><h2>${esc(c.name)}
@@ -1344,6 +1351,8 @@ function renderDetail(c){
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
         : (ds.state&&!['Fresh',null].includes(ds.state))?`<b style="color:var(--warm)">${ds.overdue?'OVERDUE':ds.state.toUpperCase()}</b>` : '';
       return `<div class="meta" style="margin:-8px 0 14px">🕑 Last touch: ${lt!=null?lt+' day'+(lt===1?'':'s')+' ago':'—'}${tag?' · '+tag:''}</div>`; })()}
+
+    ${secnav}
 
     <div class="coachrow">
       <button data-coach="open">🎬 Opening</button>
