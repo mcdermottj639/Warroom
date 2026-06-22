@@ -431,6 +431,44 @@
   </div>
 </dialog>
 
+<!-- LOG CALL DIALOG -->
+<dialog id="logDlg">
+  <h3 style="margin-bottom:4px">📝 Log a call — <span id="logName"></span></h3>
+  <p class="note" style="margin-bottom:12px">Rattle off what happened in bullets. It files into the profile and writes back to your <code>1Remarkable</code> folder.</p>
+  <div class="grid">
+    <div class="field"><label>Call type</label>
+      <input id="logType" list="logTypes" placeholder="Enrollment call: Premier">
+      <datalist id="logTypes">
+        <option value="Enrollment call: Premier"></option>
+        <option value="Enrollment call: Personal Strategy"></option>
+        <option value="Follow-Up"></option>
+        <option value="Discovery"></option>
+        <option value="WSS"></option>
+        <option value="Proposal"></option>
+        <option value="Decision Call"></option>
+        <option value="Intro"></option>
+      </datalist></div>
+    <div class="field"><label>Date</label><input id="logDate" placeholder="MM/DD/YY"></div>
+  </div>
+  <div class="field"><label>What happened (one bullet per line)</label>
+    <textarea id="logSummary" style="min-height:150px" placeholder="- confirmed Hartford IRA ~$424K&#10;- wants managed plan, hands-off&#10;- interested in Roth conversion + estate planning"></textarea></div>
+  <div class="field"><label>Where you left off / next step</label>
+    <textarea id="logLeft" style="min-height:70px" placeholder="opening Premier IRA, transfers team handles paperwork"></textarea></div>
+  <div class="grid">
+    <div class="field"><label>Next call (date + time)</label><input id="logNext" placeholder="6/26 12:00 PM ET"></div>
+    <div class="field"><label>Stage</label>
+      <select id="logStage">
+        <option value="">— leave as is —</option>
+        <option>Inbound</option><option>Discovery</option><option>Proposal</option><option>Decision</option>
+      </select></div>
+  </div>
+  <p class="note" id="logErr" style="color:var(--danger);margin-bottom:10px"></p>
+  <div style="display:flex;gap:10px;justify-content:flex-end">
+    <button class="ghost" onclick="logDlg.close()">Cancel</button>
+    <button id="logGo">Save &amp; write to Drive</button>
+  </div>
+</dialog>
+
 <script>
 /* ============================================================
    War Room — local-first encrypted client intel
@@ -439,7 +477,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-20 · r38';
+const BUILD = 'build 2026-06-22 · r39';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1333,8 +1371,9 @@ function renderDetail(c){
         <span class="badge b-${esc(i.priority||'PIPELINE')}">${esc(i.priority||'PIPELINE')}</span></h2>
         <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%</div></div>
       <div class="btns">
-        ${isProposalStage(c)&&!i.status?'<button id="reengBtn">✉️ Re-engage</button>':''}
-        <button class="${isProposalStage(c)&&!i.status?'ghost':''}" id="editBtn">Edit</button>
+        <button id="logBtn">📝 Log call</button>
+        ${isProposalStage(c)&&!i.status?'<button class="ghost" id="reengBtn">✉️ Re-engage</button>':''}
+        <button class="ghost" id="editBtn">Edit</button>
         ${i.status==='won'?'<button class="ghost sm" id="reopenBtn">↩ Reopen</button>'
           :'<button class="ghost sm" id="wonBtn">✓ Won</button><button class="ghost sm" id="lostBtn">Lost</button>'}
         <button class="danger sm" id="delBtn">Delete</button>
@@ -1378,6 +1417,7 @@ function renderDetail(c){
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
   $('#editBtn').onclick = ()=>renderEditor(c);
+  if($('#logBtn')) $('#logBtn').onclick = ()=>openLog(c.code);
   $('#backFab').onclick = ()=>renderDashboard();
   if($('#reengBtn')) $('#reengBtn').onclick = ()=>openReengage(c.code);
   const saveNotes = async (notes)=>{
@@ -1715,6 +1755,53 @@ async function driveSaveEmail(name, subject, body){
   return res.json();
 }
 
+// ---- write a profile back to Drive: surgical edits on the raw markdown (lossless) ----
+// Edits Updated/Stage/Close-Action and appends a Call Log entry; everything else preserved.
+function profileEdit(rawMd, opts){
+  let md = (rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');   // normalize escaped → clean
+  if(!md.trim()) md = `# ${opts.name||'Client'} — Profile\n`;
+  const todayLong = opts.todayLong || new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  if(/^Updated:.*$/mi.test(md)) md = md.replace(/^Updated:.*$/mi, 'Updated: '+todayLong);
+  else md = md.replace(/^(#[^\n]*\n)/, '$1Updated: '+todayLong+'\n');
+  if(opts.stage && /^-\s*Stage:.*$/mi.test(md)) md = md.replace(/^-\s*Stage:.*$/mi, '- Stage: '+opts.stage);
+  if(opts.nextStep){
+    const ca = md.match(/^##\s.*Close Action.*$/mi);
+    if(ca){ const s=md.indexOf(ca[0])+ca[0].length; const rest=md.slice(s); const nx=rest.search(/\n##\s/);
+      const e = nx===-1? md.length : s+nx; md = md.slice(0,s)+'\n'+opts.nextStep+'\n'+md.slice(e); }
+    else { const block='\n## Close Action / Next Step\n'+opts.nextStep+'\n';
+      const cl=md.match(/^##\s.*Call Log.*$/mi);
+      if(cl){ const at=md.indexOf(cl[0]); md=md.slice(0,at)+block+'\n'+md.slice(at); } else md=md.trimEnd()+'\n'+block; }
+  }
+  if(opts.summary || opts.callType){
+    const entry = '\n### '+opts.date+' — '+(opts.callType||'Call')+'\n- Summary: '+(opts.summary||'')+'\n- Left off / next step: '+(opts.leftOff||'')+'\n';
+    const cl = md.match(/^##\s.*Call Log.*$/mi);
+    if(cl){ const s=md.indexOf(cl[0])+cl[0].length; const rest=md.slice(s); const nx=rest.search(/\n##\s/);
+      if(nx===-1) md = md.trimEnd()+'\n'+entry; else { const at=s+nx; md=md.slice(0,at)+'\n'+entry+md.slice(at); } }
+    else md = md.trimEnd()+'\n\n## Call Log (most recent last)\n'+entry;
+  }
+  return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
+}
+// create the app's own profile file (drive.file), or update it in place on later saves
+async function driveSaveProfile(name, md, fileId){
+  if(fileId){
+    const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id`,
+      {method:'PATCH', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'text/markdown'}, body:md});
+    if(r.ok){ return fileId; }            // updated in place — no new duplicate
+    // else fall through and create (file may have been removed, or isn't app-owned)
+  }
+  const fq=encodeURIComponent(`name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const fr=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id)&pageSize=1`);
+  const folderId=fr.files&&fr.files[0]&&fr.files[0].id;
+  const meta={ name:`${name} — Profile.md`, mimeType:'text/markdown' };
+  if(folderId) meta.parents=[folderId];
+  const boundary='wr'+Date.now();
+  const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: text/markdown; charset=UTF-8\r\n\r\n${md}\r\n--${boundary}--`;
+  const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+boundary}, body});
+  if(!res.ok) throw new Error('Drive write '+res.status+(res.status===403?' (need drive.file scope — reconnect Drive)':''));
+  return (await res.json()).id;
+}
+
 // Profile.md -> import-shaped source (then mapImport turns it into intel)
 function parseProfile(md, name){
   const t = md.replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');
@@ -1843,6 +1930,7 @@ async function syncFromDrive(){
     for(const nm in byName){
       const md = await gapiText(`https://www.googleapis.com/drive/v3/files/${byName[nm].id}?alt=media`);
       const intel = mapImport(parseProfile(md, nm));
+      intel._md = md;                                                      // raw source, for lossless in-app edits
       // preserve user-set fields that aren't in the Drive profile (so a re-sync doesn't wipe them)
       const ex = exByName[nm];
       if(ex){
@@ -1850,6 +1938,7 @@ async function syncFromDrive(){
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
         if(ex.notes && ex.notes.length) intel.notes=ex.notes;             // advisor's own running notes
+        if(ex._driveFileId) intel._driveFileId=ex._driveFileId;           // the app's own profile file id
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
@@ -1996,6 +2085,56 @@ function openCoach(code, type){
   $('#coachDlg').showModal();
 }
 
+/* ---- log a call → write the profile back to Drive ---- */
+let logCode=null;
+function openLog(code){
+  const c=S.clients.find(x=>x.code===code); if(!c) return;
+  logCode=code;
+  $('#logName').textContent=c.name;
+  $('#logType').value=''; $('#logSummary').value=''; $('#logLeft').value='';
+  $('#logNext').value=''; $('#logStage').value=''; $('#logErr').textContent='';
+  const t=new Date();
+  $('#logDate').value=`${t.getMonth()+1}/${t.getDate()}/${String(t.getFullYear()).slice(2)}`;
+  $('#logDlg').showModal();
+}
+async function doLogSave(){
+  const c=S.clients.find(x=>x.code===logCode); if(!c) return;
+  const err=$('#logErr'); err.textContent='';
+  if(!c.intel._md){ err.textContent='Tap ☁️ Drive to refresh first — then log the call, so the full profile is edited (not a blank one).'; return; }
+  const callType=$('#logType').value.trim();
+  const date=$('#logDate').value.trim();
+  // bullets → a single clean summary line ("- a", "- b" → "a; b")
+  const summary=$('#logSummary').value.split(/\r?\n/).map(l=>l.replace(/^\s*[-*•]\s*/,'').trim()).filter(Boolean).join('; ');
+  const leftRaw=$('#logLeft').value.trim();
+  const next=$('#logNext').value.trim();
+  const stage=$('#logStage').value;
+  if(!summary && !callType){ err.textContent='Add at least a call type or a note.'; return; }
+  // close action = where you left off + the next call, so a re-sync re-derives the next-call date
+  const nextStep=[leftRaw, next?('Next call: '+next):''].filter(Boolean).join(' ');
+  const newMd=profileEdit(c.intel._md, {name:c.name, date, callType, summary, leftOff:nextStep, stage, nextStep});
+  // re-derive intel from the edited markdown (single source of truth), preserving app/user fields
+  const intel=mapImport(parseProfile(newMd, c.name));
+  intel._md=newMd; intel._driveFileId=c.intel._driveFileId;
+  if(c.intel.status){ intel.status=c.intel.status; intel.wonAmount=c.intel.wonAmount; intel.wonDate=c.intel.wonDate; }
+  if(c.intel.notes && c.intel.notes.length) intel.notes=c.intel.notes;
+  if(next) intel.nextCallSet=next;                       // show the new next-call immediately
+  const go=$('#logGo'); const orig=go.textContent; go.disabled=true; go.textContent='Saving…';
+  try{
+    await saveClient(c.code, c.name, intel);             // local first — never lose the note
+    await new Promise((res,rej)=> withDriveToken(async ()=>{
+      try{ const id=await driveSaveProfile(c.name, newMd, intel._driveFileId);
+        if(id && id!==intel._driveFileId){ intel._driveFileId=id; await saveClient(c.code, c.name, intel); }
+        res();
+      }catch(e){ rej(e); }
+    }));
+    await loadClients(); $('#logDlg').close();
+    renderDetail(S.clients.find(x=>x.code===c.code));
+  }catch(e){
+    err.textContent='Saved on this device, but Drive write failed: '+e.message+'. It’ll be in the profile here; reconnect Drive and log again to push it.';
+    await loadClients();
+  }finally{ go.disabled=false; go.textContent=orig; }
+}
+
 /* ---- re-engagement dialog ---- */
 let reengCode=null;
 // Estimate markers => not transcript-verified => default the savings line OFF.
@@ -2037,6 +2176,7 @@ $('#reengDrive').onclick = ()=>{
   });
 };
 $('#reengTouched').onclick = async ()=>{ if(reengCode){ S.touchLog[reengCode]=new Date().toISOString().slice(0,10); await saveTouchLog(); } $('#reengDlg').close(); renderDashboard(); };
+$('#logGo').onclick = doLogSave;
 
 try{ document.getElementById('buildtag').textContent = BUILD; }catch(e){}
 initFlow();
