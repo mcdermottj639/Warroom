@@ -534,7 +534,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r56';
+const BUILD = 'build 2026-06-22 · r57';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1616,25 +1616,43 @@ function renderDetail(c){
   };
   document.querySelectorAll('[data-coach]').forEach(b=> b.onclick = ()=> openCoach(c.code, b.dataset.coach));
   const setStatus = async (status, amount)=>{
-    const intel = {...c.intel, status};
-    if(status==='won'){ intel.wonAmount = amount||c.intel.moveable||''; intel.wonDate = new Date().toISOString().slice(0,10); }
-    else if(status===undefined){ delete intel.status; delete intel.wonAmount; delete intel.wonDate; }
-    await saveClient(c.code, c.name, intel);    // local first
-    // persist to the Drive profile so wins/losses survive a vault reset or another device
+    if(status==='won'){
+      // keep only a minimal record — name + amount moved; erase the rest from Drive
+      const wonAmount = amount||c.intel.moveable||'';
+      const wonDate = new Date().toISOString().slice(0,10);
+      const minimal = { status:'won', wonAmount, wonDate };
+      await saveClient(c.code, c.name, minimal);   // local first (strips the intel)
+      const today = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const minMd = `# ${c.name} — Profile\nUpdated: ${today}\nStatus: Won · ${wonAmount} · ${wonDate}\n`;
+      try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{
+        const r=await driveLogCall(c.name, ()=> minMd);
+        await saveClient(c.code, c.name, {...minimal, _md:r.md, _driveFileId:r.id}); res();
+      }catch(e){ rej(e); } })); }
+      catch(e){ alert('Marked Won here, but the Drive update failed: '+e.message+'. Reconnect Drive and re-mark to erase the details.'); }
+      await loadClients(); S.active='__dash__'; renderList(); renderDashboard();
+      return;
+    }
+    if(status==='lost'){
+      try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{ await driveDeleteProfile(c.name); res(); }catch(e){ rej(e); } })); }
+      catch(e){ alert('Removed here, but the Drive file couldn’t be deleted: '+e.message+'. It may re-appear on sync until Drive is reconnected.'); }
+      await deleteClient(c.code); S.active='__dash__'; await loadClients(); renderList(); renderDashboard();
+      return;
+    }
+    // reopen (status === undefined)
+    const intel={...c.intel}; delete intel.status; delete intel.wonAmount; delete intel.wonDate;
+    await saveClient(c.code, c.name, intel);
     try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{
-      const r=await driveLogCall(c.name, baseMd=> profileSetStatus(baseMd, status, intel.wonAmount, intel.wonDate));
-      const fresh={...intel, _md:r.md, _driveFileId:r.id}; await saveClient(c.code, c.name, fresh); res();
-    }catch(e){ rej(e); } })); }
-    catch(e){ /* offline / no Drive — kept locally, will need a re-mark or a later sync */ }
-    await loadClients(); S.active = status ? '__dash__' : c.code; renderList();
-    if(status){ renderDashboard(); }            // won/lost → leave the now-hidden profile
-    else { renderDetail(S.clients.find(x=>x.code===c.code)); } // reopen → stay
+      const r=await driveLogCall(c.name, baseMd=> profileSetStatus(baseMd, undefined)); await saveClient(c.code, c.name, {...intel, _md:r.md, _driveFileId:r.id}); res();
+    }catch(e){ rej(e); } })); }catch(e){}
+    await loadClients(); S.active=c.code; renderList(); renderDetail(S.clients.find(x=>x.code===c.code));
   };
-  if($('#wonBtn')) $('#wonBtn').onclick = ()=>{ const a = prompt('Won amount (optional, e.g. $325k):', c.intel.moveable||''); setStatus('won', a||undefined); };
-  if($('#lostBtn')) $('#lostBtn').onclick = ()=>{ if(confirm('Mark '+c.name+' as lost? They drop out of the pipeline (not tracked).')) setStatus('lost'); };
-  if($('#reopenBtn')) $('#reopenBtn').onclick = ()=> setStatus(undefined);
+  if($('#wonBtn')) $('#wonBtn').onclick = ()=>{ const a = prompt('Won amount (e.g. $325k).\nMarking Won erases the rest of this client’s details from Drive — only the amount is kept.', c.intel.moveable||''); if(a!==null) setStatus('won', a||undefined); };
+  if($('#lostBtn')) $('#lostBtn').onclick = ()=>{ if(confirm('Mark '+c.name+' as Lost? This permanently deletes their profile from Drive.')) setStatus('lost'); };
+  if($('#reopenBtn')) $('#reopenBtn').onclick = ()=>{ if(confirm('Reopen '+c.name+'? Heads-up: the client’s details were erased when the deal was won, so this brings back only a bare profile.')) setStatus(undefined); };
   $('#delBtn').onclick = async ()=>{
-    if(!confirm('Delete '+c.name+'? This removes their profile entirely (the way a closed client drops out).')) return;
+    if(!confirm('Delete '+c.name+'? This permanently deletes their profile from Drive.')) return;
+    try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{ await driveDeleteProfile(c.name); res(); }catch(e){ rej(e); } })); }
+    catch(e){ alert('Deleted here, but the Drive file couldn’t be removed: '+e.message+'. It may re-appear on sync until Drive is reconnected.'); }
     await deleteClient(c.code); S.active=null; await loadClients(); renderList();
     $('#main').innerHTML='<div class="empty"><div>Client deleted.</div></div>';
   };
@@ -2020,6 +2038,19 @@ async function driveLogCall(name, editFn){
   for(const f of mine.slice(1)){ try{ await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`,
     {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); }catch(e){} }   // drop duplicates
   return {id:keepId, md:newMd};
+}
+// permanently delete every profile file for a client (used on Lost / Delete)
+async function driveDeleteProfile(name){
+  const folderId=await driveFolderId();
+  const pq=encodeURIComponent(`'${folderId}' in parents and name contains 'Profile' and trashed=false`);
+  let files=[], pt='';
+  do{ const r=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${pq}&fields=nextPageToken,files(id,name)&pageSize=100${pt?`&pageToken=${encodeURIComponent(pt)}`:''}`);
+      files=files.concat(r.files||[]); pt=r.nextPageToken||''; }while(pt);
+  const mine=files.filter(f=>PROFILE_NAME(f.name)===name);
+  for(const f of mine){ const r=await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`,
+    {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}});
+    if(!r.ok && r.status!==404) throw new Error('Drive delete '+r.status+(r.status===403?' (reconnect Drive to grant full access)':'')); }
+  return mine.length;
 }
 
 // Profile.md -> import-shaped source (then mapImport turns it into intel)
