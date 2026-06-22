@@ -505,7 +505,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r51';
+const BUILD = 'build 2026-06-22 · r52';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1105,6 +1105,7 @@ function mapImport(s){
     answerKey: s.answerKey || [],
     callHistory: s.callHistory || (s.lastCall?[{date:'',callType:s.callType||'',summary:s.lastCall,leftOff:s.closeAction||''}]:[])
   };
+  if(s.status){ out.status=s.status; out.wonAmount=s.wonAmount||''; out.wonDate=s.wonDate||''; }  // won/lost from profile
   return out; // fidelity mode: no synthesized script/pitch — show only what the profile contains
 }
 
@@ -1548,7 +1549,13 @@ function renderDetail(c){
     const intel = {...c.intel, status};
     if(status==='won'){ intel.wonAmount = amount||c.intel.moveable||''; intel.wonDate = new Date().toISOString().slice(0,10); }
     else if(status===undefined){ delete intel.status; delete intel.wonAmount; delete intel.wonDate; }
-    await saveClient(c.code, c.name, intel);
+    await saveClient(c.code, c.name, intel);    // local first
+    // persist to the Drive profile so wins/losses survive a vault reset or another device
+    try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{
+      const r=await driveLogCall(c.name, baseMd=> profileSetStatus(baseMd, status, intel.wonAmount, intel.wonDate));
+      const fresh={...intel, _md:r.md, _driveFileId:r.id}; await saveClient(c.code, c.name, fresh); res();
+    }catch(e){ rej(e); } })); }
+    catch(e){ /* offline / no Drive — kept locally, will need a re-mark or a later sync */ }
     await loadClients(); S.active = status ? '__dash__' : c.code; renderList();
     if(status){ renderDashboard(); }            // won/lost → leave the now-hidden profile
     else { renderDetail(S.clients.find(x=>x.code===c.code)); } // reopen → stay
@@ -1850,6 +1857,18 @@ async function driveSaveEmail(name, subject, body){
 
 // ---- write a profile back to Drive: surgical edits on the raw markdown (lossless) ----
 // Edits Updated/Stage/Close-Action and appends a Call Log entry; everything else preserved.
+// set/clear the won/lost Status line in the profile markdown (durable across resets + devices)
+function profileSetStatus(rawMd, status, amount, date){
+  let md=(rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');
+  if(!md.trim()) md=`# Client — Profile\n`;
+  md=md.replace(/^[-*]?\s*Status:.*$\n?/im,'');                 // drop any existing status line
+  if(status){
+    const line=`Status: ${status==='won'?'Won':'Lost'}`+(status==='won'?[amount,date].filter(Boolean).map(x=>' · '+x).join(''):'');
+    if(/^Updated:.*$/im.test(md)) md=md.replace(/^(Updated:.*)$/im,`$1\n${line}`);
+    else md=md.replace(/^(#[^\n]*\n)/,`$1${line}\n`);
+  }
+  return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
+}
 function profileEdit(rawMd, opts){
   let md = (rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');   // normalize escaped → clean
   if(!md.trim()) md = `# ${opts.name||'Client'} — Profile\n`;
@@ -1924,6 +1943,14 @@ function parseProfile(md, name){
   const section = headerRe => { let out=[],on=false; for(const l of lines){ if(/^#{2}\s/.test(l)){ on=headerRe.test(l); continue; } if(on) out.push(l); } return out.join('\n').trim(); };
 
   const stage = get(/^[-*]\s*Stage:\s*(.+)$/i);
+  // won/lost status (persisted to the profile so it survives resets + other devices)
+  const statusLine = get(/^[-*]?\s*Status:\s*(.+)$/i);
+  let wonStatus='', wonAmount='', wonDate='';
+  if(statusLine){
+    if(/won/i.test(statusLine)) wonStatus='won'; else if(/lost/i.test(statusLine)) wonStatus='lost';
+    const am=statusLine.match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/); if(am) wonAmount=am[0].replace(/\s+/g,'');
+    const dm=statusLine.match(/\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/); if(dm) wonDate=dm[0];
+  }
   const mvLine = get(/Outside\s*\/?\s*moveable assets:\s*(.+)$/i);
   const mvTok = mvLine.match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/);
   const moveable = mvTok ? mvTok[0].replace(/\s+/g,'') : '';
@@ -2002,7 +2029,8 @@ function parseProfile(md, name){
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory };
+    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory,
+    status:wonStatus||undefined, wonAmount, wonDate };
 }
 
 async function gapiJSON(url){
@@ -2055,7 +2083,7 @@ async function syncFromDrive(){
       // preserve user-set fields that aren't in the Drive profile (so a re-sync doesn't wipe them)
       const ex = exByName[nm];
       if(ex){
-        if(ex.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; }
+        if(ex.status && !intel.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; } // profile status wins; else keep local
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
         if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
