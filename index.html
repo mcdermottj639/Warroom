@@ -485,6 +485,17 @@
   </div>
 </dialog>
 
+<!-- NOTES DIALOG -->
+<dialog id="notesDlg">
+  <h3 style="margin-bottom:4px">🗒️ Notes — <span id="notesName"></span></h3>
+  <p class="note" style="margin-bottom:10px">Your own running reminders. Stored on this device and kept across Drive syncs.</p>
+  <div id="notesList"></div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+    <button class="ghost" onclick="notesDlg.close()">Close</button>
+    <button id="notesAddBtn">+ Add note</button>
+  </div>
+</dialog>
+
 <script>
 /* ============================================================
    War Room — local-first encrypted client intel
@@ -493,7 +504,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r47';
+const BUILD = 'build 2026-06-22 · r48';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1411,7 +1422,6 @@ function renderDetail(c){
   // render a panel only when it has real content (fidelity mode — nothing fabricated/empty)
   const P = (cond,ttl,meta,body,cls,open)=> cond ? panel(ttl,meta,body,cls||'',!!open) : '';
   const planning = [
-    P(i.solutionOffered||i.closeAction||has(i.goals)||has(i.objections),'TL;DR — the close','',tldrBody(c),'tldr',true),
     P(has(i.accounts),'Asset Landscape',cnt(i.accounts,'account'),accBody),
     P(has(i.incomeStreams),'Income &amp; Asset Streams',cnt(i.incomeStreams,'stream'),incBody),
     P(feeRows.length,'Transferable &amp; Fee',esc(i.moveable||''),feeBody),
@@ -1437,23 +1447,17 @@ function renderDetail(c){
       ${h.leftOff?`<div class="ch-l">Left off: ${esc(h.leftOff)}</div>`:''}
     </div>`).join('') : '<div class="bodynote" style="padding-top:0">No call log in the profile yet.</div>';
 
-  // My notes — advisor's own running log (manual, never overwritten by a Drive sync)
+  // My notes — advisor's own running log (now lives in a top-bar dialog, not an inline panel)
   const myNotes = i.notes || [];
-  const notesBody = `<div class="notesbox">
-    ${myNotes.length ? myNotes.map((nt,idx)=>`<div class="noterow">
-        <div class="note-main"><span class="note-d">${esc(nt.d||'')}</span> ${esc(nt.t||'')}</div>
-        <button class="note-del" data-ni="${idx}" aria-label="Delete note">✕</button>
-      </div>`).join('') : '<div class="bodynote" style="padding-top:0">No notes yet — jot a quick reminder like “need statements” or “spoke 6/14, still no decision.”</div>'}
-    <button class="addrow" id="addNoteBtn">+ Add note</button></div>`;
 
   const histNotes = [
-    panel('📝 My notes', myNotes.length?(myNotes.length+' note'+(myNotes.length>1?'s':'')):'add', notesBody, '', true),
+    P(i.solutionOffered||i.closeAction||has(i.goals)||has(i.objections),'TL;DR — the close','',tldrBody(c),'tldr',true),
     panel('📞 Call history', cnt(chSorted,'call'), chBody, '', false)
   ].join('');
 
   // header jump-nav — only the sections that actually render
   const secnav = `<nav class="secnav" aria-label="Jump to section"><span class="jumpc">Jump to</span>
-    <button data-target="p-hist" aria-label="Jump to History &amp; Notes">📒 History</button>
+    <button data-target="p-hist" aria-label="Jump to TL;DR &amp; History">📋 TL;DR</button>
     ${planning?'<button data-target="p-planning" aria-label="Jump to Planning Data">📊 Planning</button>':''}
     ${helper?'<button data-target="p-helper" aria-label="Jump to On-Call Helper">🎯 On-Call</button>':''}
   </nav>`;
@@ -1465,6 +1469,7 @@ function renderDetail(c){
         <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%</div></div>
       <div class="btns">
         <button id="logBtn">📝 Log call</button>
+        <button class="ghost" id="notesBtn">🗒️ Notes${myNotes.length?` (${myNotes.length})`:''}</button>
         ${isProposalStage(c)&&!i.status?'<button class="ghost" id="reengBtn">✉️ Re-engage</button>':''}
         <button class="ghost" id="editBtn">Edit</button>
         ${i.status==='won'?'<button class="ghost sm" id="reopenBtn">↩ Reopen</button>'
@@ -1516,25 +1521,7 @@ function renderDetail(c){
   if($('#logBtn')) $('#logBtn').onclick = ()=>openLog(c.code);
   $('#backFab').onclick = ()=>renderDashboard();
   if($('#reengBtn')) $('#reengBtn').onclick = ()=>openReengage(c.code);
-  const saveNotes = async (notes)=>{
-    const intel = {...c.intel, notes};
-    await saveClient(c.code, c.name, intel);
-    await loadClients();
-    renderDetail(S.clients.find(x=>x.code===c.code));
-  };
-  if($('#addNoteBtn')) $('#addNoteBtn').onclick = async ()=>{
-    const v = prompt('Add a note (e.g. "need to get statements" or "spoke 6/14 — still no decision"):','');
-    if(v===null || !v.trim()) return;
-    const notes = (c.intel.notes||[]).slice();
-    notes.unshift({ d:new Date().toLocaleDateString(undefined,{month:'short',day:'numeric'}), t:v.trim() });  // newest first
-    await saveNotes(notes);
-  };
-  document.querySelectorAll('.note-del').forEach(btn=> btn.onclick = async (e)=>{
-    e.stopPropagation();
-    const ni = +btn.dataset.ni;
-    const notes = (c.intel.notes||[]).slice();
-    if(ni>=0 && ni<notes.length && confirm('Delete this note?')){ notes.splice(ni,1); await saveNotes(notes); }
-  });
+  if($('#notesBtn')) $('#notesBtn').onclick = ()=>openNotes(c.code);
   if($('#setNcBtn')) $('#setNcBtn').onclick = async ()=>{
     const cur = _ncOvr ? (i.nextCallSet||'') : (ncLabel||'');
     const v = prompt('Set next call — a date like "Jun 30", "7/13", or "Jul 13 at 2pm".\nLeave blank to clear it. Type "auto" to go back to reading it from the notes.', cur);
@@ -2226,6 +2213,39 @@ function openCoach(code, type){
 
 /* ---- log a call → write the profile back to Drive ---- */
 let logCode=null;
+/* ---- notes dialog (advisor's running reminders) ---- */
+let notesCode=null;
+function renderNotesList(){
+  const c=S.clients.find(x=>x.code===notesCode); if(!c) return;
+  const ns=c.intel.notes||[];
+  $('#notesList').innerHTML = `<div class="notesbox">${ns.length ? ns.map((nt,idx)=>`<div class="noterow">
+      <div class="note-main"><span class="note-d">${esc(nt.d||'')}</span> ${esc(nt.t||'')}</div>
+      <button class="note-del" data-ni="${idx}" aria-label="Delete note">✕</button></div>`).join('')
+    : '<div class="bodynote" style="padding-top:0">No notes yet — jot a quick reminder like “need statements” or “spoke 6/14, still no decision.”</div>'}</div>`;
+  $('#notesList').querySelectorAll('.note-del').forEach(btn=> btn.onclick = async ()=>{
+    const ni=+btn.dataset.ni; const notes=(c.intel.notes||[]).slice();
+    if(ni>=0 && ni<notes.length && confirm('Delete this note?')){ await saveNotesFor(c, notes.filter((_,k)=>k!==ni)); renderNotesList(); }
+  });
+}
+async function saveNotesFor(c, notes){
+  await saveClient(c.code, c.name, {...c.intel, notes});
+  await loadClients();
+}
+function openNotes(code){
+  notesCode=code; const c=S.clients.find(x=>x.code===code); if(!c) return;
+  $('#notesName').textContent=c.name;
+  renderNotesList();
+  $('#notesDlg').showModal();
+}
+$('#notesAddBtn').onclick = async ()=>{
+  const c=S.clients.find(x=>x.code===notesCode); if(!c) return;
+  const v=prompt('Add a note (e.g. "need to get statements" or "spoke 6/14 — still no decision"):','');
+  if(v===null || !v.trim()) return;
+  const notes=(c.intel.notes||[]).slice();
+  notes.unshift({ d:new Date().toLocaleDateString(undefined,{month:'short',day:'numeric'}), t:v.trim() });
+  await saveNotesFor(c, notes); renderNotesList();
+};
+$('#notesDlg').addEventListener('close', ()=>{ const c=S.clients.find(x=>x.code===notesCode); if(c && S.active===c.code) renderDetail(c); });
 function openLog(code){
   const c=S.clients.find(x=>x.code===code); if(!c) return;
   logCode=code;
