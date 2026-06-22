@@ -480,7 +480,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r40';
+const BUILD = 'build 2026-06-22 · r41';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -885,7 +885,8 @@ function nextExpectedDate(i){
     return isNaN(dt)?null:dt; } }
   return null;
 }
-// the TYPE of the upcoming call, read from the manual override or the "Next call:" clause
+// the TYPE of the upcoming call. 1) honor an explicit "Next call:" clause / override,
+// 2) otherwise infer from where the deal is in the pipeline (the logic we discussed).
 function nextCallType(i){
   let t = i.nextCallSet || '';
   if(!t){ const m=(i.closeAction||'').match(/next call:\s*([^.\n]*)/i); t = m?m[1]:''; }
@@ -895,7 +896,15 @@ function nextCallType(i){
   if(/proposal/.test(t)) return 'Proposal';
   if(/discovery|wss|investment guide/.test(t)) return 'Discovery';
   if(/follow.?up|review|check.?in|planning/.test(t)) return 'Follow-Up';
-  if(/intro/.test(t)) return 'Intro';
+  if(/intro|introduction/.test(t)) return 'Intro';
+  // infer from stage + signals
+  const stage=(i.stage||'').toLowerCase();
+  const blob=((i.closeAction||'')+' '+(i.solutionOffered||'')+' '+(i.lastCall||'')).toLowerCase();
+  const agreed = i.status==='won' || /\b(agreed|moving forward|move forward|said yes|going to enroll|enroll|open(?:ing)? (?:the )?(?:premier|account|ira)|begin (?:the )?transfer|start(?:ing)? (?:the )?transfer|paperwork|docusign|onboard)\b/.test(blob);
+  if(stage==='decision') return agreed ? 'Enrollment' : 'Decision';
+  if(stage==='proposal') return 'Proposal';
+  if(stage==='discovery') return 'Discovery';
+  if(stage==='inbound')   return 'Intro';
   return '';
 }
 // Logic-driven deal state. Scheduled = on track (leave alone). Otherwise measure the fade.
@@ -1180,10 +1189,11 @@ function renderDashboard(){
   const today0=new Date(); today0.setHours(0,0,0,0);
   const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0)
     .sort((a,b)=>a.d-b.d).slice(0,12);
-  const upRows = upcoming.length ? upcoming.map(x=>{ const ty=nextCallType(x.c.intel); return `<tr class="click" data-code="${x.c.code}">
+  const upRows = upcoming.length ? upcoming.map(x=>{ const ty=nextCallType(x.c.intel);
+    const detail=esc(x.c.intel.nextCall||''); return `<tr class="click" data-code="${x.c.code}">
     <td>${x.d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td>
     <td>${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span></td>
-    <td>${ty?`<b style="color:var(--gold)">${esc(ty)}</b> · `:''}${esc(x.c.intel.nextCall||x.c.intel.callType||'')}</td>
+    <td>${ty?`<b style="color:var(--gold)">${esc(ty)} call</b>`:''}${detail?(ty?' · ':'')+detail:(ty?'':esc(x.c.intel.callType||''))}</td>
     <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`; }).join('')
     : '<tr><td colspan="4" style="color:var(--muted)">No upcoming calls found in profiles.</td></tr>';
 
