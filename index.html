@@ -181,6 +181,18 @@
   .note-del{flex:none;background:transparent;border:none;color:var(--muted);font-size:14px;
     cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1}
   .note-del:hover{color:var(--warm)}
+  .taskrow{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+  .taskrow .task-chk{flex:none;width:18px;height:18px;margin-top:1px;accent-color:var(--gold)}
+  .taskrow .task-main{flex:1;min-width:0}
+  .taskrow .task-t{font-size:13.5px;color:var(--txt);overflow-wrap:anywhere}
+  .taskrow.done .task-t{text-decoration:line-through;color:var(--muted)}
+  .task-due{font-size:11px;font-weight:800;white-space:nowrap;color:var(--muted);margin-top:2px}
+  .task-due.task-soon{color:var(--gold)}
+  .task-due.task-over{color:var(--warm)}
+  .todobar{display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--line);
+    border-left:4px solid var(--warm);border-radius:11px;padding:10px 14px;margin-bottom:16px;cursor:pointer}
+  .todobar .todo-item{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;color:var(--txt)}
+  .todobar .todo-item>span:first-of-type{flex:1;min-width:0;overflow-wrap:anywhere}
 
   /* Accordion panels */
   .groupttl{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);
@@ -497,6 +509,21 @@
   </div>
 </dialog>
 
+<!-- TASKS DIALOG -->
+<dialog id="tasksDlg">
+  <h3 style="margin-bottom:4px">📌 Follow-ups — <span id="tasksName"></span></h3>
+  <p class="note" style="margin-bottom:10px">Dated to-dos you owe this client. They surface on the Command Center by due date so nothing slips. Saved to Drive.</p>
+  <div id="tasksList"></div>
+  <div class="field" style="margin-top:12px"><label>New follow-up</label>
+    <input id="taskText" placeholder="e.g. look into moving $300K from the 401k now"></div>
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <div class="field" style="margin:0"><label>Due</label><input id="taskDue" type="date"></div>
+    <button id="taskAddBtn">+ Add follow-up</button>
+    <button class="ghost" onclick="tasksDlg.close()" style="margin-left:auto">Close</button>
+  </div>
+  <p class="note" id="taskErr" style="color:var(--danger);margin-top:8px"></p>
+</dialog>
+
 <script>
 /* ============================================================
    War Room — local-first encrypted client intel
@@ -505,7 +532,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r52';
+const BUILD = 'build 2026-06-22 · r53';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1106,6 +1133,7 @@ function mapImport(s){
     callHistory: s.callHistory || (s.lastCall?[{date:'',callType:s.callType||'',summary:s.lastCall,leftOff:s.closeAction||''}]:[])
   };
   if(s.status){ out.status=s.status; out.wonAmount=s.wonAmount||''; out.wonDate=s.wonDate||''; }  // won/lost from profile
+  if(s.tasks && s.tasks.length) out.tasks=s.tasks;                                                // dated follow-up to-dos
   return out; // fidelity mode: no synthesized script/pitch — show only what the profile contains
 }
 
@@ -1246,6 +1274,17 @@ function renderDashboard(){
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
     <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '<div class="bodynote" style="padding-top:0">No wins logged yet — mark a client ✓ Won and they’ll be tracked here.</div>';
 
+  // Follow-ups — open dated tasks across all clients, soonest/overdue first
+  const allTasks=[];
+  S.clients.forEach(c=> (c.intel.tasks||[]).forEach((t,idx)=>{ if(!t.done) allTasks.push({c, t, idx}); }));
+  allTasks.sort((a,b)=> ((a.t.due||'9999-99')<(b.t.due||'9999-99')?-1:1));
+  const taskRows = allTasks.length ? allTasks.map(({c,t})=>`<div class="crow" data-code="${c.code}">
+      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="fc ellip">${esc(t.t)}</div></div>
+      ${t.due?`<span class="task-due ${dueClass(t.due)}">${esc(dueLabel(t.due))}</span>`:'<span class="fc">no date</span>'}
+      <span class="chev">›</span></div>`).join('')
+    : '<div class="bodynote" style="padding-top:0">No open follow-ups — you’re clear. 👌</div>';
+  const overdueCount = allTasks.filter(x=>dueClass(x.t.due)==='task-over').length;
+
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head"><div><h2>⚔️ Command Center</h2>
       <div class="meta">${active.length} tracked · Weighted pipeline ${fmtVal(weighted)}</div></div></div>
@@ -1254,6 +1293,7 @@ function renderDashboard(){
       <span class="jumpc">Jump to</span>
       <button data-target="sec-upcoming" aria-label="Jump to Upcoming Calls">📅 Upcoming</button>
       <button data-target="sec-pending" aria-label="Jump to Pending Decisions">⏳ Pending${pend.length?(' ('+pend.length+')'):''}</button>
+      <button data-target="sec-tasks" aria-label="Jump to Follow-ups">📌 Follow-ups${allTasks.length?(' ('+allTasks.length+(overdueCount?'·'+overdueCount+'!':'')+')'):''}</button>
       <button data-target="sec-top" aria-label="Jump to Top 10 Opportunities">🎯 Top 10</button>
       <button data-target="sec-cooling" aria-label="Jump to Cooling Deals">🧊 Cooling${cooling.length?(' ('+cooling.length+')'):''}</button>
       <button data-target="sec-wins" aria-label="Jump to Wins">🏆 Wins${wins.length?(' ('+wins.length+')'):''}</button>
@@ -1278,6 +1318,9 @@ function renderDashboard(){
 
     <div class="groupttl" id="sec-pending">⏳ Pending Decisions — open, no next call booked</div>
     <div class="card">${pendRows}</div>
+
+    <div class="groupttl" id="sec-tasks">📌 Follow-ups — things you owe clients, by due date</div>
+    <div class="card">${taskRows}</div>
 
     <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by expected value</div>
     <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
@@ -1472,6 +1515,7 @@ function renderDetail(c){
         <div class="meta">${esc(i.callType||'')} · ${esc(i.stage||'')} · Confidence ${esc(i.confidence||'')}%</div></div>
       <div class="btns">
         <button id="logBtn">📝 Log call</button>
+        ${(()=>{ const open=(i.tasks||[]).filter(t=>!t.done).length; return `<button class="ghost" id="tasksBtn">📌 Follow-ups${open?` (${open})`:''}</button>`; })()}
         <button class="ghost" id="notesBtn">🗒️ Notes${myNotes.length?` (${myNotes.length})`:''}</button>
         ${isProposalStage(c)&&!i.status?'<button class="ghost" id="reengBtn">✉️ Re-engage</button>':''}
         <button class="ghost" id="editBtn">Edit</button>
@@ -1494,6 +1538,9 @@ function renderDetail(c){
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
         : (ds.state&&!['Fresh',null].includes(ds.state))?`<b style="color:var(--warm)">${ds.overdue?'OVERDUE':ds.state.toUpperCase()}</b>` : '';
       return `<div class="meta" style="margin:-8px 0 14px">🕑 Last touch: ${lt!=null?lt+' day'+(lt===1?'':'s')+' ago':'—'}${tag?' · '+tag:''}</div>`; })()}
+    ${(()=>{ const open=(i.tasks||[]).filter(t=>!t.done).sort((a,b)=>((a.due||'9999')<(b.due||'9999')?-1:1));
+      if(!open.length) return '';
+      return `<div class="todobar" id="todoBar">${open.map(t=>`<div class="todo-item">📌 <span>${esc(t.t)}</span>${t.due?`<span class="task-due ${dueClass(t.due)}">${esc(dueLabel(t.due))}</span>`:''}</div>`).join('')}</div>`; })()}
 
     ${secnav}
 
@@ -1525,6 +1572,8 @@ function renderDetail(c){
   $('#backFab').onclick = ()=>renderDashboard();
   if($('#reengBtn')) $('#reengBtn').onclick = ()=>openReengage(c.code);
   if($('#notesBtn')) $('#notesBtn').onclick = ()=>openNotes(c.code);
+  if($('#tasksBtn')) $('#tasksBtn').onclick = ()=>openTasks(c.code);
+  if($('#todoBar')) $('#todoBar').onclick = ()=>openTasks(c.code);
   if($('#setNcBtn')) $('#setNcBtn').onclick = async ()=>{
     const cur = _ncOvr ? (i.nextCallSet||'') : (ncLabel||'');
     const v = prompt('Set next call — a date like "Jun 30", "7/13", or "Jul 13 at 2pm".\nLeave blank to clear it. Type "auto" to go back to reading it from the notes.', cur);
@@ -1869,6 +1918,23 @@ function profileSetStatus(rawMd, status, amount, date){
   }
   return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
 }
+// strip a whole "## <name>" section (header + body until the next ## or EOF)
+function stripSection(md, reHdr){
+  const lines=md.split('\n'); const out=[]; let skip=false;
+  for(const l of lines){ if(/^##\s/.test(l)) skip=reHdr.test(l); if(!skip) out.push(l); }
+  return out.join('\n');
+}
+// write the dated to-do list into a "## Tasks" section (durable to Drive)
+function profileSetTasks(rawMd, tasks){
+  let md=(rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');
+  if(!md.trim()) md=`# Client — Profile\n`;
+  md=stripSection(md, /Tasks|Follow-?ups?|To-?dos?/i);
+  if(tasks && tasks.length){
+    const lines=tasks.map(t=>`- [${t.done?'x':' '}] ${t.due?t.due+' — ':''}${(t.t||'').trim()}`).join('\n');
+    md=md.trimEnd()+`\n\n## Tasks\n${lines}\n`;
+  }
+  return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
+}
 function profileEdit(rawMd, opts){
   let md = (rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');   // normalize escaped → clean
   if(!md.trim()) md = `# ${opts.name||'Client'} — Profile\n`;
@@ -1983,6 +2049,12 @@ function parseProfile(md, name){
   const flags = watch.split(/;|\.\s/).map(s=>s.trim()).filter(s=>s.length>3).slice(0,4);
 
   // most recent call summary + a personal snippet => lastCall
+  // dated to-do tasks ("## Tasks" → "- [ ] 2026-06-25 — look into X")
+  const tasks=[];
+  for(const l of section(/Tasks|Follow-?ups?|To-?dos?/i).split('\n')){
+    const tm=l.match(/^[-*]\s*\[([ xX])\]\s*(?:(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*[—-]\s*)?(.+)$/);
+    if(tm){ const dd=tm[2]?parseLogDate(tm[2]):null; tasks.push({done:/x/i.test(tm[1]), due:dd?dd.toISOString().slice(0,10):'', t:tm[3].trim()}); }
+  }
   const callLog = section(/Call Log/i);
   const summaries = [...callLog.matchAll(/^[-*]\s*Summary:\s*(.+)$/gim)].map(m=>m[1].trim());
   const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
@@ -2029,7 +2101,7 @@ function parseProfile(md, name){
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory,
+    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks,
     status:wonStatus||undefined, wonAmount, wonDate };
 }
 
@@ -2088,6 +2160,7 @@ async function syncFromDrive(){
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
         if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
         if(ex.notes && ex.notes.length) intel.notes=ex.notes;             // advisor's own running notes
+        if(ex.tasks && ex.tasks.length && !(intel.tasks&&intel.tasks.length)) intel.tasks=ex.tasks; // keep offline-added tasks
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
@@ -2276,6 +2349,53 @@ $('#notesAddBtn').onclick = async ()=>{
   await saveNotesFor(c, notes); renderNotesList();
 };
 $('#notesDlg').addEventListener('close', ()=>{ const c=S.clients.find(x=>x.code===notesCode); if(c && S.active===c.code) renderDetail(c); });
+
+/* ---- follow-up tasks (dated to-dos, persisted to Drive) ---- */
+let tasksCode=null;
+const dueLabel = iso => { if(!iso) return ''; const d=new Date(iso+'T00:00:00'); const t0=new Date(); t0.setHours(0,0,0,0);
+  const days=Math.round((d-t0)/86400000); const s=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  return days<0?`${s} · ${-days}d overdue`:days===0?`${s} · today`:days===1?`${s} · tomorrow`:`${s} · in ${days}d`; };
+const dueClass = iso => { if(!iso) return ''; const d=new Date(iso+'T00:00:00'); const t0=new Date(); t0.setHours(0,0,0,0);
+  const days=Math.round((d-t0)/86400000); return days<0?'task-over':days<=2?'task-soon':''; };
+function renderTasksList(){
+  const c=S.clients.find(x=>x.code===tasksCode); if(!c) return;
+  const ts=(c.intel.tasks||[]).map((t,idx)=>({t,idx})).sort((a,b)=> (a.t.done-b.t.done) || ((a.t.due||'9999')<(b.t.due||'9999')?-1:1));
+  $('#tasksList').innerHTML = ts.length ? ts.map(({t,idx})=>`<div class="taskrow ${t.done?'done':''}">
+      <input type="checkbox" class="task-chk" data-i="${idx}" ${t.done?'checked':''}>
+      <div class="task-main"><div class="task-t">${esc(t.t)}</div>${t.due?`<div class="task-due ${dueClass(t.due)}">${esc(dueLabel(t.due))}</div>`:''}</div>
+      <button class="note-del task-del" data-i="${idx}" aria-label="Delete">✕</button></div>`).join('')
+    : '<div class="bodynote" style="padding-top:0">No follow-ups yet — add one with a due date below.</div>';
+  $('#tasksList').querySelectorAll('.task-chk').forEach(ch=> ch.onchange = async ()=>{
+    const i=+ch.dataset.i; const tasks=(c.intel.tasks||[]).map(x=>({...x})); if(tasks[i]){ tasks[i].done=ch.checked; await saveTasksFor(c, tasks); renderTasksList(); }
+  });
+  $('#tasksList').querySelectorAll('.task-del').forEach(b=> b.onclick = async ()=>{
+    const i=+b.dataset.i; const tasks=(c.intel.tasks||[]).slice();
+    if(confirm('Delete this follow-up?')){ tasks.splice(i,1); await saveTasksFor(c, tasks); renderTasksList(); }
+  });
+}
+async function saveTasksFor(c, tasks){
+  const intel={...c.intel, tasks};
+  await saveClient(c.code, c.name, intel);    // local first
+  try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{
+    const r=await driveLogCall(c.name, baseMd=> profileSetTasks(baseMd, tasks));
+    await saveClient(c.code, c.name, {...intel, _md:r.md, _driveFileId:r.id}); res();
+  }catch(e){ rej(e); } })); }catch(e){ /* offline — kept locally */ }
+  await loadClients();
+}
+function openTasks(code){
+  tasksCode=code; const c=S.clients.find(x=>x.code===code); if(!c) return;
+  $('#tasksName').textContent=c.name; $('#taskText').value=''; $('#taskDue').value=''; $('#taskErr').textContent='';
+  renderTasksList(); $('#tasksDlg').showModal();
+}
+$('#taskAddBtn').onclick = async ()=>{
+  const c=S.clients.find(x=>x.code===tasksCode); if(!c) return;
+  const t=$('#taskText').value.trim(); const due=$('#taskDue').value;
+  if(!t){ $('#taskErr').textContent='Add a short description.'; return; }
+  const tasks=(c.intel.tasks||[]).slice(); tasks.push({done:false, due:due||'', t});
+  $('#taskErr').textContent=''; await saveTasksFor(c, tasks);
+  $('#taskText').value=''; $('#taskDue').value=''; renderTasksList();
+};
+$('#tasksDlg').addEventListener('close', ()=>{ const c=S.clients.find(x=>x.code===tasksCode); if(c){ if(S.active===c.code) renderDetail(c); else renderDashboard(); } });
 function openLog(code){
   const c=S.clients.find(x=>x.code===code); if(!c) return;
   logCode=code;
