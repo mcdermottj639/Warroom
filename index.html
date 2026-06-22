@@ -538,7 +538,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r59';
+const BUILD = 'build 2026-06-22 · r60';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2365,8 +2365,15 @@ function coachContent(c, type){
     return {title:`🧯 Reframe ${fn}’s objection`, items};
   }
   // next-step play
-  const items=[`Goal for this call: ${i.closeAction?lc1(strip(i.closeAction)):'move them one concrete step forward'}.`,
-    'Make the ask directly — assume the close.',
+  const ty = nextCallType(i);
+  const move = prod || 'the plan we mapped out';
+  let ask;
+  if(/Enroll/.test(ty))        ask = `“${fn}, let’s get your ${move} opened and kick off the transfer today — I’ll send the paperwork over right now. Good to go?”`;
+  else if(/Decision/.test(ty)) ask = `“${fn}, based on everything we’ve gone through, my recommendation is ${move}. Are you comfortable getting that started today?”`;
+  else if(/Proposal/.test(ty)) ask = `“${fn}, my recommendation is ${move}. I’d like to go ahead and get it set up — any reason we shouldn’t move forward?”`;
+  else                         ask = `“${fn}, the next step is to ${i.closeAction?deCap(strip(i.closeAction)):'map out the plan'} — can we lock that in right now?”`;
+  const items=[`Goal for this call: ${i.closeAction?deCap(strip(i.closeAction)):'move them one concrete step forward'}.`,
+    `The ask — say it directly: ${ask}`,
     i.nextCall?`If they’re not ready, lock the next touch (${esc(i.nextCall)}).`:'If they’re not ready, lock a specific next date before you hang up.'];
   return {title:`🤝 Next-step play for ${fn}`, items};
 }
