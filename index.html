@@ -159,6 +159,8 @@
   .nextcall .nc-v{font-size:17px;font-weight:800;color:var(--gold)}
   .nextcall.none{border-left-color:var(--line)}
   .nextcall.none .nc-v{font-size:15px;color:var(--muted)}
+  .nextcall .nc-type{flex:none;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+    color:var(--accent-ink);background:var(--metal-gold);padding:3px 9px;border-radius:20px}
   .nextcall .nc-set{margin-left:auto;flex:none;background:transparent;border:1px solid var(--line);
     color:var(--muted);font-weight:700;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer}
   .nextcall .nc-set:hover{border-color:var(--gold);color:var(--gold)}
@@ -378,8 +380,9 @@
 <dialog id="driveDlg">
   <h3 style="margin-bottom:8px">☁️ Connect Google Drive</h3>
   <p class="note" style="margin-bottom:10px">Reads your <code>1Remarkable</code> folder and
-    pulls every <code>— Profile.md</code> in, then re-reads on demand to stay current. Read-only.
-    The connection runs in <b>your</b> browser; nothing is stored on a server.</p>
+    pulls every <code>— Profile.md</code> in, then re-reads on demand to stay current. It also
+    writes call logs back to the same folder and keeps one profile per client. The connection runs
+    in <b>your</b> browser; nothing is stored on a server.</p>
   <div class="field"><label>Google OAuth Client ID</label>
     <input id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com"></div>
   <p class="note" style="margin-bottom:10px">First time? You need a free Google Cloud OAuth Client ID
@@ -455,7 +458,7 @@
   <div class="field"><label>Where you left off / next step</label>
     <textarea id="logLeft" style="min-height:70px" placeholder="opening Premier IRA, transfers team handles paperwork"></textarea></div>
   <div class="grid">
-    <div class="field"><label>Next call (date + time)</label><input id="logNext" placeholder="6/26 12:00 PM ET"></div>
+    <div class="field"><label>Next call (type + date + time)</label><input id="logNext" placeholder="Enrollment call: Premier — 6/26 12:00 PM ET"></div>
     <div class="field"><label>Stage</label>
       <select id="logStage">
         <option value="">— leave as is —</option>
@@ -477,7 +480,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r39';
+const BUILD = 'build 2026-06-22 · r40';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -882,6 +885,19 @@ function nextExpectedDate(i){
     return isNaN(dt)?null:dt; } }
   return null;
 }
+// the TYPE of the upcoming call, read from the manual override or the "Next call:" clause
+function nextCallType(i){
+  let t = i.nextCallSet || '';
+  if(!t){ const m=(i.closeAction||'').match(/next call:\s*([^.\n]*)/i); t = m?m[1]:''; }
+  t=t.toLowerCase();
+  if(/enroll/.test(t)) return 'Enrollment';
+  if(/decision/.test(t)) return 'Decision';
+  if(/proposal/.test(t)) return 'Proposal';
+  if(/discovery|wss|investment guide/.test(t)) return 'Discovery';
+  if(/follow.?up|review|check.?in|planning/.test(t)) return 'Follow-Up';
+  if(/intro/.test(t)) return 'Intro';
+  return '';
+}
 // Logic-driven deal state. Scheduled = on track (leave alone). Otherwise measure the fade.
 function dealState(c){
   if(!isProposalStage(c)) return {state:null};
@@ -1164,11 +1180,11 @@ function renderDashboard(){
   const today0=new Date(); today0.setHours(0,0,0,0);
   const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0)
     .sort((a,b)=>a.d-b.d).slice(0,12);
-  const upRows = upcoming.length ? upcoming.map(x=>`<tr class="click" data-code="${x.c.code}">
+  const upRows = upcoming.length ? upcoming.map(x=>{ const ty=nextCallType(x.c.intel); return `<tr class="click" data-code="${x.c.code}">
     <td>${x.d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td>
     <td>${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span></td>
-    <td>${esc(x.c.intel.nextCall||x.c.intel.callType||'')}</td>
-    <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`).join('')
+    <td>${ty?`<b style="color:var(--gold)">${esc(ty)}</b> · `:''}${esc(x.c.intel.nextCall||x.c.intel.callType||'')}</td>
+    <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`; }).join('')
     : '<tr><td colspan="4" style="color:var(--muted)">No upcoming calls found in profiles.</td></tr>';
 
   // Wins
@@ -1385,6 +1401,7 @@ function renderDetail(c){
     <div class="nextcall ${ncLabel?'':'none'}">
       <span class="nc-l">📅 Next call</span>
       <span class="nc-v">${ncLabel?esc(ncLabel):'No call scheduled'}</span>
+      ${ncLabel&&nextCallType(i)?`<span class="nc-type">${esc(nextCallType(i))}</span>`:''}
       <button class="nc-set" id="setNcBtn">${ncLabel?'✏️ Change':'+ Set'}</button>
     </div>
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
@@ -1723,7 +1740,7 @@ $('#importGo').onclick = ()=> runImport($('#importTxt').value);
 /* ============================================================
    GOOGLE DRIVE — live connect (read-only) for the 1Remarkable folder
    ============================================================ */
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 const DRIVE_FOLDER_NAME = '1Remarkable';
 let driveToken = null;
 
@@ -1781,25 +1798,46 @@ function profileEdit(rawMd, opts){
   }
   return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
 }
-// create the app's own profile file (drive.file), or update it in place on later saves
-async function driveSaveProfile(name, md, fileId){
-  if(fileId){
-    const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id`,
-      {method:'PATCH', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'text/markdown'}, body:md});
-    if(r.ok){ return fileId; }            // updated in place — no new duplicate
-    // else fall through and create (file may have been removed, or isn't app-owned)
-  }
+const PROFILE_NAME = nm => nm.replace(/\s*[—-]\s*Profile.*$/i,'').replace(/\.md$/i,'').trim();
+async function driveFolderId(){
   const fq=encodeURIComponent(`name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
   const fr=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id)&pageSize=1`);
-  const folderId=fr.files&&fr.files[0]&&fr.files[0].id;
-  const meta={ name:`${name} — Profile.md`, mimeType:'text/markdown' };
-  if(folderId) meta.parents=[folderId];
-  const boundary='wr'+Date.now();
-  const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: text/markdown; charset=UTF-8\r\n\r\n${md}\r\n--${boundary}--`;
-  const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
-    {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+boundary}, body});
-  if(!res.ok) throw new Error('Drive write '+res.status+(res.status===403?' (need drive.file scope — reconnect Drive)':''));
-  return (await res.json()).id;
+  const id=fr.files&&fr.files[0]&&fr.files[0].id;
+  if(!id) throw new Error(`Couldn't find your '${DRIVE_FOLDER_NAME}' folder.`);
+  return id;
+}
+// one canonical profile per client: read the LIVE newest file, apply editFn, write it back
+// in place, then delete every other copy. Returns the resulting markdown + file id.
+async function driveLogCall(name, editFn){
+  const folderId=await driveFolderId();
+  const pq=encodeURIComponent(`'${folderId}' in parents and name contains 'Profile' and trashed=false`);
+  let files=[], pt='';
+  do{ const r=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${pq}&fields=nextPageToken,files(id,name,modifiedTime)&pageSize=100${pt?`&pageToken=${encodeURIComponent(pt)}`:''}`);
+      files=files.concat(r.files||[]); pt=r.nextPageToken||''; }while(pt);
+  const mine=files.filter(f=>PROFILE_NAME(f.name)===name).sort((a,b)=> a.modifiedTime>b.modifiedTime?-1:1);
+  const canonical=`${name} — Profile.md`;
+  let baseMd='';
+  let keepId=mine.length?mine[0].id:null;
+  if(keepId) baseMd=await gapiText(`https://www.googleapis.com/drive/v3/files/${keepId}?alt=media`);
+  const newMd=editFn(baseMd);
+  if(keepId){
+    const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${keepId}?uploadType=media&fields=id`,
+      {method:'PATCH', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'text/markdown'}, body:newMd});
+    if(!r.ok) throw new Error('Drive update '+r.status+(r.status===403?' (reconnect Drive to grant full access)':''));
+    if(mine[0].name!==canonical){ try{ await fetch(`https://www.googleapis.com/drive/v3/files/${keepId}`,
+      {method:'PATCH', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'application/json'}, body:JSON.stringify({name:canonical})}); }catch(e){} }
+  } else {
+    const meta={ name:canonical, mimeType:'text/markdown', parents:[folderId] };
+    const b='wr'+Date.now();
+    const body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: text/markdown; charset=UTF-8\r\n\r\n${newMd}\r\n--${b}--`;
+    const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+      {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+b}, body});
+    if(!r.ok) throw new Error('Drive write '+r.status+(r.status===403?' (reconnect Drive to grant full access)':''));
+    keepId=(await r.json()).id;
+  }
+  for(const f of mine.slice(1)){ try{ await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`,
+    {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); }catch(e){} }   // drop duplicates
+  return {id:keepId, md:newMd};
 }
 
 // Profile.md -> import-shaped source (then mapImport turns it into intel)
@@ -1919,11 +1957,17 @@ async function syncFromDrive(){
       files = files.concat(res.files||[]); pageToken = res.nextPageToken||'';
     } while(pageToken);
 
-    // dedupe by client name, keep newest
-    const byName={};
+    // group by client name → keep newest, mark the rest as duplicates to delete
+    const groups={};
     for(const f of files){
       const nm = f.name.replace(/\s*[—-]\s*Profile.*$/i,'').replace(/\.md$/i,'').trim();
-      if(!byName[nm] || f.modifiedTime > byName[nm].modifiedTime) byName[nm] = {...f, client:nm};
+      (groups[nm]=groups[nm]||[]).push(f);
+    }
+    const byName={}, losers=[];
+    for(const nm in groups){
+      const sorted=groups[nm].sort((a,b)=> a.modifiedTime>b.modifiedTime?-1:1);
+      byName[nm]={...sorted[0], client:nm};
+      for(const f of sorted.slice(1)) losers.push(f.id);                   // older copies of the same client
     }
     const codeByName={}, exByName={}; S.clients.forEach(c=>{ codeByName[c.name]=c.code; exByName[c.name]=c.intel; });
     let n=0;
@@ -1931,6 +1975,7 @@ async function syncFromDrive(){
       const md = await gapiText(`https://www.googleapis.com/drive/v3/files/${byName[nm].id}?alt=media`);
       const intel = mapImport(parseProfile(md, nm));
       intel._md = md;                                                      // raw source, for lossless in-app edits
+      intel._driveFileId = byName[nm].id;                                  // the one canonical file to update next time
       // preserve user-set fields that aren't in the Drive profile (so a re-sync doesn't wipe them)
       const ex = exByName[nm];
       if(ex){
@@ -1938,14 +1983,17 @@ async function syncFromDrive(){
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
         if(ex.notes && ex.notes.length) intel.notes=ex.notes;             // advisor's own running notes
-        if(ex._driveFileId) intel._driveFileId=ex._driveFileId;           // the app's own profile file id
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
     }
+    // self-heal: delete the duplicate copies so there's one file per client
+    let removed=0;
+    for(const id of losers){ try{ const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}`,
+      {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); if(r.ok) removed++; }catch(e){} }
     driveToken = null;
     await loadClients(); renderDashboard();
-    alert('Synced '+n+' client(s) from your 1Remarkable folder.');
+    alert('Synced '+n+' client(s)'+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');
   }catch(e){
     alert('Drive sync failed: '+e.message);
   }finally{ setDriveBtn('☁️ Drive'); }
@@ -2100,7 +2148,6 @@ function openLog(code){
 async function doLogSave(){
   const c=S.clients.find(x=>x.code===logCode); if(!c) return;
   const err=$('#logErr'); err.textContent='';
-  if(!c.intel._md){ err.textContent='Tap ☁️ Drive to refresh first — then log the call, so the full profile is edited (not a blank one).'; return; }
   const callType=$('#logType').value.trim();
   const date=$('#logDate').value.trim();
   // bullets → a single clean summary line ("- a", "- b" → "a; b")
@@ -2111,27 +2158,29 @@ async function doLogSave(){
   if(!summary && !callType){ err.textContent='Add at least a call type or a note.'; return; }
   // close action = where you left off + the next call, so a re-sync re-derives the next-call date
   const nextStep=[leftRaw, next?('Next call: '+next):''].filter(Boolean).join(' ');
-  const newMd=profileEdit(c.intel._md, {name:c.name, date, callType, summary, leftOff:nextStep, stage, nextStep});
-  // re-derive intel from the edited markdown (single source of truth), preserving app/user fields
-  const intel=mapImport(parseProfile(newMd, c.name));
-  intel._md=newMd; intel._driveFileId=c.intel._driveFileId;
-  if(c.intel.status){ intel.status=c.intel.status; intel.wonAmount=c.intel.wonAmount; intel.wonDate=c.intel.wonDate; }
-  if(c.intel.notes && c.intel.notes.length) intel.notes=c.intel.notes;
-  if(next) intel.nextCallSet=next;                       // show the new next-call immediately
+  const editFn = baseMd => profileEdit(baseMd||c.intel._md||'', {name:c.name, date, callType, summary, leftOff:nextStep, stage, nextStep});
+  // store the resulting intel locally (single source of truth = the markdown), preserving app/user fields
+  const commitLocal = async (newMd, fileId)=>{
+    const intel=mapImport(parseProfile(newMd, c.name));
+    intel._md=newMd; if(fileId) intel._driveFileId=fileId;
+    if(c.intel.status){ intel.status=c.intel.status; intel.wonAmount=c.intel.wonAmount; intel.wonDate=c.intel.wonDate; }
+    if(c.intel.notes && c.intel.notes.length) intel.notes=c.intel.notes;
+    if(next) intel.nextCallSet=next;                     // show the new next-call immediately
+    await saveClient(c.code, c.name, intel);
+  };
   const go=$('#logGo'); const orig=go.textContent; go.disabled=true; go.textContent='Saving…';
   try{
-    await saveClient(c.code, c.name, intel);             // local first — never lose the note
+    let result;
     await new Promise((res,rej)=> withDriveToken(async ()=>{
-      try{ const id=await driveSaveProfile(c.name, newMd, intel._driveFileId);
-        if(id && id!==intel._driveFileId){ intel._driveFileId=id; await saveClient(c.code, c.name, intel); }
-        res();
-      }catch(e){ rej(e); }
+      try{ result=await driveLogCall(c.name, editFn); res(); }catch(e){ rej(e); }
     }));
+    await commitLocal(result.md, result.id);             // Drive is the live base → no data loss, one file
     await loadClients(); $('#logDlg').close();
     renderDetail(S.clients.find(x=>x.code===c.code));
   }catch(e){
-    err.textContent='Saved on this device, but Drive write failed: '+e.message+'. It’ll be in the profile here; reconnect Drive and log again to push it.';
-    await loadClients();
+    // Drive unreachable — keep the note locally if we have a cached base, else ask to retry
+    if(c.intel._md){ await commitLocal(editFn(c.intel._md)); await loadClients(); $('#logDlg').close(); renderDetail(S.clients.find(x=>x.code===c.code)); }
+    err.textContent='Saved on this device'+(c.intel._md?'':' could not be completed')+', but the Drive write failed: '+e.message+'. Reconnect Drive and log again to push it.';
   }finally{ go.disabled=false; go.textContent=orig; }
 }
 
