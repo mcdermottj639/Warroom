@@ -439,7 +439,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-20 · r37';
+const BUILD = 'build 2026-06-20 · r38';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1899,6 +1899,22 @@ function coachContent(c, type){
   const i=c.intel, fn=firstName(c.name);
   const obj=i.objections&&i.objections[0];
   const prod=cleanProduct(i.product);
+  // most recent logged call (dated entries win; ties keep document order — "most recent last")
+  const latestCall = (()=>{ const a=(i.callHistory||[]).map((h,idx)=>({h,idx,d:parseLogDate(h.date)}))
+      .sort((x,y)=>(y.d?+y.d:0)-(x.d?+x.d:0)||y.idx-x.idx); return a.length?a[0].h:null; })();
+  const firstSentence = s => { s=strip(s||''); const m=s.match(/^[^.!?]*[.!?]/); return strip(m?m[0]:s); };
+  // drop a leading past-tense verb so a note like "Reviewed X" reads as "...we talked through X"
+  const deVerb = s => strip(s||'').replace(/^(reviewed|discussed|walked through|walked|covered|talked through|talked about|talked|went over|looked at|explored|focused on|reconnected on)\s+/i,'');
+  // trim a long reason to a short, readable clause for an on-call talking point
+  const tidyReason = g => { g=strip(g).replace(/\s*=\s*/g,', ').split(/\s*;\s*/)[0]; return g.length>60?strip(g.slice(0,60).replace(/\s+\S*$/,''))+'…':g; };
+  // human consolidation reasons (drop $/savings + stage/timing noise, like the re-engage email)
+  const valReasons = (i.goals||i.whyConsolidate||[])
+      .filter(g=> !/\$|\bsav(?:e|es|ed|ing|ings)\b|lower (?:the )?fee|decision\b|imminent|pending|\bstage\b|watch:/i.test(g))
+      .map(g=> deCap(tidyReason(g))).filter(Boolean).slice(0,2);
+  // next-call string, same logic as the profile banner
+  const _t0=new Date(); _t0.setHours(0,0,0,0); const _nc=nextExpectedDate(i);
+  const ncStr = (i.nextCallSet!==undefined&&i.nextCallSet!==null) ? i.nextCallSet
+    : (i.nextCall || (_nc&&_nc>=_t0 ? _nc.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''));
   if(type==='ask'){
     const q=['What’s changed since we last spoke?'];
     (i.specialFlags||i.complications||[]).slice(0,2).forEach(f=> q.push(`Confirm where things stand on: ${strip(f)}.`));
@@ -1909,11 +1925,19 @@ function coachContent(c, type){
     return {title:`❓ Questions for ${fn}`, items:q.slice(0,6)};
   }
   if(type==='open'){
-    const recapBit = i.solutionOffered ? lc1(strip(i.solutionOffered)) : (prod ? ('your '+prod+' options') : 'your full picture');
-    const aim = isProposalStage(c) ? 'I’m here to help you land the decision, not to pitch you' : 'today’s really about understanding your goals and where you want to go';
+    // 1) recap what was discussed last — prefer the latest call summary, else the recommendation
+    const recapBit = latestCall && latestCall.summary ? deCap(deVerb(firstSentence(latestCall.summary)))
+      : (i.solutionOffered ? lc1(strip(i.solutionOffered)) : (prod ? ('your '+prod+' options') : 'your full picture'));
+    // 2) value of consolidating to Empower
+    const amt = i.moveable ? moneyShort(i.moveable)+' ' : '';
+    const valTail = valReasons.length ? ` — especially ${valReasons[0]}` : '';
+    // 3) set the stage for THIS call — what we'll accomplish today
+    const aim = i.closeAction ? lc1(strip(i.closeAction))
+      : (isProposalStage(c) ? 'walk through the proposal and see if it’s a fit to move forward' : 'understand your goals and map out the next step');
     return {title:`🎬 Opening for ${fn}`, items:[
-      `Opener: “Hey ${fn}, good to catch up. Last time we looked at ${recapBit} — ${aim}. Let’s keep it tight and focus on the one or two moves that matter.”`,
-      'Reference the last conversation so they feel remembered.',
+      `Recap: “Hey ${fn}, good to catch up. Last time we talked through ${recapBit} — wanted to pick up right where we left off.”`,
+      `Value of consolidating to Empower: getting ${amt}into one coordinated plan instead of scattered accounts${valTail} — planning depth, tax coordination, and a dedicated team, not just performance.`,
+      `Set the stage for today: “What I’d like to do on this call is ${aim} — keep it tight and focus on the one or two moves that matter.”`,
       'Let them talk first — ask before you tell.'
     ]};
   }
