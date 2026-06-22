@@ -189,6 +189,8 @@
   .task-due{font-size:11px;font-weight:800;white-space:nowrap;color:var(--muted);margin-top:2px}
   .task-due.task-soon{color:var(--gold)}
   .task-due.task-over{color:var(--warm)}
+  .crow .task-chk-dash{flex:none;width:19px;height:19px;margin-top:1px;accent-color:var(--gold);cursor:pointer}
+  .crow .task-del-dash{flex:none}
   .todobar{display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--warm);border-radius:11px;padding:10px 14px;margin-bottom:16px;cursor:pointer}
   .todobar .todo-item{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;color:var(--txt)}
@@ -532,7 +534,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r54';
+const BUILD = 'build 2026-06-22 · r55';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -902,7 +904,9 @@ function moneyShort(s){ if(!s) return '—'; const m=String(s).match(/~?\$\s?[\d
 const MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 function parseLogDate(s){
   if(!s) return null;
-  let m=s.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);   // MM/DD or MM/DD/YY (year optional)
+  let m=s.match(/(\d{4})-(\d{2})-(\d{2})/);                // ISO YYYY-MM-DD
+  if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); return isNaN(d)?null:d; }
+  m=s.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);       // MM/DD or MM/DD/YY (year optional)
   if(m){ let y=m[3]?+m[3]:2026; if(y<100) y+=2000; const d=new Date(y,+m[1]-1,+m[2]); return isNaN(d)?null:d; }
   // whole-word months only, so names like "May"/"June"/"Marea" aren't misread as months
   const MO='(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
@@ -1278,10 +1282,11 @@ function renderDashboard(){
   const allTasks=[];
   S.clients.forEach(c=> (c.intel.tasks||[]).forEach((t,idx)=>{ if(!t.done) allTasks.push({c, t, idx}); }));
   allTasks.sort((a,b)=> ((a.t.due||'9999-99')<(b.t.due||'9999-99')?-1:1));
-  const taskRows = allTasks.length ? allTasks.map(({c,t})=>`<div class="crow" data-code="${c.code}">
+  const taskRows = allTasks.length ? allTasks.map(({c,t,idx})=>`<div class="crow" data-code="${c.code}">
+      <input type="checkbox" class="task-chk-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Mark done" title="Mark done">
       <div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="fc ellip">${esc(t.t)}</div></div>
       ${t.due?`<span class="task-due ${dueClass(t.due)}">${esc(dueLabel(t.due))}</span>`:'<span class="fc">no date</span>'}
-      <span class="chev">›</span></div>`).join('')
+      <button class="note-del task-del-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Delete follow-up">✕</button></div>`).join('')
     : '<div class="bodynote" style="padding-top:0">No open follow-ups — you’re clear. 👌</div>';
   const overdueCount = allTasks.filter(x=>dueClass(x.t.due)==='task-over').length;
 
@@ -1347,6 +1352,16 @@ function renderDashboard(){
   });
   document.querySelectorAll('.winrow [data-code], .crow[data-code]').forEach(el=> el.onclick = ()=>{
     const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
+  });
+  document.querySelectorAll('.task-chk-dash').forEach(ch=> ch.onclick = async (e)=>{
+    e.stopPropagation();
+    const c=S.clients.find(x=>x.code===ch.dataset.code); const ti=+ch.dataset.ti;
+    if(c){ const tasks=(c.intel.tasks||[]).map(x=>({...x})); if(tasks[ti]){ tasks[ti].done=true; await saveTasksFor(c, tasks); renderDashboard(); } }
+  });
+  document.querySelectorAll('.task-del-dash').forEach(b=> b.onclick = async (e)=>{
+    e.stopPropagation();
+    const c=S.clients.find(x=>x.code===b.dataset.code); const ti=+b.dataset.ti;
+    if(c && confirm('Delete this follow-up?')){ const tasks=(c.intel.tasks||[]).slice(); tasks.splice(ti,1); await saveTasksFor(c, tasks); renderDashboard(); }
   });
   document.querySelectorAll('[data-reeng]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openReengage(b.dataset.reeng); });
   document.querySelectorAll('.secnav button').forEach(b=> b.onclick = ()=>{
