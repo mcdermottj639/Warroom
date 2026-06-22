@@ -480,7 +480,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r41';
+const BUILD = 'build 2026-06-22 · r42';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -885,19 +885,16 @@ function nextExpectedDate(i){
     return isNaN(dt)?null:dt; } }
   return null;
 }
-// the TYPE of the upcoming call. 1) honor an explicit "Next call:" clause / override,
-// 2) otherwise infer from where the deal is in the pipeline (the logic we discussed).
+// the TYPE of the upcoming call. 1) an explicit "Next call:" clause / override wins; 2) else read
+// the strongest next-step cue stated in the close action; 3) else infer from the pipeline stage.
 function nextCallType(i){
-  let t = i.nextCallSet || '';
-  if(!t){ const m=(i.closeAction||'').match(/next call:\s*([^.\n]*)/i); t = m?m[1]:''; }
-  t=t.toLowerCase();
-  if(/enroll/.test(t)) return 'Enrollment';
-  if(/decision/.test(t)) return 'Decision';
-  if(/proposal/.test(t)) return 'Proposal';
-  if(/discovery|wss|investment guide/.test(t)) return 'Discovery';
-  if(/follow.?up|review|check.?in|planning/.test(t)) return 'Follow-Up';
-  if(/intro|introduction/.test(t)) return 'Intro';
-  // infer from stage + signals
+  const clause = (i.nextCallSet||'') || ((i.closeAction||'').match(/next call:\s*([^.\n]*)/i)||[])[1] || '';
+  // clause text first so a stated type out-ranks a stray word later in the close action
+  const scan = (clause+' '+(i.closeAction||'')).toLowerCase();
+  const cands = [['Enrollment',/enroll/],['Decision',/\bdecision\b/],['Proposal',/proposal/]]
+    .map(([lab,re])=>({lab, idx:scan.search(re)})).filter(x=>x.idx>=0).sort((a,b)=>a.idx-b.idx);
+  if(cands.length) return cands[0].lab;
+  // stage fallback (covers discovery/intro and anything without a stated next-step word)
   const stage=(i.stage||'').toLowerCase();
   const blob=((i.closeAction||'')+' '+(i.solutionOffered||'')+' '+(i.lastCall||'')).toLowerCase();
   const agreed = i.status==='won' || /\b(agreed|moving forward|move forward|said yes|going to enroll|enroll|open(?:ing)? (?:the )?(?:premier|account|ira)|begin (?:the )?transfer|start(?:ing)? (?:the )?transfer|paperwork|docusign|onboard)\b/.test(blob);
