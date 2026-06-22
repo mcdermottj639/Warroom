@@ -220,6 +220,10 @@
   .objc .orr{font-size:12.5px;margin-top:3px;line-height:1.45}
   .fitc{font-size:9.5px;font-weight:800;border:1px solid var(--line);border-radius:4px;padding:0 5px}
   .bodynote{color:var(--muted);font-size:13px;padding-top:13px}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}
+  .tabs .tab{background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+    font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:20px;box-shadow:none;cursor:pointer}
+  .tabs .tab.active{background:var(--metal-gold);color:var(--accent-ink);border-color:transparent}
   .nextbox{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-weight:700;font-size:13.5px}
 
   /* nav + command center */
@@ -480,7 +484,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r44';
+const BUILD = 'build 2026-06-22 · r45';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1196,17 +1200,20 @@ function renderDashboard(){
       <button class="sm iconbtn" data-reeng="${r.c.code}" aria-label="Re-engage ${esc(r.c.name)}">✉️</button></div>`;
   }).join('') : '<div class="bodynote" style="padding-top:0">No proposals going cold — you’re on top of it. 👌</div>';
 
-  // Upcoming calls — parsed next-call dates that are still in the future
+  // Upcoming calls — split into This Week vs. Future (beyond this Sunday)
   const today0=new Date(); today0.setHours(0,0,0,0);
-  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0)
-    .sort((a,b)=>a.d-b.d).slice(0,12);
-  const upRows = upcoming.length ? upcoming.map(x=>{ const ty=nextCallType(x.c.intel);
-    const detail=esc(x.c.intel.nextCall||''); return `<tr class="click" data-code="${x.c.code}">
-    <td>${x.d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td>
+  const weekEnd=new Date(today0); weekEnd.setDate(weekEnd.getDate()+((7-weekEnd.getDay())%7)); weekEnd.setHours(23,59,59,999); // coming Sunday
+  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=>a.d-b.d);
+  const upWeek = upcoming.filter(x=>x.d<=weekEnd);
+  const upFuture = upcoming.filter(x=>x.d>weekEnd);
+  const upRowOf = x=>{ const ty=nextCallType(x.c.intel); const detail=esc(x.c.intel.nextCall||'');
+    return `<tr class="click" data-code="${x.c.code}">
+    <td>${x.d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</td>
     <td>${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span></td>
     <td>${ty?`<b style="color:var(--gold)">${esc(ty)} call</b>`:''}${detail?(ty?' · ':'')+detail:(ty?'':esc(x.c.intel.callType||''))}</td>
-    <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`; }).join('')
-    : '<tr><td colspan="4" style="color:var(--muted)">No upcoming calls found in profiles.</td></tr>';
+    <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`; };
+  const upRowsWeek = upWeek.length ? upWeek.map(upRowOf).join('') : '<tr><td colspan="4" style="color:var(--muted)">No calls scheduled this week.</td></tr>';
+  const upRowsFuture = upFuture.length ? upFuture.map(upRowOf).join('') : '<tr><td colspan="4" style="color:var(--muted)">Nothing scheduled beyond this week yet.</td></tr>';
 
   // Wins
   const wins = S.clients.filter(c=>c.intel.status==='won');
@@ -1237,7 +1244,14 @@ function renderDashboard(){
     </div>
 
     <div class="groupttl" id="sec-upcoming">📅 Upcoming Calls</div>
-    <div class="card"><table class="dtbl"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th></tr></thead><tbody>${upRows}</tbody></table></div>
+    <div class="card">
+      <div class="tabs" id="upTabs">
+        <button class="tab active" data-up="week">This Week (${upWeek.length})</button>
+        <button class="tab" data-up="future">Future (${upFuture.length})</button>
+      </div>
+      <table class="dtbl" id="upTblWeek"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th></tr></thead><tbody>${upRowsWeek}</tbody></table>
+      <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th></tr></thead><tbody>${upRowsFuture}</tbody></table>
+    </div>
 
     <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
     <div class="card">${coolRows}</div>
@@ -1257,6 +1271,12 @@ function renderDashboard(){
 
   document.querySelectorAll('.dtbl tr.click').forEach(tr=> tr.onclick = ()=>{
     const c = S.clients.find(x=>x.code===tr.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
+  });
+  document.querySelectorAll('#upTabs .tab').forEach(b=> b.onclick = ()=>{
+    const wk = b.dataset.up==='week';
+    document.querySelectorAll('#upTabs .tab').forEach(t=>t.classList.toggle('active', t===b));
+    const w=document.getElementById('upTblWeek'), f=document.getElementById('upTblFuture');
+    if(w) w.classList.toggle('hidden', !wk); if(f) f.classList.toggle('hidden', wk);
   });
   document.querySelectorAll('.winrow [data-code], .crow[data-code]').forEach(el=> el.onclick = ()=>{
     const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
