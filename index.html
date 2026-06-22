@@ -289,6 +289,10 @@
   .tl-list{margin:0;padding-left:18px}
   .tl-list li{font-size:13.5px;line-height:1.5;margin-bottom:7px}
   .tl-list b{color:var(--txt)}
+  .fin-grp{margin-bottom:12px}
+  .fin-grp:last-child{margin-bottom:0}
+  .fin-lbl{font-size:11px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+  .fin-item{font-size:13.5px;line-height:1.5;color:var(--txt);padding:2px 0;overflow-wrap:anywhere}
   .winrow:last-child{border-bottom:none}
   .riskbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:10px}
   .risk-CRITICAL,.risk-HIGH{background:var(--crit);color:#fff}
@@ -534,7 +538,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r57';
+const BUILD = 'build 2026-06-22 · r58';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1116,6 +1120,7 @@ function mapImport(s){
     moveable,
     accounts,
     incomeStreams: s.incomeStreams || [],
+    personalText: s.personalText || '',
     household: s.household || {},
     fee: s.fee || {from:s.feeFrom,to:s.feeTo,savings:s.feeSavings},
     goals: s.goals || (s.whyConsolidate||[]),
@@ -1403,6 +1408,17 @@ function renderList(){
 }
 
 // TL;DR — a labeled brief (snapshot · quote · why move · solution · why not · confidence · timing · next)
+// Income / Spending — pull spending + SS/pension clauses verbatim from the notes (fidelity)
+function incomeSpendingBody(i){
+  const src=[i.personalText, i.closeAction, i.lastCall,
+    ...(i.callHistory||[]).flatMap(h=>[h.summary,h.leftOff])].filter(Boolean).join('\n');
+  const clauses=[...new Set(src.split(/[.;\n]|\s—\s/).map(s=>strip(s)).filter(s=>s && s.length>3))];
+  const spend=clauses.filter(c=>/\$/.test(c) && /spend|expens|\bincome\b/i.test(c) && !/social security|\bSS\b|pension/i.test(c));
+  const benefit=clauses.filter(c=>/social security|\bSS\b|pension/i.test(c));
+  if(!spend.length && !benefit.length) return '';
+  const grp=(lbl,arr)=> arr.length ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${arr.map(c=>`<div class="fin-item">${esc(c)}</div>`).join('')}</div>` : '';
+  return `<div style="padding-top:13px">${grp('Spending &amp; income',spend)}${grp('Social Security &amp; pension',benefit)}</div>`;
+}
 function tldrBody(c){
   const i=c.intel; const prod=cleanProduct(i.product);
   const row=(l,v)=> v? `<li><b>${l}:</b> ${esc(strip(v))}</li>` : '';
@@ -1491,6 +1507,7 @@ function renderDetail(c){
   const planning = [
     P(has(i.accounts),'Asset Landscape',cnt(i.accounts,'account'),accBody),
     P(has(i.incomeStreams),'Income &amp; Asset Streams',cnt(i.incomeStreams,'stream'),incBody),
+    (fb=>P(fb,'💵 Income &amp; Spending','',fb))(incomeSpendingBody(i)),
     P(feeRows.length,'Transferable &amp; Fee',esc(i.moveable||''),feeBody),
     P(has(i.goals),'Goals / why consolidate',cnt(i.goals,'reason'),pillBody(i.goals)),
     P(hasFlags,'📞 Follow-up flags',cnt(i.specialFlags||i.complications,'flag'),pillBody(i.specialFlags||i.complications)),
@@ -2110,6 +2127,7 @@ function parseProfile(md, name){
   const callLog = section(/Call Log/i);
   const summaries = [...callLog.matchAll(/^[-*]\s*Summary:\s*(.+)$/gim)].map(m=>m[1].trim());
   const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
+  const personalText = section(/Personal/i).replace(/^[\s\-*]+/gm,'').trim();   // full section, for income/spending/SS/pension
   const lastCall = [summaries[summaries.length-1], personal].filter(Boolean).join(' ').slice(0,600);
 
   // full call history — every "### <date> — <type>" block in the Call Log, with its details
@@ -2153,7 +2171,7 @@ function parseProfile(md, name){
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks,
+    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, personalText,
     status:wonStatus||undefined, wonAmount, wonDate };
 }
 
