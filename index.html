@@ -164,6 +164,7 @@
     border:none;-webkit-appearance:none;appearance:none;cursor:pointer;
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' stroke='%231a1a1a' stroke-width='1.6' fill='none'/></svg>"), var(--metal-gold);
     background-repeat:no-repeat,no-repeat;background-position:right 9px center,center;background-size:auto,cover}
+  .nextcall .nc-type option{background:var(--panel);color:var(--txt);font-weight:600;text-transform:none}
   .nextcall .nc-set{margin-left:auto;flex:none;background:transparent;border:1px solid var(--line);
     color:var(--muted);font-weight:700;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer}
   .nextcall .nc-set:hover{border-color:var(--gold);color:var(--gold)}
@@ -504,7 +505,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r48';
+const BUILD = 'build 2026-06-22 · r49';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
