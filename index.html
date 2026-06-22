@@ -153,14 +153,14 @@
   .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;overflow-wrap:anywhere}
   .kc-v{font-size:18px;font-weight:700;margin-top:2px;overflow-wrap:anywhere}
   .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px;overflow-wrap:anywhere}
-  .nextcall{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+  .nextcall{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--gold);border-radius:11px;padding:12px 16px;margin-bottom:16px}
-  .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800}
-  .nextcall .nc-v{font-size:17px;font-weight:800;color:var(--gold)}
+  .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;flex:none}
+  .nextcall .nc-v{font-size:17px;font-weight:800;color:var(--gold);white-space:nowrap;flex:none}
   .nextcall.none{border-left-color:var(--line)}
   .nextcall.none .nc-v{font-size:15px;color:var(--muted)}
-  .nextcall .nc-type{flex:none;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
-    color:var(--accent-ink);padding:3px 26px 3px 11px;border-radius:20px;
+  .nextcall .nc-type{flex:0 0 auto;width:max-content;max-width:180px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+    color:var(--accent-ink);padding:4px 26px 4px 11px;border-radius:20px;
     border:none;-webkit-appearance:none;appearance:none;cursor:pointer;
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' stroke='%231a1a1a' stroke-width='1.6' fill='none'/></svg>"), var(--metal-gold);
     background-repeat:no-repeat,no-repeat;background-position:right 9px center,center;background-size:auto,cover}
@@ -268,6 +268,12 @@
   .coachrow button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .coachlist{margin:0;padding-left:20px}
   .coachlist li{font-size:14px;line-height:1.5;margin-bottom:10px}
+  .recap{font-size:14.5px;line-height:1.6;margin:0 0 12px}
+  .recap-note{font-size:12px;color:var(--muted);font-weight:600;margin:4px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+  .tl-lead{font-weight:800;font-size:13px;color:var(--gold);margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px}
+  .tl-list{margin:0;padding-left:18px}
+  .tl-list li{font-size:13.5px;line-height:1.5;margin-bottom:7px}
+  .tl-list b{color:var(--txt)}
   .winrow:last-child{border-bottom:none}
   .riskbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:10px}
   .risk-CRITICAL,.risk-HIGH{background:var(--crit);color:#fff}
@@ -487,7 +493,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r46';
+const BUILD = 'build 2026-06-22 · r47';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1318,6 +1324,32 @@ function renderList(){
   }
 }
 
+// TL;DR — a labeled brief (snapshot · quote · why move · solution · why not · confidence · timing · next)
+function tldrBody(c){
+  const i=c.intel; const prod=cleanProduct(i.product);
+  const row=(l,v)=> v? `<li><b>${l}:</b> ${esc(strip(v))}</li>` : '';
+  const lead=[i.moveable?moneyShort(i.moveable)+' moveable':'', i.stage||'', prod].filter(Boolean).join(' · ');
+  const qm=((i.lastCall||'')+' '+((i.objections||[]).map(o=>o.objection).join(' '))).match(/[“"]([^”"]{6,140})[”"]/);
+  const quote=qm?qm[1]:'';
+  const whyMove=(i.goals&&i.goals.length)? i.goals.map(strip).join('; ') : (i.objections&&i.objections[0]?strip(i.objections[0].objection):'');
+  const solution=i.solutionOffered||prod||'';
+  const objTxt=(i.objections&&i.objections[0]&&strip(i.objections[0].objection))||'';
+  const whyNot=(objTxt && objTxt!==strip(whyMove))?objTxt:'';
+  const _t=new Date();_t.setHours(0,0,0,0); const _nc=nextExpectedDate(i);
+  const ncStr=(i.nextCallSet!==undefined&&i.nextCallSet!==null)?i.nextCallSet:(i.nextCall||(_nc&&_nc>=_t?_nc.toLocaleDateString(undefined,{month:'short',day:'numeric'}):''));
+  const ty=nextCallType(i);
+  const timing=ncStr?((ty?ty+' call — ':'')+ncStr):'';
+  const items=[
+    quote?`<li><b>Quote:</b> “${esc(quote)}”</li>`:'',
+    row('Why move',whyMove),
+    row('Why Empower / Solution',solution),
+    row('Why not Empower',whyNot),
+    row('Confidence',i.confidence?i.confidence+'/100':''),
+    row('Timing cue',timing),
+    row('Next step',i.closeAction)
+  ].filter(Boolean).join('');
+  return `${lead?`<div class="tl-lead">${esc(lead)}</div>`:''}<ul class="tl-list">${items}</ul>`;
+}
 function renderDetail(c){
  try{
   const i = c.intel;
@@ -1379,7 +1411,7 @@ function renderDetail(c){
   // render a panel only when it has real content (fidelity mode — nothing fabricated/empty)
   const P = (cond,ttl,meta,body,cls,open)=> cond ? panel(ttl,meta,body,cls||'',!!open) : '';
   const planning = [
-    P(i.solutionOffered,'TL;DR — the close','',esc(i.solutionOffered),'tldr',true),
+    P(i.solutionOffered||i.closeAction||has(i.goals)||has(i.objections),'TL;DR — the close','',tldrBody(c),'tldr',true),
     P(has(i.accounts),'Asset Landscape',cnt(i.accounts,'account'),accBody),
     P(has(i.incomeStreams),'Income &amp; Asset Streams',cnt(i.incomeStreams,'stream'),incBody),
     P(feeRows.length,'Transferable &amp; Fee',esc(i.moveable||''),feeBody),
@@ -2118,21 +2150,24 @@ function coachContent(c, type){
     return {title:`❓ Questions for ${fn}`, items:q.slice(0,6)};
   }
   if(type==='open'){
-    // 1) recap what was discussed last — prefer the latest call summary, else the recommendation
-    const recapBit = latestCall && latestCall.summary ? deCap(deVerb(firstSentence(latestCall.summary)))
-      : (i.solutionOffered ? lc1(strip(i.solutionOffered)) : (prod ? ('your '+prod+' options') : 'your full picture'));
-    // 2) value of consolidating to Empower
-    const amt = i.moveable ? moneyShort(i.moveable)+' ' : '';
-    const valTail = valReasons.length ? ` — especially ${valReasons[0]}` : '';
-    // 3) set the stage for THIS call — what we'll accomplish today
-    const aim = i.closeAction ? lc1(strip(i.closeAction))
-      : (isProposalStage(c) ? 'walk through the proposal and see if it’s a fit to move forward' : 'understand your goals and map out the next step');
-    return {title:`🎬 Opening for ${fn}`, items:[
-      `Recap: “Hey ${fn}, good to catch up. Last time we talked through ${recapBit} — wanted to pick up right where we left off.”`,
-      `Value of consolidating to Empower: getting ${amt}into one coordinated plan instead of scattered accounts${valTail} — planning depth, tax coordination, and a dedicated team, not just performance.`,
-      `Set the stage for today: “What I’d like to do on this call is ${aim} — keep it tight and focus on the one or two moves that matter.”`,
-      'Let them talk first — ask before you tell.'
-    ]};
+    // a warm, specific 3-beat recap: (1) the full picture, (2) the main issue, (3) what today is for
+    const A=(i.accounts||[]);
+    const acctPhrase=a=>{ const cu=strip(a.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim();
+      return 'your '+cu+(a.value?` (${moneyShort(a.value)}${a.anchor?', already at Empower':''})`:(a.anchor?' (already at Empower)':'')); };
+    const accs=A.map(acctPhrase);
+    const pic = accs.length ? (accs.length>1 ? accs.slice(0,-1).join(', ')+', and '+accs.slice(-1) : accs[0]) : 'your full financial picture';
+    const p1 = `${fn}, last time we walked through the full picture — ${pic}.`;
+    const reasons=(i.goals||i.whyConsolidate||[]).map(strip).filter(Boolean);
+    const obj=i.objections&&i.objections[0]&&strip(i.objections[0].objection);
+    let p2='';
+    if(reasons.length) p2=`The main thing I heard is ${deCap(reasons[0])}`+(reasons[1]?`, and ${deCap(reasons[1])}`:'')+(obj?` — with the open question of whether it’s the right move (${deCap(obj)})`:'')+'.';
+    else if(obj) p2=`The main thing I heard is the open question of ${deCap(obj)}.`;
+    const target=A.find(a=>!a.anchor);
+    const tname=target?('your '+strip(target.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim()):'your outside accounts';
+    const p3=`Today I want to show what your current path looks like, where the gaps are, and how consolidating ${tname} into Empower could simplify everything into one coordinated plan${prod?` (${prod})`:''} — professional management, planning depth, and one team coordinating the full picture.`;
+    const html=[p1,p2,p3].filter(Boolean).map(p=>`<p class="recap">${esc(p)}</p>`).join('')
+      +`<p class="recap-note">Name the specifics so they feel remembered · let them talk first.</p>`;
+    return {title:`🎬 Opening recap for ${fn}`, html};
   }
   if(type==='why'){
     const blob=((i.specialFlags||i.complications||[]).join(' ')+' '+(i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o.objection).join(' ')).toLowerCase();
@@ -2183,9 +2218,9 @@ function coachContent(c, type){
 }
 function openCoach(code, type){
   const c=S.clients.find(x=>x.code===code); if(!c) return;
-  const {title, items}=coachContent(c, type);
-  $('#coachTitle').textContent=title;
-  $('#coachBody').innerHTML='<ul class="coachlist">'+items.map(x=>`<li>${x}</li>`).join('')+'</ul>';
+  const r=coachContent(c, type);
+  $('#coachTitle').textContent=r.title;
+  $('#coachBody').innerHTML = r.html || ('<ul class="coachlist">'+r.items.map(x=>`<li>${x}</li>`).join('')+'</ul>');
   $('#coachDlg').showModal();
 }
 
