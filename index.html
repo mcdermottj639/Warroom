@@ -538,7 +538,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r58';
+const BUILD = 'build 2026-06-22 · r59';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1513,14 +1513,9 @@ function renderDetail(c){
     P(hasFlags,'📞 Follow-up flags',cnt(i.specialFlags||i.complications,'flag'),pillBody(i.specialFlags||i.complications)),
     P(hasPending,'⏳ Pending decision',pendRisk,pendBody,'',stLow==='decision')
   ].join('');
-  const helper = [
-    P(i.introScript,'Intro script','',esc(i.introScript),'scriptbox'),
-    P(has(i.whatToAsk),'What to ask',cnt(i.whatToAsk,'question'),ulBody(i.whatToAsk)),
-    P(has(i.pitchFlow),'Pitch flow — the steps',cnt(i.pitchFlow,'step'),flowBody),
-    P(has(i.objections),'Objection handling',cnt(i.objections,'objection'),objBody),
-    P(has(i.productMatch),'Best-fit product match',cnt(i.productMatch,'product'),prodBody),
-    P(has(i.answerKey)||i.closeAction,'Answer key &amp; next step','',(has(i.answerKey)?ulBody(i.answerKey):'')+(i.closeAction?`<div class="nextbox">NEXT: ${esc(i.closeAction)}</div>`:''))
-  ].join('');
+  // On-Call Helper section removed — the top coach buttons (Opening / Questions / How to
+  // pitch / Why Empower / Reframe objection / Watch-outs) cover on-call boosts better.
+  const helper = '';
 
   // Complete call history — newest first (dated entries sort down; undated keep their order)
   const chSorted = (i.callHistory||[]).map((h,idx)=>({h,idx,d:parseLogDate(h.date)}))
@@ -1543,7 +1538,6 @@ function renderDetail(c){
   const secnav = `<nav class="secnav" aria-label="Jump to section"><span class="jumpc">Jump to</span>
     <button data-target="p-hist" aria-label="Jump to TL;DR &amp; History">📋 TL;DR</button>
     ${planning?'<button data-target="p-planning" aria-label="Jump to Planning Data">📊 Planning</button>':''}
-    ${helper?'<button data-target="p-helper" aria-label="Jump to On-Call Helper">🎯 On-Call</button>':''}
   </nav>`;
 
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
@@ -1587,7 +1581,8 @@ function renderDetail(c){
       <button data-coach="ask">❓ Questions</button>
       <button data-coach="pitch">🎯 How to pitch</button>
       <button data-coach="why">💎 Why Empower</button>
-      <button data-coach="${(i.objections&&i.objections.length)?'obj':'next'}">${(i.objections&&i.objections.length)?'🧯 Reframe objection':'🤝 Next-step play'}</button>
+      ${(i.objections&&i.objections.length)?'<button data-coach="obj">🧯 Reframe objection</button>':''}
+      <button data-coach="next">🤝 Next-step play</button>
       <button data-coach="watch">🚩 Watch-outs</button>
     </div>
 
@@ -1595,7 +1590,6 @@ function renderDetail(c){
 
     <div class="groupttl" id="p-hist">📒 History &amp; Notes</div>${histNotes}
     ${planning?`<div class="groupttl" id="p-planning">📊 Planning Data</div>${planning}`:''}
-    ${helper?`<div class="groupttl" id="p-helper">🎯 On-Call Helper</div>${helper}`:''}
     <button class="fab" id="backFab" aria-label="Back to Command Center">⚔️ Command Center</button>
   </div>`;
 
