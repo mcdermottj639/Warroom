@@ -160,7 +160,10 @@
   .nextcall.none{border-left-color:var(--line)}
   .nextcall.none .nc-v{font-size:15px;color:var(--muted)}
   .nextcall .nc-type{flex:none;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
-    color:var(--accent-ink);background:var(--metal-gold);padding:3px 9px;border-radius:20px}
+    color:var(--accent-ink);padding:3px 26px 3px 11px;border-radius:20px;
+    border:none;-webkit-appearance:none;appearance:none;cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M1 3l4 4 4-4' stroke='%231a1a1a' stroke-width='1.6' fill='none'/></svg>"), var(--metal-gold);
+    background-repeat:no-repeat,no-repeat;background-position:right 9px center,center;background-size:auto,cover}
   .nextcall .nc-set{margin-left:auto;flex:none;background:transparent;border:1px solid var(--line);
     color:var(--muted);font-weight:700;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer}
   .nextcall .nc-set:hover{border-color:var(--gold);color:var(--gold)}
@@ -484,7 +487,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r45';
+const BUILD = 'build 2026-06-22 · r46';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -897,6 +900,7 @@ function nextExpectedDate(i){
 // booking label. Order: explicit "Next call:" clause → agreed=Enrollment → proposal already
 // held=Decision → proposal still upcoming=Proposal → stage fallback (discovery/intro).
 function nextCallType(i){
+  if(i.nextCallTypeSet) return i.nextCallTypeSet;          // advisor's manual override wins
   const clause = ((i.nextCallSet||'') || ((i.closeAction||'').match(/next call:\s*([^.\n]*)/i)||[])[1] || '').toLowerCase();
   if(/enroll/.test(clause)) return 'Enrollment';
   if(/\bdecision\b/.test(clause)) return 'Decision';
@@ -1442,7 +1446,9 @@ function renderDetail(c){
     <div class="nextcall ${ncLabel?'':'none'}">
       <span class="nc-l">📅 Next call</span>
       <span class="nc-v">${ncLabel?esc(ncLabel):'No call scheduled'}</span>
-      ${ncLabel&&nextCallType(i)?`<span class="nc-type">${esc(nextCallType(i))}</span>`:''}
+      ${ncLabel?(()=>{ const ct=nextCallType(i); return `<select class="nc-type" id="ncTypeSel" aria-label="Call type">
+        ${['Intro','Discovery','Proposal','Decision','Enrollment','Follow-Up'].map(t=>`<option ${t===ct?'selected':''}>${t}</option>`).join('')}
+        <option value="__auto">↺ Auto${i.nextCallTypeSet?'':' (on)'}</option></select>`; })():''}
       <button class="nc-set" id="setNcBtn">${ncLabel?'✏️ Change':'+ Set'}</button>
     </div>
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
@@ -1504,6 +1510,14 @@ function renderDetail(c){
     const intel = {...c.intel};
     if(v.trim().toLowerCase()==='auto') delete intel.nextCallSet;   // revert to notes-derived
     else intel.nextCallSet = v.trim();                    // explicit value ('' = cleared)
+    await saveClient(c.code, c.name, intel);
+    await loadClients();
+    renderDetail(S.clients.find(x=>x.code===c.code));
+  };
+  if($('#ncTypeSel')) $('#ncTypeSel').onchange = async (e)=>{
+    const v=e.target.value; const intel={...c.intel};
+    if(v==='__auto') delete intel.nextCallTypeSet;          // revert to the inferred type
+    else intel.nextCallTypeSet = v;                          // pin the call type
     await saveClient(c.code, c.name, intel);
     await loadClients();
     renderDetail(S.clients.find(x=>x.code===c.code));
@@ -2023,6 +2037,7 @@ async function syncFromDrive(){
         if(ex.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; }
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
+        if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
         if(ex.notes && ex.notes.length) intel.notes=ex.notes;             // advisor's own running notes
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
