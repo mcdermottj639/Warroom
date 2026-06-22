@@ -505,7 +505,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r49';
+const BUILD = 'build 2026-06-22 · r50';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1252,9 +1252,9 @@ function renderDashboard(){
     <nav class="secnav" aria-label="Jump to section">
       <span class="jumpc">Jump to</span>
       <button data-target="sec-upcoming" aria-label="Jump to Upcoming Calls">📅 Upcoming</button>
-      <button data-target="sec-cooling" aria-label="Jump to Cooling Deals">🧊 Cooling${cooling.length?(' ('+cooling.length+')'):''}</button>
-      <button data-target="sec-top" aria-label="Jump to Top 10 Opportunities">🎯 Top 10</button>
       <button data-target="sec-pending" aria-label="Jump to Pending Decisions">⏳ Pending${pend.length?(' ('+pend.length+')'):''}</button>
+      <button data-target="sec-top" aria-label="Jump to Top 10 Opportunities">🎯 Top 10</button>
+      <button data-target="sec-cooling" aria-label="Jump to Cooling Deals">🧊 Cooling${cooling.length?(' ('+cooling.length+')'):''}</button>
       ${wins.length?'<button data-target="sec-wins" aria-label="Jump to Wins">🏆 Wins</button>':''}
     </nav>
 
@@ -1275,14 +1275,14 @@ function renderDashboard(){
       <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th></tr></thead><tbody>${upRowsFuture}</tbody></table>
     </div>
 
-    <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
-    <div class="card">${coolRows}</div>
+    <div class="groupttl" id="sec-pending">⏳ Pending Decisions — open, no next call booked</div>
+    <div class="card">${pendRows}</div>
 
     <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by expected value</div>
     <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
 
-    <div class="groupttl" id="sec-pending">⏳ Pending Decisions — open, no next call booked</div>
-    <div class="card">${pendRows}</div>
+    <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
+    <div class="card">${coolRows}</div>
 
     ${wins.length?`<div class="groupttl" id="sec-wins">🏆 Wins · ${fmtVal(winTotal)}</div><div class="card">${winRows}</div>`:''}
     <div class="fabgroup">
