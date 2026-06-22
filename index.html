@@ -505,7 +505,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r50';
+const BUILD = 'build 2026-06-22 · r51';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1243,7 +1243,7 @@ function renderDashboard(){
   const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 <b>${esc(c.name)}</b></div>
     <div class="r">${esc(c.intel.wonAmount||c.intel.moveable||'—')}</div>
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
-    <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '';
+    <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '<div class="bodynote" style="padding-top:0">No wins logged yet — mark a client ✓ Won and they’ll be tracked here.</div>';
 
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head"><div><h2>⚔️ Command Center</h2>
@@ -1255,7 +1255,7 @@ function renderDashboard(){
       <button data-target="sec-pending" aria-label="Jump to Pending Decisions">⏳ Pending${pend.length?(' ('+pend.length+')'):''}</button>
       <button data-target="sec-top" aria-label="Jump to Top 10 Opportunities">🎯 Top 10</button>
       <button data-target="sec-cooling" aria-label="Jump to Cooling Deals">🧊 Cooling${cooling.length?(' ('+cooling.length+')'):''}</button>
-      ${wins.length?'<button data-target="sec-wins" aria-label="Jump to Wins">🏆 Wins</button>':''}
+      <button data-target="sec-wins" aria-label="Jump to Wins">🏆 Wins${wins.length?(' ('+wins.length+')'):''}</button>
     </nav>
 
     <div class="kstrip">
@@ -1284,7 +1284,8 @@ function renderDashboard(){
     <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
     <div class="card">${coolRows}</div>
 
-    ${wins.length?`<div class="groupttl" id="sec-wins">🏆 Wins · ${fmtVal(winTotal)}</div><div class="card">${winRows}</div>`:''}
+    <div class="groupttl" id="sec-wins">🏆 Wins${wins.length?` · ${fmtVal(winTotal)}`:''}</div>
+    <div class="card">${winRows}</div>
     <div class="fabgroup">
       <button class="fab fab-icon" id="searchFab" aria-label="Search clients">🔍</button>
       <button class="fab" id="topFab" aria-label="Back to top of Command Center">↑ Top</button>
