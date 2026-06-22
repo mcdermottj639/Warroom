@@ -480,7 +480,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r43';
+const BUILD = 'build 2026-06-22 · r44';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -852,9 +852,11 @@ function parseLogDate(s){
   if(!s) return null;
   let m=s.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);   // MM/DD or MM/DD/YY (year optional)
   if(m){ let y=m[3]?+m[3]:2026; if(y<100) y+=2000; const d=new Date(y,+m[1]-1,+m[2]); return isNaN(d)?null:d; }
-  m=s.match(/(early|mid|late)[\s-]+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+  // whole-word months only, so names like "May"/"June"/"Marea" aren't misread as months
+  const MO='(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+  m=s.match(new RegExp('(early|mid|late)[\\s-]+'+MO+'\\b','i'));
   if(m){ return new Date(2026, MONTHS[m[2].slice(0,3).toLowerCase()], {early:5,mid:15,late:26}[m[1].toLowerCase()]); }
-  m=s.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})/i);
+  m=s.match(new RegExp(MO+'\\.?\\s+(\\d{1,2})\\b','i'));
   if(m){ return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], +m[2]); }
   return null;
 }
@@ -873,16 +875,18 @@ function nextExpectedDate(i){
   if(i.nextCall){ const d=parseLogDate(i.nextCall); if(d) return d; }
   const text=(i.closeAction||'')+' '+(i.lastCall||'');
   let d=parseLogDate(text); if(d) return d;                       // explicit / early-mid-late / month+day
-  let m=text.match(/end of\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
-  if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 28);
-  m=text.match(/\b(back\b|reconnect|reach out|circle back|follow up|touch base)[^.]*\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
-  if(m) return new Date(2026, MONTHS[m[2].slice(0,3).toLowerCase()], 15);  // "back in August" => mid-month
-  // bare ordinal day ("Tuesday the 30th", "the 13th") → next occurrence of that day-of-month
-  m=text.match(/\bthe\s+(\d{1,2})(?:st|nd|rd|th)\b/i);
+  // a specific stated day ("Tuesday the 30th") is the most precise — check before vague month phrases
+  let m=text.match(/\bthe\s+(\d{1,2})(?:st|nd|rd|th)\b/i);
   if(m){ const day=+m[1]; if(day>=1&&day<=31){ const t=new Date(); t.setHours(0,0,0,0);
     let dt=new Date(t.getFullYear(),t.getMonth(),day);
     if(dt<t) dt=new Date(t.getFullYear(),t.getMonth()+1,day);
     return isNaN(dt)?null:dt; } }
+  // whole-word month match only — so a name like "Marea" is never read as "March"
+  const MO='(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+  m=text.match(new RegExp('end of\\s+'+MO+'\\b','i'));
+  if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 28);
+  m=text.match(new RegExp('\\b(?:back\\b|reconnect|reach out|circle back|follow up|touch base)[^.]*?\\b'+MO+'\\b','i'));
+  if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 15);  // "back in August" => mid-month
   return null;
 }
 // the TYPE of the upcoming call — driven by the notes / where the deal actually is, not the
