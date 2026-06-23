@@ -114,7 +114,43 @@ Profile.md  ->  IntelRecord (name split out)  ->  generates  ->  [Data sheet] + 
 The two prep sheets are produced **on demand** from one `IntelRecord` + the Tier-0
 name lookup. The join happens only in memory, on-device, at render time.
 
-## 7. Threat model
+## 7. Prep Sheet cards (Claude-authored, app-rendered)
+
+A profile may carry a `## Prep Sheet` (or `## Cheat Sheet`) section — the rich,
+visual "cheat sheet" cards that show up as click-in widgets at the top of Client
+Intel. The **content** is authored by Claude (depth/analysis); the **app**
+parses it deterministically and renders the styled widgets. Format:
+
+```
+## Prep Sheet
+### <Title> (table)
+- Label: Value
+- Annual savings: ~$1,600/yr        # a row whose label has "saving/delta" → green highlight
+- Total / net ... : ...             # label with "total/net/annual drag" → gold total row
+
+### <Title> (cashflow)
+- Household income: ~$14K/mo
+- Primary consolidation opportunity: $350,000 rollover   # label with "opportunity/consolidat/primary" → highlighted box
+
+### <Title> (flags)
+- Flag title :: One-paragraph explanation of the planning flag.
+
+### <Title> (angles)
+- Angle title :: One-paragraph strategy angle / how to play it.
+```
+
+Rules:
+- Card **type** is the parenthetical `(table|cashflow|flags|angles)` at the end of
+  the `###` title. If omitted, it's inferred from the title text
+  (fee→table, cash/income→cashflow, flag→flags, strateg/angle→angles).
+- `table`/`cashflow` cards use `- Label: Value` rows (first colon splits).
+- `flags`/`angles` cards use `- Title :: paragraph` items (` :: ` separator).
+- **Fidelity:** author only from verified notes. Don't assert a fee/savings figure
+  that hasn't been confirmed — label it illustrative and prompt to confirm (see the
+  Brandon Chambers Fee Delta card for the pattern).
+- The app skips any empty card and omits the whole group if there's no Prep Sheet.
+
+## 8. Threat model
 
 | Threat | Defended by |
 |---|---|

@@ -293,6 +293,30 @@
   .fin-grp:last-child{margin-bottom:0}
   .fin-lbl{font-size:11px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
   .fin-item{font-size:13.5px;line-height:1.5;color:var(--txt);padding:2px 0;overflow-wrap:anywhere}
+  /* Prep Sheet cards — Claude-authored cheat-sheet widgets */
+  .prepbody{padding-top:0}
+  .feetbl,.cftbl{padding-top:6px}
+  .feerow,.cfrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    padding:9px 0;border-bottom:1px solid var(--line)}
+  .feerow:last-child,.cfrow:last-child{border-bottom:none}
+  .fee-l{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+  .fee-v{font-size:14px;font-weight:700;color:var(--txt);text-align:right;white-space:normal;overflow-wrap:anywhere}
+  .fee-save{background:rgba(63,166,106,.12);border-radius:8px;padding:9px 10px;border-bottom:none;margin-top:2px}
+  .fee-save .fee-l{color:#3fa66a;font-weight:800;text-transform:uppercase;font-size:11px;letter-spacing:.3px}
+  .fee-save .fee-v{color:#3fa66a;font-size:16px}
+  .fee-total{border-top:2px solid var(--gold);border-bottom:none;margin-top:4px;padding-top:11px}
+  .fee-total .fee-l{color:var(--gold);font-weight:800}
+  .fee-total .fee-v{color:var(--gold)}
+  .cf-opp{background:rgba(217,184,92,.12);border:1px solid var(--gold);border-radius:8px;
+    padding:10px 11px;border-bottom:none;margin-top:6px;flex-direction:column;align-items:stretch;gap:3px}
+  .cf-opp .fee-l{color:var(--gold);font-weight:800;text-transform:uppercase;font-size:11px;letter-spacing:.3px}
+  .cf-opp .fee-v{color:var(--txt);text-align:left;font-size:15px}
+  .prepcard{padding-top:6px;display:flex;flex-direction:column;gap:10px}
+  .flag,.angle{border-left:3px solid var(--gold);background:var(--panel2);
+    border-radius:0 8px 8px 0;padding:9px 12px}
+  .angle{border-left-color:#3fa66a}
+  .pc-t{font-size:13px;font-weight:800;color:var(--txt);margin-bottom:3px;overflow-wrap:anywhere}
+  .pc-b{font-size:13px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
   .winrow:last-child{border-bottom:none}
   .riskbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:10px}
   .risk-CRITICAL,.risk-HIGH{background:var(--crit);color:#fff}
@@ -538,7 +562,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-22 · r60';
+const BUILD = 'build 2026-06-23 · r61';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1143,6 +1167,7 @@ function mapImport(s){
   };
   if(s.status){ out.status=s.status; out.wonAmount=s.wonAmount||''; out.wonDate=s.wonDate||''; }  // won/lost from profile
   if(s.tasks && s.tasks.length) out.tasks=s.tasks;                                                // dated follow-up to-dos
+  if(s.prep && s.prep.length) out.prep=s.prep;                                                     // Claude-authored cheat-sheet cards
   return out; // fidelity mode: no synthesized script/pitch — show only what the profile contains
 }
 
@@ -1419,6 +1444,32 @@ function incomeSpendingBody(i){
   const grp=(lbl,arr)=> arr.length ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${arr.map(c=>`<div class="fin-item">${esc(c)}</div>`).join('')}</div>` : '';
   return `<div style="padding-top:13px">${grp('Spending &amp; income',spend)}${grp('Social Security &amp; pension',benefit)}</div>`;
 }
+// Prep Sheet cards — Claude-authored, app-rendered cheat-sheet widgets.
+// type table  → fee/cost rows; a row whose label contains "saving"/"delta" gets highlighted, "total" gets the total style.
+// type cashflow → income vs. need rows; a row labeled "opportunity"/"consolidat" is flagged as the opportunity box.
+// type flags  → planning flags (title + paragraph).
+// type angles → strategy angles (title + paragraph).
+function prepIcon(t){ return t==='table'?'💸':t==='cashflow'?'💵':t==='flags'?'🚩':t==='angles'?'🎯':'🧾'; }
+function prepCardBody(card){
+  if(card.type==='table'||card.type==='cashflow'){
+    const cls = card.type==='table'?'feetbl':'cftbl';
+    const rows=(card.rows||[]).map(r=>{
+      const lab=(r.label||'').toLowerCase();
+      let rc='feerow';
+      if(/sav|delta|differ/.test(lab)) rc+=' fee-save';
+      else if(/total|net|annual drag|over /.test(lab)) rc+=' fee-total';
+      else if(/opportun|consolidat|primary/.test(lab)) rc+=' cf-opp';
+      return `<div class="${rc}"><span class="fee-l">${esc(r.label||'')}</span><span class="fee-v">${esc(r.value||'')}</span></div>`;
+    }).join('');
+    return `<div class="${cls}">${rows}</div>`;
+  }
+  // flags / angles
+  const itemCls = card.type==='flags'?'flag':'angle';
+  return `<div class="prepcard">${(card.items||[]).map(it=>`<div class="${itemCls}">
+      ${it.title?`<div class="pc-t">${esc(it.title)}</div>`:''}
+      ${it.body?`<div class="pc-b">${esc(it.body)}</div>`:''}
+    </div>`).join('')}</div>`;
+}
 function tldrBody(c){
   const i=c.intel; const prod=cleanProduct(i.product);
   const row=(l,v)=> v? `<li><b>${l}:</b> ${esc(strip(v))}</li>` : '';
@@ -1513,6 +1564,10 @@ function renderDetail(c){
     P(hasFlags,'📞 Follow-up flags',cnt(i.specialFlags||i.complications,'flag'),pillBody(i.specialFlags||i.complications)),
     P(hasPending,'⏳ Pending decision',pendRisk,pendBody,'',stLow==='decision')
   ].join('');
+  // Prep Sheet — Claude-authored cheat-sheet cards (Fee Delta / Income & Cash Flow / Planning Flags / Strategy Angles)
+  const prepCards = i.prep || [];
+  const prepGroup = prepCards.map((card,idx)=>
+    panel(prepIcon(card.type)+' '+esc(card.title||''), '', prepCardBody(card), 'prepbody', idx===0)).join('');
   // On-Call Helper section removed — the top coach buttons (Opening / Questions / How to
   // pitch / Why Empower / Reframe objection / Watch-outs) cover on-call boosts better.
   const helper = '';
@@ -1536,6 +1591,7 @@ function renderDetail(c){
 
   // header jump-nav — only the sections that actually render
   const secnav = `<nav class="secnav" aria-label="Jump to section"><span class="jumpc">Jump to</span>
+    ${prepGroup?'<button data-target="p-prep" aria-label="Jump to Prep Sheet">🧾 Prep</button>':''}
     <button data-target="p-hist" aria-label="Jump to TL;DR &amp; History">📋 TL;DR</button>
     ${planning?'<button data-target="p-planning" aria-label="Jump to Planning Data">📊 Planning</button>':''}
   </nav>`;
@@ -1588,6 +1644,7 @@ function renderDetail(c){
 
     <div class="kstrip">${kstrip}</div>
 
+    ${prepGroup?`<div class="groupttl" id="p-prep">🧾 Prep Sheet</div>${prepGroup}`:''}
     <div class="groupttl" id="p-hist">📒 History &amp; Notes</div>${histNotes}
     ${planning?`<div class="groupttl" id="p-planning">📊 Planning Data</div>${planning}`:''}
     <button class="fab" id="backFab" aria-label="Back to Command Center">⚔️ Command Center</button>
@@ -2119,6 +2176,26 @@ function parseProfile(md, name){
     if(tm){ const dd=tm[2]?parseLogDate(tm[2]):null; tasks.push({done:/x/i.test(tm[1]), due:dd?dd.toISOString().slice(0,10):'', t:tm[3].trim()}); }
   }
   const callLog = section(/Call Log/i);
+  // Prep Sheet — Claude-authored cheat-sheet cards. "## Prep Sheet" with "### Title (type)"
+  // blocks; type ∈ table|cashflow|flags|angles. table/cashflow = "- Label: Value" rows;
+  // flags/angles = "- Title :: paragraph" items.
+  const prep=[];
+  { const sec=section(/Prep Sheet|Cheat Sheet/i);
+    if(sec){ for(const b of sec.split(/\n(?=#{3}\s)/)){
+      const hm=b.match(/^#{3}\s*(.+)$/m); if(!hm) continue;
+      let title=hm[1].trim(), type=''; const tm=title.match(/\(([a-z]+)\)\s*$/i);
+      if(tm){ type=tm[1].toLowerCase(); title=title.replace(/\s*\([a-z]+\)\s*$/i,'').trim(); }
+      if(!type){ const t=title.toLowerCase(); type=/fee/.test(t)?'table':/cash|income/.test(t)?'cashflow':/flag/.test(t)?'flags':/strateg|angle/.test(t)?'angles':'table'; }
+      const lines=b.replace(/^#{3}.*$/m,'').split('\n').map(l=>l.trim()).filter(l=>/^[-*]/.test(l)).map(l=>l.replace(/^[-*]\s*/,''));
+      if(type==='flags'||type==='angles'){
+        const items=lines.map(x=>{ const sp=x.split(/\s*::\s*/); return {title:strip(sp[0]||''), body:strip(sp.slice(1).join(' :: '))}; }).filter(it=>it.title||it.body);
+        if(items.length) prep.push({type, title, items});
+      } else {
+        const rows=lines.map(x=>{ const j=x.indexOf(':'); return j>0?{label:strip(x.slice(0,j)), value:strip(x.slice(j+1))}:{label:'', value:strip(x)}; }).filter(r=>r.value);
+        if(rows.length) prep.push({type, title, rows});
+      }
+    }}
+  }
   const summaries = [...callLog.matchAll(/^[-*]\s*Summary:\s*(.+)$/gim)].map(m=>m[1].trim());
   const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
   const personalText = section(/Personal/i).replace(/^[\s\-*]+/gm,'').trim();   // full section, for income/spending/SS/pension
@@ -2165,7 +2242,7 @@ function parseProfile(md, name){
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, personalText,
+    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, personalText, prep,
     status:wonStatus||undefined, wonAmount, wonDate };
 }
 
