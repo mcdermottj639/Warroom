@@ -285,6 +285,16 @@
   .coachrow button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .datarow button:hover{border-color:var(--silver)}
   .datarow button:focus-visible{outline-color:var(--silver)}
+  /* per-client note flag on Command Center rows */
+  .noteflag{background:none;border:none;box-shadow:none;padding:0 2px;margin:0;font-size:13px;
+    line-height:1;vertical-align:baseline;opacity:.22;filter:grayscale(1);cursor:pointer;
+    position:relative;transition:opacity .12s}
+  .noteflag:hover{opacity:.6}
+  .noteflag.has{opacity:1;filter:none}
+  .noteflag.has:hover{opacity:.82}
+  .noteflag .nfn{position:absolute;top:-5px;right:-6px;background:var(--gold);color:var(--on-gold);
+    font-size:8.5px;font-weight:800;line-height:1;min-width:12px;height:12px;padding:0 2px;
+    border-radius:7px;display:inline-flex;align-items:center;justify-content:center}
   .coachlist{margin:0;padding-left:20px}
   .coachlist li{font-size:14px;line-height:1.5;margin-bottom:10px}
   .recap{font-size:14.5px;line-height:1.6;margin:0 0 12px}
@@ -566,7 +576,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r67';
+const BUILD = 'build 2026-06-23 · r68';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1227,6 +1237,10 @@ async function saveTouchLog(){
 function renderDashboard(){
   S.active = '__dash__'; renderList();
   const active = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  // a per-client note flag for every Command Center row — gold w/ count when notes exist,
+  // faint otherwise; click pops the notes dialog inline (view + add) without leaving the dash.
+  const noteFlag = c => { const n=(c.intel.notes||[]).length;
+    return `<button class="noteflag${n?' has':''}" data-notecode="${c.code}" tabindex="-1" title="${n?n+' note'+(n>1?'s':'')+' — click to read':'Add a note'}" aria-label="${n?'View notes':'Add a note'}">🗒️${n>1?`<span class="nfn">${n}</span>`:''}</button>`; };
   const ranked = active.map(c => ({c, ev:expectedValue(c.intel), p:stageProb(c.intel)}))
     .sort((a,b)=> b.ev - a.ev);
   const weighted = ranked.reduce((s,r)=>s+r.ev, 0);
@@ -1247,7 +1261,7 @@ function renderDashboard(){
 
   const oppRows = ranked.slice(0,10).map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
     <td><span class="rank">${idx+1}</span></td>
-    <td>${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
+    <td>${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span> ${noteFlag(r.c)}</td>
     <td>${esc(r.c.intel.stage||'')}</td>
     <td class="r">${esc(moneyShort(r.c.intel.moveable))}</td>
     <td class="r">${Math.round(r.p*100)}%</td>
@@ -1265,7 +1279,7 @@ function renderDashboard(){
     const cls = c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
     return `<div class="crow" data-code="${c.code}">
       <span class="riskbadge risk-${cls}">${esc(c.intel.priority||'')}</span>
-      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="fc ellip">${esc(issue)}</div></div>
+      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b> ${noteFlag(c)}<div class="fc ellip">${esc(issue)}</div></div>
       <span class="chev">›</span></div>`;
   }).join('')
       + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more with no next call booked</div>`:'')
@@ -1283,7 +1297,7 @@ function renderDashboard(){
     const ago = t.overdue ? `overdue ${t.days}d` : `${t.days}d quiet`;
     return `<div class="crow" data-code="${r.c.code}">
       <span class="riskbadge risk-${cls}">${esc((t.state||'').toUpperCase())}</span>
-      <div style="flex:1;min-width:0"><b>${esc(r.c.name)}</b>
+      <div style="flex:1;min-width:0"><b>${esc(r.c.name)}</b> ${noteFlag(r.c)}
         <div class="fc ellip">${ago} · ${esc(cadenceStep(t.days))}</div></div>
       <span class="ev">${fmtVal(r.ev)}</span>
       <button class="sm iconbtn" data-reeng="${r.c.code}" aria-label="Re-engage ${esc(r.c.name)}">✉️</button></div>`;
@@ -1298,7 +1312,7 @@ function renderDashboard(){
   const upRowOf = x=>{ const ty=nextCallType(x.c.intel); const detail=esc(x.c.intel.nextCall||'');
     return `<tr class="click" data-code="${x.c.code}">
     <td>${x.d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</td>
-    <td>${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span></td>
+    <td>${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span> ${noteFlag(x.c)}</td>
     <td>${ty?`<b style="color:var(--gold)">${esc(ty)} call</b>`:''}${detail?(ty?' · ':'')+detail:(ty?'':esc(x.c.intel.callType||''))}</td>
     <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`; };
   const upRowsWeek = upWeek.length ? upWeek.map(upRowOf).join('') : '<tr><td colspan="4" style="color:var(--muted)">No calls scheduled this week.</td></tr>';
@@ -1307,7 +1321,7 @@ function renderDashboard(){
   // Wins
   const wins = S.clients.filter(c=>c.intel.status==='won');
   const winTotal = wins.reduce((s,c)=>s+assetVal(c.intel.wonAmount||c.intel.moveable),0);
-  const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 <b>${esc(c.name)}</b></div>
+  const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 <b>${esc(c.name)}</b> ${noteFlag(c)}</div>
     <div class="r">${esc(c.intel.wonAmount||c.intel.moveable||'—')}</div>
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
     <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '<div class="bodynote" style="padding-top:0">No wins logged yet — mark a client ✓ Won and they’ll be tracked here.</div>';
@@ -1323,7 +1337,7 @@ function renderDashboard(){
   allTasks.sort((a,b)=> ((a.t.due||'9999-99')<(b.t.due||'9999-99')?-1:1));
   const taskRows = (allTasks.length ? allTasks.map(({c,t,idx})=>`<div class="crow" data-code="${c.code}">
       <input type="checkbox" class="task-chk-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Mark done" title="Mark done">
-      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b><div class="fc ellip">${esc(t.t)}</div></div>
+      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b> ${noteFlag(c)}<div class="fc ellip">${esc(t.t)}</div></div>
       ${t.due?`<span class="task-due ${dueClass(t.due)}">${esc(dueLabel(t.due))}</span>`:'<span class="fc">no date</span>'}
       <button class="note-del task-del-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Delete follow-up">✕</button></div>`).join('')
     : '<div class="bodynote" style="padding-top:0">Nothing due in the next 2 weeks. 👌</div>')
@@ -1404,6 +1418,7 @@ function renderDashboard(){
     if(c && confirm('Delete this follow-up?')){ const tasks=(c.intel.tasks||[]).slice(); tasks.splice(ti,1); await saveTasksFor(c, tasks); renderDashboard(); }
   });
   document.querySelectorAll('[data-reeng]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openReengage(b.dataset.reeng); });
+  document.querySelectorAll('[data-notecode]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openNotes(b.dataset.notecode); });
   document.querySelectorAll('.secnav button').forEach(b=> b.onclick = ()=>{
     const el = document.getElementById(b.dataset.target);
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
@@ -2639,7 +2654,7 @@ $('#notesAddBtn').onclick = async ()=>{
   notes.unshift({ d:new Date().toLocaleDateString(undefined,{month:'short',day:'numeric'}), t:v.trim() });
   await saveNotesFor(c, notes); renderNotesList();
 };
-$('#notesDlg').addEventListener('close', ()=>{ const c=S.clients.find(x=>x.code===notesCode); if(c && S.active===c.code) renderDetail(c); });
+$('#notesDlg').addEventListener('close', ()=>{ const c=S.clients.find(x=>x.code===notesCode); if(c && S.active===c.code) renderDetail(c); else if(S.active==='__dash__') renderDashboard(); });
 
 /* ---- follow-up tasks (dated to-dos, persisted to Drive) ---- */
 let tasksCode=null;
