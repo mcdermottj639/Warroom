@@ -150,7 +150,83 @@ Rules:
   Brandon Chambers Fee Delta card for the pattern).
 - The app skips any empty card and omits the whole group if there's no Prep Sheet.
 
-## 8. Threat model
+## 8. Authoring profiles from call notes — capture EVERYTHING
+
+When a call (or a photo of call notes) is turned into a profile, the **governing
+rule** is: every fact in the source notes goes into the profile, in the section
+the app reads it from. Don't summarize detail away — the app pulls different
+fields at different moments (a fee on the proposal call, the family/why on the
+opening, SS/pension during planning), so anything dropped is invisible forever.
+Fidelity still holds: capture what's actually said, never invent.
+
+### Canonical profile template
+
+```
+# <Full Name> — Profile
+Updated: <Mon D, YYYY>
+
+## Snapshot
+- Stage: Inbound | Discovery | Proposal | Decision | Enrollment | Follow-up
+- Outside / moveable assets: ~$<total> (<one-line make-up>)
+- Accounts:
+ - <Custodian> — <$value> — <tag/role>; anchor accounts already at Empower say "anchor"
+- Product: <Premier IRA | Personal Strategy | …>
+- Confidence: <0–100>
+- Solution offered: <the recommendation in one sentence>
+- Why consolidate: <reason; reason; reason>
+
+## Personal / Relationship
+- Family: marital status, spouse (name/age/work), kids (count/ages/where), parents/
+  dependents, any caregiving — the layout and dynamics.
+- Life & retirement (the why): hobbies, travel, downsizing/relocating, what they
+  want to be DOING in retirement, lifestyle goals, legacy wishes.
+- Spending: monthly/annual spend figures, debts.
+- Social Security / pension: estimates and timing (e.g. "$1,288 SS; $1,700 pension at 67").
+- Health / other: Medicare, LTC, anything else from the notes.
+
+## Objection & Response
+- Objection: <their hesitation, verbatim where possible>
+- Response: <how to reframe it>
+
+## Prep Sheet            ← optional but ideal for proposal/decision calls (see §7)
+### <Title> (table|cashflow|flags|angles)
+- …
+
+## Close Action / Next Step
+Next call: <Type> call — <date + time>. <what the next call is for; Watch: …>
+
+## Tasks                 ← only real to-dos you owe them (emails, getting/confirming info)
+- [ ] YYYY-MM-DD — <task>
+
+## Call Log (most recent last)
+### MM/DD/YY — <call type>
+- Summary: <what happened>
+- Left off / next step: <where it ended>
+```
+
+### What the app pulls from each section
+
+| In your photo | Put it in | App surfaces it as |
+|---|---|---|
+| Accounts, balances, custodians | Snapshot → Accounts | 🏦 Assets widget; asset cards |
+| Total moveable, current/target fee | Snapshot / fee line | 💸 Fee widget; Fee Delta prep card |
+| Family layout & dynamics | Personal → Family | ❤️ Family & Why widget; recap personal line |
+| Hobbies, retirement wants, lifestyle | Personal → Life & retirement | ❤️ Family & Why widget (the emotional why) |
+| Spending figures, debts | Personal → Spending | 💵 Income & Spending widget |
+| Social Security / pension estimates | Personal → Social Security / pension | 💵 Income & Spending widget |
+| Their goals / why move | Snapshot → Why consolidate | 🎯 Goals widget; Opening/Pitch coaching |
+| Their hesitation | Objection & Response | 🧯 Reframe-objection coaching; Pending |
+| The recommendation + value | Snapshot → Solution; Prep Sheet | Decision-call recap; Prep cards |
+| Next call date/type | Close Action → "Next call:" | Next-call banner; Upcoming Calls; morning Prep routine |
+| To-dos you owe them | Tasks | Follow-up tasks on Command Center |
+| What happened on the call | Call Log entry | Call history; last-touch; coaching recaps |
+
+A profile that fills these in lets the app pull "whatever is needed, when it's
+needed." Sparse sections just mean empty widgets — so err toward capturing more.
+This template is the standing instruction for every notes-to-profile conversion
+(this session, the regular Claude project, and the morning Prep routine).
+
+## 9. Threat model
 
 | Threat | Defended by |
 |---|---|
