@@ -566,7 +566,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r66';
+const BUILD = 'build 2026-06-23 · r67';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1448,6 +1448,19 @@ function incomeSpendingBody(i){
   const grp=(lbl,arr)=> arr.length ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${arr.map(c=>`<div class="fin-item">${esc(c)}</div>`).join('')}</div>` : '';
   return `<div style="padding-top:13px">${grp('Spending &amp; income',spend)}${grp('Social Security &amp; pension',benefit)}</div>`;
 }
+// Family & Why — the emotional why: family layout/dynamics + retirement aspirations/hobbies,
+// pulled verbatim from the Personal notes (fidelity — only what's actually written).
+function familyWhyBody(i){
+  const src=strip(i.personalText||i.personal||''); if(!src) return '';
+  const clauses=[...new Set(src.split(/[.;\n]|\s—\s/).map(s=>strip(s)).filter(s=>s && s.length>2))];
+  const FAM=/\b(?:wife|husband|spouse|partner|married|divorc\w*|widow\w*|fianc\w*|kids?|child(?:ren)?|sons?|daughters?|grandkids?|grandchild(?:ren)?|mother|father|mom|dad|parents?|family|household|siblings?|brothers?|sisters?|caregiv\w*)\b/i;
+  const WHY=/\b(?:travel\w*|trips?|cruises?|hobb\w*|golf\w*|fish\w*|boat\w*|sail\w*|garden\w*|volunteer\w*|spend (?:more )?time|free time|enjoy\w*|bucket list|downsiz\w*|relocat\w*|move to|cabins?|RV|second home|lake|beach|passion\w*|paint\w*|hik\w*|ski|skiing|wine|cook\w*|church|wants? to|hopes? to|looking forward|dream\w*|legacy|leave (?:money|something))\b/i;
+  const why=clauses.filter(c=>WHY.test(c));
+  const fam=clauses.filter(c=>FAM.test(c) && !why.includes(c));
+  if(!fam.length && !why.length) return '';
+  const grp=(lbl,arr)=> arr.length ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${arr.map(c=>`<div class="fin-item">${esc(c)}</div>`).join('')}</div>` : '';
+  return `<div style="padding-top:13px">${grp('Family &amp; dynamics',fam)}${grp('Life &amp; retirement — the why',why)}</div>`;
+}
 // Prep Sheet cards — Claude-authored, app-rendered cheat-sheet widgets.
 // type table  → fee/cost rows; a row whose label contains "saving"/"delta" gets highlighted, "total" gets the total style.
 // type cashflow → income vs. need rows; a row labeled "opportunity"/"consolidat" is flagged as the opportunity box.
@@ -1538,6 +1551,7 @@ function renderDetail(c){
     ['assets','🏦 Assets', has(i.accounts)],
     ['streams','📈 Streams', has(i.incomeStreams)],
     ['income','💵 Income & Spending', !!incomeSpendingBody(i)],
+    ['family','❤️ Family & Why', !!familyWhyBody(i)],
     ['fee','💸 Fee', feeRows.length],
     ['goals','🎯 Goals', has(i.goals)],
     ['pending','⏳ Pending', hasPending]
@@ -2555,6 +2569,9 @@ function dataWidget(c, key){
   }
   if(key==='income'){
     return {title:'💵 Income & Spending', html: incomeSpendingBody(i) || none};
+  }
+  if(key==='family'){
+    return {title:'❤️ Family & Why', html: familyWhyBody(i) || none};
   }
   if(key==='fee'){
     const feeRows=[ i.moveable&&['Transferable',moneyShort(i.moveable)],
