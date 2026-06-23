@@ -1,0 +1,124 @@
+# War Room — project brief for Claude
+
+Read this first. It's the standing context for every session.
+
+## What this is
+**War Room** is a single-file, local-first, encrypted PWA for **one Empower
+financial advisor** (the repo owner) to prep for client calls. It syncs client
+"intel" from a Google Drive folder of `— Profile.md` files, decrypts on-device,
+and renders a Command Center + per-client coaching/planning views. The whole app
+is **`index.html`** (vanilla JS, no build step), hosted on **GitHub Pages**.
+
+The owner's loop: he takes a photo of his call notes → **pastes it to Claude** →
+Claude writes/updates that client's `— Profile.md` on Drive → he hits **☁️ Load
+Drive** in the app. The app is the polished read/coach surface; Claude is the
+writer.
+
+## Hard rules (do not violate)
+- **Public repo.** Never commit secrets, client data, names, balances, or
+  profiles. No passphrase in the repo (it's set via the app UI, never hardcoded —
+  hardcoding would publish it). No real client info in code, commits, or docs.
+- **Fidelity mode.** When writing profiles/coaching, use only what's in the
+  source notes. Never invent figures. If a number is implied but not stated, flag
+  it "confirm"/"not captured" rather than guess. Emails/coaching must never assert
+  an unverified fee saving.
+- **Model identity** must not appear in commits, PR bodies, code, or any pushed
+  artifact — chat only.
+- **Branches:** push every change to **`main`** AND to
+  **`claude/1remarkable-drive-access-twhos4`** (keep them in lockstep).
+- **Commit footer** (every commit):
+  ```
+  Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+  Claude-Session: https://claude.ai/code/session_018MqCSiGsZiTcth3wCLYFVR
+  ```
+- **Don't open a PR** unless asked.
+
+## Architecture
+- **`index.html`** = the entire app. Find functions with grep; it's large.
+- No service worker. Cache-busting = a `BUILD` stamp (`const BUILD` near the top,
+  shown in the footer) + the user appending `?x=NN` / hard-refreshing.
+- **Crypto:** Web Crypto AES-256-GCM + PBKDF2; two-key split (names need a master
+  key that never syncs); IndexedDB (`warroom_db`). No passphrase recovery by design.
+- **Drive sync:** Google Drive REST v3 via GIS OAuth. The app holds **full Drive
+  scope** (read/write/delete) and **auto-dedupes** — one canonical `— Profile.md`
+  per client, keeping the newest and deleting the rest on each sync.
+- OAuth client ID + passphrase live in the browser (localStorage / user's head),
+  **never** the repo.
+
+## Dev workflow
+1. Edit `index.html` directly (single file; match the surrounding terse style).
+2. **Syntax check:** extract the `<script>` blocks and `node --check`:
+   ```
+   python3 -c "import re;open('/tmp/c.js','w').write('\n;\n'.join(re.findall(r'<script>(.*?)</script>',open('index.html').read(),re.S)))" && node --check /tmp/c.js
+   ```
+3. Bump `BUILD` (e.g. `r69` → `r70`) so the user can confirm the deploy is live.
+4. Commit + push to **both** branches.
+5. **Deploy:** GitHub Pages rebuilds on push (~1–3 min). To confirm it's live,
+   check the "pages build and deployment" run via the GitHub MCP `actions_list`
+   (the live site itself is blocked from this environment). The user then
+   hard-refreshes / uses `?x=NN`.
+- For logic changes, write a tiny Node test of the extracted function against
+  realistic input before shipping (there's no test suite).
+
+## Data model & profile format
+- **`docs/data-model.md`** is the source of truth.
+  - **§7** = the **Prep Sheet** cards (Claude-authored, app-rendered:
+    `## Prep Sheet` → `### Title (table|cashflow|flags|angles)`).
+  - **§8** = the **canonical profile template + "capture everything" routing
+    table.** Follow it for every notes→profile write: every fact from the photo
+    goes into the section the app reads it from; nothing summarized away.
+- The app parses these profile sections: `## Snapshot` (Stage, moveable assets,
+  Accounts, Product, Confidence, Solution, Why), `## Personal / Relationship`
+  (labeled bullets: Family / Life & retirement / Spending / Social Security-pension
+  / Health), `## Objection & Response`, `## Prep Sheet`, `## Close Action / Next
+  Step` (incl. the `Next call:` line), `## Tasks`, `## My Notes`, `## Call Log`,
+  and a `Status:` line (won/lost).
+- **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
+  the manual next-call override, call-type override, `## My Notes`, `## Tasks`,
+  `## Prep Sheet`, won/lost status.
+
+## Writing profiles from photos (the main workflow)
+- HEIC photos: convert with `pillow-heif` (`pip install pillow-heif`; register the
+  opener, then PIL `.save(...jpg)`), then Read the jpg.
+- Resolve the Drive folder by **searching for the `1Remarkable` folder by name**
+  (don't hardcode its ID in this public repo); write with the Google Drive MCP
+  `create_file` (`text/markdown`, `disableConversionToGoogleType: true`). The MCP
+  connector here is **create-only**, so each write makes a new file — the app
+  dedupes on the next sync. Always check for an existing profile first (search by
+  name) to update rather than duplicate.
+- Use the §8 template, labeled Personal bullets, and add a Prep Sheet for clients
+  with an upcoming proposal/decision call. Use "about"/"≈" for approximate values,
+  **never a bare `~`** (markdown viewers render `~...~` as strikethrough).
+
+## Other workflows
+- **Morning Prep routine** (`docs/prep-today.md`): a scheduled Claude Code
+  *Routine* (claude.ai/code/routines) that each weekday finds clients with a call
+  that day and writes their Prep Sheets to Drive.
+- **Notes & tasks** sync to Drive (`## My Notes`, `## Tasks`) so they cross
+  PC↔phone. **Tasks** = things the advisor owes the client (send an email, get/
+  confirm specific info) — NOT proposal-building (the proposal call covers that)
+  and NOT the client's own to-dos.
+
+## Feature map (what already exists — don't rebuild)
+- **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
+  → Follow-ups (tasks owed, next 2 weeks) → Pending Decisions → Top 10 → Cooling →
+  Wins. Every client row shows a **note flag** (gold pill + count when notes exist;
+  click = notes popup inline).
+- **Client intel** top bar = two widget rows: **🎤 On the call** (coaching:
+  Opening, Questions, How to pitch, Why Empower, Reframe objection, Next-step play,
+  Watch-outs) and **📊 Client data** (Assets, Streams, Income & Spending, Family &
+  Why, Fee, Goals, Pending). Below: **🧾 Prep Sheet** group, then History & Notes.
+- **Opening recap is call-type-aware** (Decision recaps the solution+value and
+  drives to a decision; Enrollment = paperwork; Discovery = exploratory; Proposal =
+  present-the-plan) and opens with a **verbatim personal question** from the notes.
+  Pop-up content is **what the advisor says out loud**; coaching meta goes in the
+  small footnote.
+- Editable **next-call date + type** (writes back to the Drive `Next call:` line);
+  **Won** strips the profile to a minimal record; **Lost/Delete** removes the Drive
+  file entirely.
+
+## Conventions / gotchas
+- Pop-up/coaching text = verbatim spoken lines; put advice/meta in a footnote.
+- Approximate values: "about" or "≈", never bare `~` in profiles.
+- Keep new code in the file's existing compact idiom.
+- The current build is in the footer (`const BUILD`); bump it every shippable change.
