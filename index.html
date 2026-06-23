@@ -566,7 +566,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r62';
+const BUILD = 'build 2026-06-23 · r63';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2284,6 +2284,7 @@ async function syncFromDrive(){
         if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
         if(ex.notes && ex.notes.length) intel.notes=ex.notes;             // advisor's own running notes
         if(ex.tasks && ex.tasks.length && !(intel.tasks&&intel.tasks.length)) intel.tasks=ex.tasks; // keep offline-added tasks
+        if(ex.prep && ex.prep.length && !(intel.prep&&intel.prep.length)) intel.prep=ex.prep;       // keep Prep Sheet if a later profile rewrite dropped it
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
