@@ -14,6 +14,21 @@ Claude writes/updates that client's `— Profile.md` on Drive → he hits **☁�
 Drive** in the app. The app is the polished read/coach surface; Claude is the
 writer.
 
+## Default action: a bare photo / notes = write the profile
+If the user sends a **photo or screenshot of call notes** (or pastes call notes)
+with little or no instruction, that IS the instruction — do NOT ask what to do:
+1. Convert if needed (HEIC → jpg via pillow-heif) and read it.
+2. Identify the client; **search the `1Remarkable` Drive folder by that name** to
+   decide update-vs-create.
+3. Write/update their `— Profile.md` to Drive following `docs/data-model.md §8`
+   (capture everything, fidelity, labeled Personal bullets; add a Prep Sheet if
+   there's an upcoming proposal/decision call). Use "about"/"≈", never bare `~`.
+4. Reply with a short summary of what you captured and flag anything the notes
+   didn't contain as "confirm" (don't invent it).
+
+So the user can just drop a photo with no text. (A couple of words like the
+client's name or "new notes" never hurt, but aren't required.)
+
 ## Hard rules (do not violate)
 - **Public repo.** Never commit secrets, client data, names, balances, or
   profiles. No passphrase in the repo (it's set via the app UI, never hardcoded —
