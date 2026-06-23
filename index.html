@@ -276,11 +276,15 @@
   .crow .ev{font-size:12.5px;font-weight:700;color:var(--txt);white-space:nowrap}
   .iconbtn{padding:7px 9px;font-size:13px;border-radius:8px;flex-shrink:0}
   .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .widgetlbl{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.5px;margin:0 0 8px}
   .coachrow{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
   .coachrow button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
     font-weight:700;font-size:12.5px;padding:9px 13px;border-radius:9px;box-shadow:none}
   .coachrow button:hover{border-color:var(--gold);filter:none}
   .coachrow button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .datarow button:hover{border-color:var(--silver)}
+  .datarow button:focus-visible{outline-color:var(--silver)}
   .coachlist{margin:0;padding-left:20px}
   .coachlist li{font-size:14px;line-height:1.5;margin-bottom:10px}
   .recap{font-size:14.5px;line-height:1.6;margin:0 0 12px}
@@ -562,7 +566,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r61';
+const BUILD = 'build 2026-06-23 · r62';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1505,18 +1509,11 @@ function renderDetail(c){
   const ncLabel = _ncOvr ? i.nextCallSet
     : (i.nextCall || (_ncDate && _ncDate>=_today0 ? _ncDate.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''));
   const has = a => Array.isArray(a) && a.length;
-  const none = '<div class="bodynote">— nothing recorded —</div>';
 
   const kpis = (i.kpis && i.kpis.length) ? i.kpis : deriveKpis(i);
   const kstrip = kpis.map(k=>`<div class="kchip"><div class="kc-l">${esc(k.label)}</div>
      <div class="kc-v">${esc(k.value)}</div><div class="kc-n">${esc(k.note||'')}</div></div>`).join('');
 
-  const kvList = (arr,fmt)=> has(arr) ? arr.map(fmt).join('') : none;
-  const accBody = kvList(i.accounts, a=>`<div class="kv ${a.anchor?'anchor':''}">
-    <span class="k">${esc(a.custodian)}<br><span class="tag">${esc(a.tag)}</span></span>
-    <span class="v">${esc(a.value)}</span></div>`);
-  const incBody = kvList(i.incomeStreams, s=>`<div class="kv">
-    <span class="k">${esc(s.label)}</span><span class="v">${esc(s.amount)}</span></div>`);
   const feeRows = [
     i.moveable && ['Transferable', moneyShort(i.moveable)],
     i.fee&&i.fee.from && ['Fee — from', i.fee.from],
@@ -1524,46 +1521,28 @@ function renderDetail(c){
     i.fee&&i.fee.savings && ['Est. savings', i.fee.savings],
     i.household&&i.household.retirementGoal && ['Retirement goal', i.household.retirementGoal]
   ].filter(Boolean);
-  const feeBody = feeRows.map(r=>`<div class="kv"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join('');
-  const ulBody = arr => has(arr) ? '<ul class="clean" style="padding-top:13px">'+arr.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>' : none;
-  const pillBody = arr => has(arr) ? '<div style="padding-top:13px">'+arr.map(x=>`<span class="pill">${esc(x)}</span>`).join('')+'</div>' : none;
-  const flowBody = kvList(i.pitchFlow, p=>`<div class="step2"><div class="st2">${esc(p.title)}</div>
-    <div class="sd2">${esc(p.desc)}</div></div>`);
-  const objBody = kvList(i.objections, o=>`<div class="objc"><div class="oo">“${esc(o.objection)}”</div>
-    <div class="orr">${esc(o.response)}</div></div>`);
-  const prodBody = kvList(i.productMatch, p=>`<div class="kv"><span class="k">
-    <b>${esc(p.product)}</b> <span class="fitc">${esc(p.fit||'')}</span><br>
-    <span class="tag">${esc(p.rationale)}</span></span></div>`);
 
   const panel = (ttl,meta,body,cls='',open=false)=>`<div class="apanel ${open?'open':''}">
     <div class="ahead"><span class="ttl">${ttl}</span><span class="ameta">${esc(meta||'')}</span><span class="chev">▸</span></div>
     <div class="abody ${cls}">${body}</div></div>`;
   const cnt = (a,word)=> has(a) ? a.length+' '+word+(a.length>1?'s':'') : '—';
+  const P = (cond,ttl,meta,body,cls,open)=> cond ? panel(ttl,meta,body,cls||'',!!open) : '';
 
-  // Pending decision — only when it's specific to this client (explicit, or at a decision point)
+  // Pending decision shows only when specific to this client (explicit, or at a decision point)
   const stLow = (i.stage||'').toLowerCase();
   const hasPending = !!i.pendingDecision || ['proposal','decision'].includes(stLow);
-  const pendIssue = i.pendingDecision || (i.complications||i.specialFlags||[])[0]
-    || (i.objections && i.objections[0] && i.objections[0].objection) || 'Decision pending';
-  const pendRisk = i.priority==='CRITICAL'?'CRITICAL':i.priority==='HOT'?'HIGH':'MEDIUM';
-  const pendBody = `<div style="padding-top:13px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
-      <span class="riskbadge risk-${pendRisk}">${pendRisk}</span>
-      <span style="font-weight:700">${esc(pendIssue)}</span></div>
-    <div class="bodynote" style="padding-top:0">Action: ${esc(i.closeAction||'—')}</div></div>`;
-  const hasFlags = has(i.specialFlags||i.complications);
 
-  // render a panel only when it has real content (fidelity mode — nothing fabricated/empty)
-  const P = (cond,ttl,meta,body,cls,open)=> cond ? panel(ttl,meta,body,cls||'',!!open) : '';
-  const planning = [
-    P(has(i.accounts),'Asset Landscape',cnt(i.accounts,'account'),accBody),
-    P(has(i.incomeStreams),'Income &amp; Asset Streams',cnt(i.incomeStreams,'stream'),incBody),
-    (fb=>P(fb,'💵 Income &amp; Spending','',fb))(incomeSpendingBody(i)),
-    P(feeRows.length,'Transferable &amp; Fee',esc(i.moveable||''),feeBody),
-    P(has(i.goals),'Goals / why consolidate',cnt(i.goals,'reason'),pillBody(i.goals)),
-    P(hasFlags,'📞 Follow-up flags',cnt(i.specialFlags||i.complications,'flag'),pillBody(i.specialFlags||i.complications)),
-    P(hasPending,'⏳ Pending decision',pendRisk,pendBody,'',stLow==='decision')
-  ].join('');
+  // Client-data widgets — top pop-up buttons (the parsed facts). "Follow-up flags" is intentionally
+  // omitted here: the Watch-outs coaching button already surfaces those same flags (deduped per request).
+  const dataDefs = [
+    ['assets','🏦 Assets', has(i.accounts)],
+    ['streams','📈 Streams', has(i.incomeStreams)],
+    ['income','💵 Income & Spending', !!incomeSpendingBody(i)],
+    ['fee','💸 Fee', feeRows.length],
+    ['goals','🎯 Goals', has(i.goals)],
+    ['pending','⏳ Pending', hasPending]
+  ];
+  const dataRow = dataDefs.filter(d=>d[2]).map(d=>`<button data-widget="${d[0]}">${esc(d[1])}</button>`).join('');
   // Prep Sheet — Claude-authored cheat-sheet cards (Fee Delta / Income & Cash Flow / Planning Flags / Strategy Angles)
   const prepCards = i.prep || [];
   const prepGroup = prepCards.map((card,idx)=>
@@ -1593,7 +1572,6 @@ function renderDetail(c){
   const secnav = `<nav class="secnav" aria-label="Jump to section"><span class="jumpc">Jump to</span>
     ${prepGroup?'<button data-target="p-prep" aria-label="Jump to Prep Sheet">🧾 Prep</button>':''}
     <button data-target="p-hist" aria-label="Jump to TL;DR &amp; History">📋 TL;DR</button>
-    ${planning?'<button data-target="p-planning" aria-label="Jump to Planning Data">📊 Planning</button>':''}
   </nav>`;
 
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
@@ -1632,6 +1610,7 @@ function renderDetail(c){
 
     ${secnav}
 
+    <div class="widgetlbl">🎤 On the call</div>
     <div class="coachrow">
       <button data-coach="open">🎬 Opening</button>
       <button data-coach="ask">❓ Questions</button>
@@ -1642,11 +1621,13 @@ function renderDetail(c){
       <button data-coach="watch">🚩 Watch-outs</button>
     </div>
 
+    ${dataRow?`<div class="widgetlbl">📊 Client data</div>
+    <div class="coachrow datarow">${dataRow}</div>`:''}
+
     <div class="kstrip">${kstrip}</div>
 
     ${prepGroup?`<div class="groupttl" id="p-prep">🧾 Prep Sheet</div>${prepGroup}`:''}
     <div class="groupttl" id="p-hist">📒 History &amp; Notes</div>${histNotes}
-    ${planning?`<div class="groupttl" id="p-planning">📊 Planning Data</div>${planning}`:''}
     <button class="fab" id="backFab" aria-label="Back to Command Center">⚔️ Command Center</button>
   </div>`;
 
@@ -1683,6 +1664,7 @@ function renderDetail(c){
     renderDetail(S.clients.find(x=>x.code===c.code));
   };
   document.querySelectorAll('[data-coach]').forEach(b=> b.onclick = ()=> openCoach(c.code, b.dataset.coach));
+  document.querySelectorAll('[data-widget]').forEach(b=> b.onclick = ()=> openWidget(c.code, b.dataset.widget));
   const setStatus = async (status, amount)=>{
     if(status==='won'){
       // keep only a minimal record — name + amount moved; erase the rest from Drive
@@ -2458,7 +2440,59 @@ function openCoach(code, type){
   const c=S.clients.find(x=>x.code===code); if(!c) return;
   const r=coachContent(c, type);
   $('#coachTitle').textContent=r.title;
+  $('#coachSub').textContent='Talking points for your call — read on screen, no copy needed.';
   $('#coachBody').innerHTML = r.html || ('<ul class="coachlist">'+r.items.map(x=>`<li>${x}</li>`).join('')+'</ul>');
+  $('#coachDlg').showModal();
+}
+
+// Client-data widgets — the parsed facts shown as top pop-up buttons (siblings of the coach buttons)
+function dataWidget(c, key){
+  const i=c.intel;
+  const has=a=>Array.isArray(a)&&a.length;
+  const none='<div class="bodynote" style="padding-top:0">— nothing recorded —</div>';
+  if(key==='assets'){
+    return {title:'🏦 Asset Landscape', html: has(i.accounts)
+      ? i.accounts.map(a=>`<div class="kv ${a.anchor?'anchor':''}">
+          <span class="k">${esc(a.custodian)}<br><span class="tag">${esc(a.tag)}</span></span>
+          <span class="v">${esc(a.value)}</span></div>`).join('') : none};
+  }
+  if(key==='streams'){
+    return {title:'📈 Income & Asset Streams', html: has(i.incomeStreams)
+      ? i.incomeStreams.map(s=>`<div class="kv"><span class="k">${esc(s.label)}</span>
+          <span class="v">${esc(s.amount)}</span></div>`).join('') : none};
+  }
+  if(key==='income'){
+    return {title:'💵 Income & Spending', html: incomeSpendingBody(i) || none};
+  }
+  if(key==='fee'){
+    const feeRows=[ i.moveable&&['Transferable',moneyShort(i.moveable)],
+      i.fee&&i.fee.from&&['Fee — from',i.fee.from], i.fee&&i.fee.to&&['Fee — to',i.fee.to],
+      i.fee&&i.fee.savings&&['Est. savings',i.fee.savings],
+      i.household&&i.household.retirementGoal&&['Retirement goal',i.household.retirementGoal] ].filter(Boolean);
+    return {title:'💸 Transferable & Fee', html: feeRows.length
+      ? feeRows.map(r=>`<div class="kv"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join('') : none};
+  }
+  if(key==='goals'){
+    return {title:'🎯 Goals / why consolidate', html: has(i.goals)
+      ? '<div style="padding-top:4px">'+i.goals.map(x=>`<span class="pill">${esc(x)}</span>`).join('')+'</div>' : none};
+  }
+  if(key==='pending'){
+    const issue=i.pendingDecision||(i.complications||i.specialFlags||[])[0]
+      ||(i.objections&&i.objections[0]&&i.objections[0].objection)||'Decision pending';
+    const risk=i.priority==='CRITICAL'?'CRITICAL':i.priority==='HOT'?'HIGH':'MEDIUM';
+    return {title:'⏳ Pending decision', html:`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:4px">
+      <span class="riskbadge risk-${risk}">${risk}</span>
+      <span style="font-weight:700">${esc(issue)}</span></div>
+      <div class="note" style="margin-top:8px">The on-call ask lives in 🤝 Next-step play.</div>`};
+  }
+  return {title:'', html:none};
+}
+function openWidget(code, key){
+  const c=S.clients.find(x=>x.code===code); if(!c) return;
+  const r=dataWidget(c, key);
+  $('#coachTitle').textContent=r.title;
+  $('#coachSub').textContent='Client data — straight from the profile.';
+  $('#coachBody').innerHTML=r.html;
   $('#coachDlg').showModal();
 }
 
