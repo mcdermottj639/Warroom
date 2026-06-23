@@ -566,7 +566,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r64';
+const BUILD = 'build 2026-06-23 · r65';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2408,24 +2408,79 @@ function coachContent(c, type){
     return {title:`❓ Questions for ${fn}`, items:q.slice(0,6)};
   }
   if(type==='open'){
-    // a warm, specific 3-beat recap: (1) the full picture, (2) the main issue, (3) what today is for
+    // Call-type-aware recap. A Proposal call recaps the picture and sets up presenting the plan;
+    // a Decision call recaps the SOLUTION + its value and drives to a decision; Enrollment closes
+    // the paperwork; Discovery stays exploratory. Every recap opens with a grounded personal touch.
+    const ty = nextCallType(i);
     const A=(i.accounts||[]);
     const acctPhrase=a=>{ const cu=strip(a.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim();
       return 'your '+cu+(a.value?` (${moneyShort(a.value)}${a.anchor?', already at Empower':''})`:(a.anchor?' (already at Empower)':'')); };
     const accs=A.map(acctPhrase);
     const pic = accs.length ? (accs.length>1 ? accs.slice(0,-1).join(', ')+', and '+accs.slice(-1) : accs[0]) : 'your full financial picture';
-    const p1 = `${fn}, last time we walked through the full picture — ${pic}.`;
     const reasons=(i.goals||i.whyConsolidate||[]).map(strip).filter(Boolean);
-    const obj=i.objections&&i.objections[0]&&strip(i.objections[0].objection);
-    let p2='';
-    if(reasons.length) p2=`The main thing I heard is ${deCap(reasons[0])}`+(reasons[1]?`, and ${deCap(reasons[1])}`:'')+(obj?` — with the open question of whether it’s the right move (${deCap(obj)})`:'')+'.';
-    else if(obj) p2=`The main thing I heard is the open question of ${deCap(obj)}.`;
+    const objx=i.objections&&i.objections[0]&&strip(i.objections[0].objection);
     const target=A.find(a=>!a.anchor);
     const tname=target?('your '+strip(target.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim()):'your outside accounts';
-    const p3=`Today I want to show what your current path looks like, where the gaps are, and how consolidating ${tname} into Empower could simplify everything into one coordinated plan${prod?` (${prod})`:''} — professional management, planning depth, and one team coordinating the full picture.`;
-    const html=[p1,p2,p3].filter(Boolean).map(p=>`<p class="recap">${esc(p)}</p>`).join('')
+    const sol=strip(i.solutionOffered||'');
+    const vTail='professional management, planning depth, and one team coordinating the full picture';
+
+    // a grounded personal touch pulled from the Personal/Relationship notes (fidelity — never fabricated)
+    const personalCue=()=>{ const src=strip(i.personalText||i.personal||''); if(!src) return '';
+      const bits=[];
+      const sp=src.match(/\b(wife|husband|spouse|partner)\s+([A-Z][a-z]+)/);
+      if(/\bdivorced\b/i.test(src)) bits.push('divorced');
+      else if(sp) bits.push(sp[1].toLowerCase()+' '+sp[2]);
+      else if(/\b(wife|husband|spouse|partner|married)\b/i.test(src)) bits.push('married');
+      else if(/\bwidow/i.test(src)) bits.push('widowed');
+      const kids=src.match(/(\d+)\s+(?:kids|children)/i);
+      if(kids) bits.push(kids[1]+' kids');
+      else if(/\b(daughter|son|kids|children|grandkid|grandchild)\b/i.test(src)) bits.push('kids');
+      let aim='';
+      if(/just retired|recently retired|newly retired/i.test(src)) aim='just retired';
+      else { const ra=src.match(/retir\w*[^.\d]{0,18}?(\d{2})\b/i); if(ra) aim='eyeing retirement around '+ra[1];
+        else if(/retir/i.test(src)) aim='thinking about retirement'; }
+      if(!aim){ if(/downsiz/i.test(src)) aim='thinking about downsizing';
+        else if(/spend (?:more )?time|travel|enjoy/i.test(src)) aim='wants more time for what matters'; }
+      return [bits.join(', '), aim].filter(Boolean).join(', '); };
+    const pc=personalCue();
+    const b0 = pc ? `${fn} — before the numbers, the human side: ${pc}. Check in on that first.` : '';
+
+    let beats, label;
+    if(/Decision/.test(ty)){
+      label='Decision-call recap';
+      const b1 = sol ? `${fn}, last time I laid out the plan — ${deCap(sol)}.`
+        : `${fn}, last time I walked you through my recommendation${prod?` — ${prod} for ${tname}`:` for ${tname}`}.`;
+      const b2 = reasons.length
+        ? `It's built around what matters to you — ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''} — with ${vTail}.`
+        : `The whole point is simplifying everything into one coordinated plan — ${vTail}.`;
+      const b3 = objx
+        ? `Today's about getting you to a decision — let's put the open question of ${deCap(objx)} to rest, and if it feels right, get it moving. Where's your head at on it?`
+        : `Today's about getting you to a decision — I'll answer any last questions, and if it feels right, we get it started and the transfer moving. Where's your head at on it?`;
+      beats=[b0,b1,b2,b3];
+    } else if(/Enroll/.test(ty)){
+      label='Enrollment recap';
+      const b1 = `${fn}, you decided to move forward${prod?` with ${prod}`:(sol?` — ${deCap(sol)}`:'')} — love it.`;
+      const b2 = reasons.length ? `This gets you exactly what you were after: ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''}.` : '';
+      const b3 = `Today we make it official — I'll get the accounts opened and the transfer kicked off. Let's get the paperwork going.`;
+      beats=[b0,b1,b2,b3];
+    } else if(/Discovery|Intro/.test(ty)){
+      label='Discovery recap';
+      const b1 = accs.length ? `${fn}, last time we started mapping your picture — ${pic}.` : `${fn}, thanks for making the time.`;
+      const b2 = reasons.length ? `What I'm hearing matters most to you is ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''}.` : '';
+      const b3 = `Today I want to really understand the full picture and what you're hoping to get out of it — then show where Empower could fit${prod?` (likely ${prod})`:''}. Sound good?`;
+      beats=[b0,b1,b2,b3];
+    } else {
+      label='Opening recap'; // Proposal (default): recap → main issue → present the plan today
+      const b1 = `${fn}, last time we walked through the full picture — ${pic}.`;
+      let b2='';
+      if(reasons.length) b2=`The main thing I heard is ${deCap(reasons[0])}`+(reasons[1]?`, and ${deCap(reasons[1])}`:'')+(objx?` — with the open question of whether it's the right move (${deCap(objx)})`:'')+'.';
+      else if(objx) b2=`The main thing I heard is the open question of ${deCap(objx)}.`;
+      const b3 = `Today I want to show what your current path looks like, where the gaps are, and how consolidating ${tname} into Empower could simplify everything into one coordinated plan${prod?` (${prod})`:''} — ${vTail}.`;
+      beats=[b0,b1,b2,b3];
+    }
+    const html=beats.filter(Boolean).map(p=>`<p class="recap">${esc(p)}</p>`).join('')
       +`<p class="recap-note">Name the specifics so they feel remembered · let them talk first.</p>`;
-    return {title:`🎬 Opening recap for ${fn}`, html};
+    return {title:`🎬 ${label} for ${fn}`, html};
   }
   if(type==='why'){
     const blob=((i.specialFlags||i.complications||[]).join(' ')+' '+(i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o.objection).join(' ')).toLowerCase();
