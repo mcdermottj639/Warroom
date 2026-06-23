@@ -286,15 +286,15 @@
   .datarow button:hover{border-color:var(--silver)}
   .datarow button:focus-visible{outline-color:var(--silver)}
   /* per-client note flag on Command Center rows */
-  .noteflag{background:none;border:none;box-shadow:none;padding:0 2px;margin:0;font-size:13px;
-    line-height:1;vertical-align:baseline;opacity:.22;filter:grayscale(1);cursor:pointer;
-    position:relative;transition:opacity .12s}
-  .noteflag:hover{opacity:.6}
-  .noteflag.has{opacity:1;filter:none}
-  .noteflag.has:hover{opacity:.82}
-  .noteflag .nfn{position:absolute;top:-5px;right:-6px;background:var(--gold);color:var(--on-gold);
-    font-size:8.5px;font-weight:800;line-height:1;min-width:12px;height:12px;padding:0 2px;
-    border-radius:7px;display:inline-flex;align-items:center;justify-content:center}
+  .noteflag{background:none;border:none;box-shadow:none;padding:0 2px;margin:0;font-size:12.5px;
+    line-height:1;vertical-align:middle;opacity:.16;filter:grayscale(1);cursor:pointer;transition:opacity .12s}
+  .noteflag:hover{opacity:.5}
+  /* has notes → unmistakable gold pill with the note count */
+  .noteflag.has{opacity:1;filter:none;background:var(--gold);color:var(--on-gold);
+    border-radius:7px;padding:1px 6px 1px 4px;display:inline-flex;align-items:center;gap:2px;
+    box-shadow:0 1px 2px rgba(0,0,0,.25)}
+  .noteflag.has:hover{filter:brightness(1.08)}
+  .noteflag.has .nfn{color:var(--on-gold);font-size:10px;font-weight:800;line-height:1}
   .coachlist{margin:0;padding-left:20px}
   .coachlist li{font-size:14px;line-height:1.5;margin-bottom:10px}
   .recap{font-size:14.5px;line-height:1.6;margin:0 0 12px}
@@ -576,7 +576,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r68';
+const BUILD = 'build 2026-06-23 · r69';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1181,6 +1181,7 @@ function mapImport(s){
   };
   if(s.status){ out.status=s.status; out.wonAmount=s.wonAmount||''; out.wonDate=s.wonDate||''; }  // won/lost from profile
   if(s.tasks && s.tasks.length) out.tasks=s.tasks;                                                // dated follow-up to-dos
+  if(s.notes && s.notes.length) out.notes=s.notes;                                                 // advisor's running notes (Drive-synced)
   if(s.prep && s.prep.length) out.prep=s.prep;                                                     // Claude-authored cheat-sheet cards
   return out; // fidelity mode: no synthesized script/pitch — show only what the profile contains
 }
@@ -1240,7 +1241,7 @@ function renderDashboard(){
   // a per-client note flag for every Command Center row — gold w/ count when notes exist,
   // faint otherwise; click pops the notes dialog inline (view + add) without leaving the dash.
   const noteFlag = c => { const n=(c.intel.notes||[]).length;
-    return `<button class="noteflag${n?' has':''}" data-notecode="${c.code}" tabindex="-1" title="${n?n+' note'+(n>1?'s':'')+' — click to read':'Add a note'}" aria-label="${n?'View notes':'Add a note'}">🗒️${n>1?`<span class="nfn">${n}</span>`:''}</button>`; };
+    return `<button class="noteflag${n?' has':''}" data-notecode="${c.code}" tabindex="-1" title="${n?n+' note'+(n>1?'s':'')+' — click to read':'Add a note'}" aria-label="${n?'View notes':'Add a note'}">🗒️${n?`<span class="nfn">${n}</span>`:''}</button>`; };
   const ranked = active.map(c => ({c, ev:expectedValue(c.intel), p:stageProb(c.intel)}))
     .sort((a,b)=> b.ev - a.ev);
   const weighted = ranked.reduce((s,r)=>s+r.ev, 0);
@@ -2071,6 +2072,17 @@ function profileSetTasks(rawMd, tasks){
   }
   return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
 }
+// write the advisor's running notes into a "## My Notes" section (durable to Drive → syncs across devices)
+function profileSetNotes(rawMd, notes){
+  let md=(rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');
+  if(!md.trim()) md=`# Client — Profile\n`;
+  md=stripSection(md, /My Notes|Advisor Notes/i);
+  if(notes && notes.length){
+    const lines=notes.map(n=>`- ${n.d?n.d+' — ':''}${(n.t||'').trim()}`).join('\n');
+    md=md.trimEnd()+`\n\n## My Notes\n${lines}\n`;
+  }
+  return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
+}
 // update (or insert) the "Next call:" clause in the Close Action section so a reschedule
 // in the app is reflected in the Drive profile — keeps the source of truth the morning Prep
 // routine reads accurate. Everything else in the profile is preserved.
@@ -2230,6 +2242,14 @@ function parseProfile(md, name){
     const tm=l.match(/^[-*]\s*\[([ xX])\]\s*(?:(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*[—-]\s*)?(.+)$/);
     if(tm){ const dd=tm[2]?parseLogDate(tm[2]):null; tasks.push({done:/x/i.test(tm[1]), due:dd?dd.toISOString().slice(0,10):'', t:tm[3].trim()}); }
   }
+  // advisor's running notes ("## My Notes" → "- Jun 23 — spoke, still deciding"); device-synced via Drive
+  const notes=[];
+  for(const l of section(/My Notes|Advisor Notes/i).split('\n')){
+    const m=l.match(/^[-*]\s*(.+)$/); if(!m) continue; const body=m[1].trim(); if(!body) continue;
+    const sp=body.split(/\s+[—–]\s+/);                                   // "<date> — <text>"
+    if(sp.length>1 && /\d/.test(sp[0]) && sp[0].length<=16) notes.push({d:sp[0].trim(), t:sp.slice(1).join(' — ').trim()});
+    else notes.push({d:'', t:body});
+  }
   const callLog = section(/Call Log/i);
   // Prep Sheet — Claude-authored cheat-sheet cards. "## Prep Sheet" with "### Title (type)"
   // blocks; type ∈ table|cashflow|flags|angles. table/cashflow = "- Label: Value" rows;
@@ -2297,7 +2317,7 @@ function parseProfile(md, name){
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, personalText, prep,
+    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, notes, personalText, prep,
     status:wonStatus||undefined, wonAmount, wonDate };
 }
 
@@ -2355,7 +2375,7 @@ async function syncFromDrive(){
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
         if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
-        if(ex.notes && ex.notes.length) intel.notes=ex.notes;             // advisor's own running notes
+        if(ex.notes && ex.notes.length && !(intel.notes&&intel.notes.length)) intel.notes=ex.notes;  // keep offline notes if Drive has none yet
         if(ex.tasks && ex.tasks.length && !(intel.tasks&&intel.tasks.length)) intel.tasks=ex.tasks; // keep offline-added tasks
         if(ex.prep && ex.prep.length && !(intel.prep&&intel.prep.length)) intel.prep=ex.prep;       // keep Prep Sheet if a later profile rewrite dropped it
       }
@@ -2637,7 +2657,12 @@ function renderNotesList(){
   });
 }
 async function saveNotesFor(c, notes){
-  await saveClient(c.code, c.name, {...c.intel, notes});
+  const intel={...c.intel, notes};
+  await saveClient(c.code, c.name, intel);    // local first
+  try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{
+    const r=await driveLogCall(c.name, baseMd=> profileSetNotes(baseMd, notes));
+    await saveClient(c.code, c.name, {...intel, _md:r.md, _driveFileId:r.id}); res();
+  }catch(e){ rej(e); } })); }catch(e){ /* offline — kept locally, pushes next save */ }
   await loadClients();
 }
 function openNotes(code){
