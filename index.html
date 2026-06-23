@@ -566,7 +566,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r63';
+const BUILD = 'build 2026-06-23 · r64';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1653,7 +1653,9 @@ function renderDetail(c){
     else intel.nextCallSet = v.trim();                    // explicit value ('' = cleared)
     await saveClient(c.code, c.name, intel);
     await loadClients();
-    renderDetail(S.clients.find(x=>x.code===c.code));
+    const c2=S.clients.find(x=>x.code===c.code);
+    renderDetail(c2);
+    if(v.trim() && v.trim().toLowerCase()!=='auto') syncNextCallToDrive(c2);   // reflect the new date in Drive
   };
   if($('#ncTypeSel')) $('#ncTypeSel').onchange = async (e)=>{
     const v=e.target.value; const intel={...c.intel};
@@ -1661,7 +1663,9 @@ function renderDetail(c){
     else intel.nextCallTypeSet = v;                          // pin the call type
     await saveClient(c.code, c.name, intel);
     await loadClients();
-    renderDetail(S.clients.find(x=>x.code===c.code));
+    const c2=S.clients.find(x=>x.code===c.code);
+    renderDetail(c2);
+    syncNextCallToDrive(c2);                                  // reflect the new call type in Drive (if a date exists)
   };
   document.querySelectorAll('[data-coach]').forEach(b=> b.onclick = ()=> openCoach(c.code, b.dataset.coach));
   document.querySelectorAll('[data-widget]').forEach(b=> b.onclick = ()=> openWidget(c.code, b.dataset.widget));
@@ -1968,6 +1972,20 @@ let driveToken = null;
 const driveClientId = ()=> { try{ return localStorage.getItem('warroom_gdrive_client')||''; }catch(e){ return ''; } };
 
 // run a callback with a valid Drive token (request one silently if needed)
+// push an in-app reschedule back to the Drive profile's "Next call:" line (best-effort:
+// stays local if Drive isn't reachable). Skips when there's no concrete next-call date.
+function syncNextCallToDrive(c){
+  const i=c.intel;
+  const t0=new Date(); t0.setHours(0,0,0,0); const nc=nextExpectedDate(i);
+  const dateStr=(i.nextCallSet!==undefined&&i.nextCallSet!==null) ? i.nextCallSet
+    : (i.nextCall || (nc&&nc>=t0 ? nc.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''));
+  if(!dateStr) return;                       // cleared / none — leave Drive alone, stays local
+  const typeStr=nextCallType(i);
+  withDriveToken(async ()=>{ try{
+    const r=await driveLogCall(c.name, baseMd=> profileSetNextCall(baseMd||i._md||'', dateStr, typeStr));
+    await saveClient(c.code, c.name, {...c.intel, _md:r.md, _driveFileId:r.id});
+  }catch(e){ /* best-effort — the local override still holds */ } });
+}
 function withDriveToken(cb){
   if(driveToken){ cb(); return; }
   const cid=driveClientId();
@@ -2021,6 +2039,32 @@ function profileSetTasks(rawMd, tasks){
   if(tasks && tasks.length){
     const lines=tasks.map(t=>`- [${t.done?'x':' '}] ${t.due?t.due+' — ':''}${(t.t||'').trim()}`).join('\n');
     md=md.trimEnd()+`\n\n## Tasks\n${lines}\n`;
+  }
+  return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
+}
+// update (or insert) the "Next call:" clause in the Close Action section so a reschedule
+// in the app is reflected in the Drive profile — keeps the source of truth the morning Prep
+// routine reads accurate. Everything else in the profile is preserved.
+function profileSetNextCall(rawMd, dateStr, typeStr){
+  let md=(rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');
+  if(!md.trim()) md=`# Client — Profile\n`;
+  const date=(dateStr||'').trim();
+  if(!date) return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';   // nothing concrete to write
+  const clause=`Next call: ${typeStr?typeStr+' call':'Call'} — ${date}.`;
+  const hdr=md.match(/^##\s.*Close Action.*$/mi);
+  if(hdr){
+    const s=md.indexOf(hdr[0])+hdr[0].length;
+    const rest=md.slice(s); const nx=rest.search(/\n##\s/);
+    const bodyEnd= nx===-1 ? md.length : s+nx;
+    let body=md.slice(s,bodyEnd);
+    if(/Next call:/i.test(body)) body=body.replace(/Next call:\s*[^.\n]*\.?/i, clause);
+    else body='\n'+clause+' '+body.replace(/^\s+/,'');
+    md=md.slice(0,s)+body+md.slice(bodyEnd);
+  } else {
+    const block='\n## Close Action / Next Step\n'+clause+'\n';
+    const cl=md.match(/^##\s.*Call Log.*$/mi);
+    if(cl){ const at=md.indexOf(cl[0]); md=md.slice(0,at)+block+'\n'+md.slice(at); }
+    else md=md.trimEnd()+'\n'+block;
   }
   return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
 }
