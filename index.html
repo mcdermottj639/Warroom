@@ -734,7 +734,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r84';
+const BUILD = 'build 2026-06-24 · r85';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1099,6 +1099,14 @@ function assetVal(s){if(!s)return 0;const mm=String(s).replace(/,/g,'').match(/(
 function fmtVal(v){return v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${Math.round(v/1e3)}k`:`$${v}`;}
 // short, table-safe money label from any (possibly descriptive) moveable string
 function moneyShort(s){ if(!s) return '—'; const m=String(s).match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/); return m?m[0].replace(/\s+/g,''):(String(s).length>12?String(s).slice(0,12)+'…':String(s)); }
+// A bare portfolio/won amount with no K/M/B suffix (e.g. "$325", "350") almost certainly means
+// thousands — advisor amounts are never literally a few hundred dollars. Normalize so it reads/totals
+// as "$325K". Only touches a string that's JUST an amount; anything with a suffix or extra text is left alone.
+function normMoney(s){ if(!s) return s; const str=String(s).trim();
+  if(/[kmb]\+?$/i.test(str)) return str;                          // already has a K/M/B suffix
+  const m=str.match(/^(~?\$?\s?)([\d.,]+)\+?$/); if(!m) return str; // must be a bare amount only
+  const n=parseFloat(m[2].replace(/,/g,'')); if(!(isFinite(n)&&n>0&&n<10000)) return str;
+  return (m[1]+m[2]).replace(/\s+/g,'')+'K'; }
 
 // ---- staleness / cooling-deal engine ----
 const MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
@@ -1767,9 +1775,9 @@ function renderDashboard(jumpTo){
 
   // Wins
   const wins = S.clients.filter(c=>c.intel.status==='won');
-  const winTotal = wins.reduce((s,c)=>s+assetVal(c.intel.wonAmount||c.intel.moveable),0);
+  const winTotal = wins.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
   const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 <b>${esc(c.name)}</b> ${noteFlag(c)}</div>
-    <div class="r">${esc(c.intel.wonAmount||c.intel.moveable||'—')}</div>
+    <div class="r">${esc(normMoney(c.intel.wonAmount||c.intel.moveable)||'—')}</div>
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
     <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '<div class="bodynote" style="padding-top:0">No wins logged yet — mark a client ✓ Won and they’ll be tracked here.</div>';
 
@@ -2068,7 +2076,7 @@ function renderDetail(c){
       </div>
     </div>
 
-    ${i.status?`<div class="meta" style="margin:-8px 0 14px">Status: <b>${esc(i.status.toUpperCase())}</b>${i.wonAmount?(' · '+esc(i.wonAmount)):''}${i.wonDate?(' · '+esc(i.wonDate)):''}</div>`:''}
+    ${i.status?`<div class="meta" style="margin:-8px 0 14px">Status: <b>${esc(i.status.toUpperCase())}</b>${i.wonAmount?(' · '+esc(normMoney(i.wonAmount))):''}${i.wonDate?(' · '+esc(i.wonDate)):''}</div>`:''}
 
     <div class="nextcall ${ncLabel?'':'none'}">
       <span class="nc-l">📅 Next call</span>
@@ -2155,7 +2163,7 @@ function renderDetail(c){
   const setStatus = async (status, amount)=>{
     if(status==='won'){
       // keep only a minimal record — name + amount moved; erase the rest from Drive
-      const wonAmount = amount||c.intel.moveable||'';
+      const wonAmount = normMoney(amount||c.intel.moveable||'');
       const wonDate = new Date().toISOString().slice(0,10);
       const minimal = { status:'won', wonAmount, wonDate };
       await saveClient(c.code, c.name, minimal);   // local first (strips the intel)
