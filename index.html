@@ -423,6 +423,10 @@
   .noteflag.has .nfn{color:var(--on-gold);font-size:10px;font-weight:800;line-height:1}
   .coachlist{margin:0;padding-left:20px}
   .coachlist li{font-size:14px;line-height:1.5;margin-bottom:10px}
+  .askgrp{margin-bottom:16px}
+  .askgrp:last-child{margin-bottom:0}
+  .askh{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin-bottom:8px}
+  .askgrp .coachlist li b{color:var(--gold)}
   .recap{font-size:14.5px;line-height:1.6;margin:0 0 12px}
   .recap-note{font-size:12px;color:var(--muted);font-weight:600;margin:4px 0 0;padding-top:8px;border-top:1px solid var(--line)}
   .tl-lead{font-weight:800;font-size:13px;color:var(--gold);margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px}
@@ -703,7 +707,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r73';
+const BUILD = 'build 2026-06-24 · r74';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1231,6 +1235,19 @@ function genReengage(c, opts){
   return { subject, body };
 }
 
+// Discovery topics — the six things a thorough call should capture. Single source of truth shared by
+// the Overview "Discovery Depth" stat and the Client-Intel "Questions" pop-up (missed topics surface as
+// probe questions). `has` mirrors the client-view data-presence detectors so the two stay in lockstep.
+const DISCO_TOPICS = [
+  {k:'Accounts',     has:i=>Array.isArray(i.accounts)&&i.accounts.length,      q:'What accounts are in play — roughly how much is in each, and who holds them today?'},
+  {k:'Income/Spend', has:i=>!!incomeSpendingBody(i),                            q:'What does the monthly income and spending picture look like in retirement?'},
+  {k:'Family/Why',   has:i=>!!familyWhyBody(i),                                 q:'Tell me about the family — and what you want this money to do for the people you care about.'},
+  {k:'Fee',          has:i=>!!(i.fee&&i.fee.from),                              q:'Do you know what you’re paying now — the fee or expense on the current accounts?'},
+  {k:'Goals',        has:i=>Array.isArray(i.goals)&&i.goals.length,             q:'What’s prompting you to look at this now — what are you hoping to accomplish?'},
+  {k:'Objection',    has:i=>Array.isArray(i.objections)&&i.objections.length,   q:'Is anything giving you pause about moving forward?'}
+];
+const discoveryGaps = i => DISCO_TOPICS.filter(t=>!t.has(i));
+
 function genWhatToAsk(o){
   const q=['What’s changed since we last talked?'];
   const f=(o.specialFlags||o.complications||[]);
@@ -1502,22 +1519,15 @@ function renderOverview(){
     <polyline points="${actPts}" fill="none" stroke="url(#velline)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#velglow)"/>
   </svg>`;
 
-  // --- 4. Discovery Depth — reuse the client view's "captured data" detectors (parity with renderDetail) ---
-  const DEPTH=[
-    {k:'Accounts', f:i=>has(i.accounts)},
-    {k:'Income/Spend', f:i=>!!incomeSpendingBody(i)},
-    {k:'Family/Why', f:i=>!!familyWhyBody(i)},
-    {k:'Fee', f:i=>!!(i.fee&&i.fee.from)},
-    {k:'Goals', f:i=>has(i.goals)},
-    {k:'Objection', f:i=>has(i.objections)}
-  ];
-  const depthScores=active.map(c=>({c, n:DEPTH.reduce((a,d)=>a+(d.f(c.intel)?1:0),0)}));
+  // --- 4. Discovery Depth — shared DISCO_TOPICS detectors (same source the Questions pop-up probes from) ---
+  const DEPTH=DISCO_TOPICS;
+  const depthScores=active.map(c=>({c, n:DEPTH.reduce((a,d)=>a+(d.has(c.intel)?1:0),0)}));
   const avgDepth=active.length?Math.round(depthScores.reduce((a,x)=>a+x.n,0)/(active.length*DEPTH.length)*100):0;
-  const covRows=DEPTH.map(d=>{ const pct=active.length?Math.round(active.filter(c=>d.f(c.intel)).length/active.length*100):0;
+  const covRows=DEPTH.map(d=>{ const pct=active.length?Math.round(active.filter(c=>d.has(c.intel)).length/active.length*100):0;
     return `<div class="covrow"><span class="covlbl">${d.k}</span><span class="covbar"><span class="covfill" style="width:${pct}%"></span></span><span class="covpct">${pct}%</span></div>`; }).join('');
   const thin=depthScores.filter(x=>x.n<DEPTH.length).sort((a,b)=>a.n-b.n).slice(0,4);
   const thinList=thin.length?`<div class="bodynote" style="padding-top:10px">Thinnest profiles — fill the gaps</div>`
-      + thin.map(x=>{ const miss=DEPTH.filter(d=>!d.f(x.c.intel)).map(d=>d.k).slice(0,3).join(', ');
+      + thin.map(x=>{ const miss=DEPTH.filter(d=>!d.has(x.c.intel)).map(d=>d.k).slice(0,3).join(', ');
         return `<div class="ovrow" data-code="${x.c.code}"><span class="when">${x.n}/${DEPTH.length}</span><div class="nm">${esc(x.c.name)}<div class="sub ellip">missing: ${esc(miss)}</div></div></div>`; }).join(''):'';
 
   $('#main').innerHTML = `<div class="ovwrap"><div class="ovinner">
@@ -2795,13 +2805,21 @@ function coachContent(c, type){
   const ncStr = (i.nextCallSet!==undefined&&i.nextCallSet!==null) ? i.nextCallSet
     : (i.nextCall || (_nc&&_nc>=_t0 ? _nc.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''));
   if(type==='ask'){
-    const q=['What’s changed since we last spoke?'];
-    (i.specialFlags||i.complications||[]).slice(0,2).forEach(f=> q.push(`Confirm where things stand on: ${strip(f)}.`));
-    (i.accounts||[]).filter(a=>!a.value).slice(0,1).forEach(a=> q.push(`Can you confirm the balance and custodian on the ${a.custodian}?`));
-    (i.goals||[]).slice(0,1).forEach(g=> q.push(`How firm are you on ${deCap(strip(g))}?`));
-    if(obj) q.push(`You’d mentioned “${strip(obj.objection)}” — what’s really driving that?`);
-    q.push(isProposalStage(c) ? 'If everything lined up, any reason we couldn’t move forward today?' : 'When you picture this settled, what does it look like for you?');
-    return {title:`❓ Questions for ${fn}`, items:q.slice(0,6)};
+    // Always lead with the discovery topics this client's notes are missing, then the situational asks.
+    const gaps = discoveryGaps(i);
+    const sit=['What’s changed since we last spoke?'];
+    (i.specialFlags||i.complications||[]).slice(0,2).forEach(f=> sit.push(`Confirm where things stand on: ${strip(f)}.`));
+    (i.accounts||[]).filter(a=>!a.value).slice(0,1).forEach(a=> sit.push(`Can you confirm the balance and custodian on the ${strip(a.custodian)}?`));
+    (i.goals||[]).slice(0,1).forEach(g=> sit.push(`How firm are you on ${deCap(strip(g))}?`));
+    if(obj) sit.push(`You’d mentioned “${strip(obj.objection)}” — what’s really driving that?`);
+    sit.push(isProposalStage(c) ? 'If everything lined up, any reason we couldn’t move forward today?' : 'When you picture this settled, what does it look like for you?');
+    const gapHtml = gaps.length
+      ? `<div class="askgrp"><div class="askh">🔎 Capture these — gaps in your notes (${gaps.length})</div>
+         <ul class="coachlist">${gaps.map(t=>`<li><b>${esc(t.k)}:</b> ${esc(t.q)}</li>`).join('')}</ul></div>`
+      : '<div class="askgrp"><div class="askh">✅ Full picture captured</div><p class="recap-note" style="border:none;padding:0;margin:0">Every discovery topic is on file — these are deepening questions.</p></div>';
+    const sitHtml = `<div class="askgrp"><div class="askh">💬 On the call</div>
+      <ul class="coachlist">${sit.slice(0,5).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+    return {title:`❓ Questions for ${fn}`, html: gapHtml+sitHtml};
   }
   if(type==='open'){
     // Call-type-aware recap. A Proposal call recaps the picture and sets up presenting the plan;

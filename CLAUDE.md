@@ -147,6 +147,9 @@ client's name or "new notes" never hurt, but aren't required.)
   Opening, Questions, How to pitch, Why Empower, Reframe objection, Next-step play,
   Watch-outs) and **📊 Client data** (Assets, Streams, Income & Spending, Family &
   Why, Fee, Goals, Pending). Below: **🧾 Prep Sheet** group, then History & Notes.
+  The **❓ Questions** pop-up always **leads with the discovery topics this client's
+  notes are missing** (the same six `DISCO_TOPICS` the Overview Discovery Depth stat
+  scores), then the situational asks — so every gap gets probed on the next call.
 - **Opening recap is call-type-aware** (Decision recaps the solution+value and
   drives to a decision; Enrollment = paperwork; Discovery = exploratory; Proposal =
   present-the-plan) and opens with a **verbatim personal question** from the notes.
