@@ -2,6 +2,13 @@
 
 Read this first. It's the standing context for every session.
 
+## ⚠️ Keep this file current (standing rule)
+> Whenever you change the architecture, build pipeline, data model, or add/alter a
+> feature, **update the relevant section of this file in the SAME change** — and
+> bump anything that's now stale (paths, function names, the feature map). Future
+> sessions rely on this file being accurate, so don't wait to be asked. Treat
+> CLAUDE.md as part of the diff, not an afterthought.
+
 ## What this is
 **War Room** is a single-file, local-first, encrypted PWA for **one Empower
 financial advisor** (the repo owner) to prep for client calls. It syncs client
@@ -131,6 +138,29 @@ client's name or "new notes" never hurt, but aren't required.)
 - Editable **next-call date + type** (writes back to the Drive `Next call:` line);
   **Won** strips the profile to a minimal record; **Lost/Delete** removes the Drive
   file entirely.
+
+## Systems in the code worth knowing (grep for these)
+The file is large; these are the load-bearing pieces a new session will likely touch.
+- **Pipeline ranking** — `expectedValue(i)` = moveable × `stageProb(i)` × `recencyFactor(i)`;
+  powers the **Top 10** list.
+- **Cooling / deal-state** — `dealState(c)` + `isCooling(c)` decide whether a proposal is
+  fading; drives the **Cooling** section and the OVERDUE / "Nd quiet" tags.
+- **Next-call inference** — `nextExpectedDate(i)` honors the manual override and parses fuzzy
+  dates via `parseLogDate` (e.g. "the 30th", "late June"); `nextCallType(i)` infers
+  Intro/Discovery/Proposal/Decision/Enrollment from the notes (rule of thumb: advance one
+  stage past the call just held). These drive **Upcoming Calls** + the next-call banner.
+- **Log call** — `openLog` → `driveLogCall(name, editFn)` with `profileEdit` appends a
+  Call Log entry, updates Stage/next-step, and writes back to Drive in place.
+- **Re-engage email** — `openReengage` drafts a re-engagement email; `driveSaveEmail` saves it
+  as a Google Doc in the `1Remarkable` folder (offered for cooling/proposal clients).
+- **In-app profile editor** — `renderEditor(c)` edits fields and writes back via `driveLogCall`.
+- **KPI strip** — `deriveKpis(c)` synthesizes the chip row when a profile carries none.
+- **Surgical Drive writers** — `profileEdit`, `profileSetStatus`, `profileSetTasks`,
+  `profileSetNotes`, `profileSetNextCall`, and `stripSection` each edit ONE part of the
+  markdown losslessly; `driveLogCall` reads the live newest file, applies the edit, writes it
+  back in place, then deletes duplicate copies (the auto-dedupe).
+- **Parse → map → render** — `parseProfile(md)` → `mapImport(s)` (→ encrypted `intel`) →
+  `renderDashboard()` / `renderDetail(c)`. Add a new profile field in all three.
 
 ## Conventions / gotchas
 - Pop-up/coaching text = verbatim spoken lines; put advice/meta in a footnote.
