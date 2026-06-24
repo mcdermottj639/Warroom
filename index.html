@@ -734,7 +734,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r83';
+const BUILD = 'build 2026-06-24 · r84';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1406,6 +1406,7 @@ function mapImport(s){
     answerKey: s.answerKey || [],
     callHistory: s.callHistory || (s.lastCall?[{date:'',callType:s.callType||'',summary:s.lastCall,leftOff:s.closeAction||''}]:[])
   };
+  if(s.openingRecap) out.openingRecap=s.openingRecap;                                              // Claude-authored verbatim opening (overrides generated)
   if(s.missedCall) out.missedCall=s.missedCall;                                                    // "missed call" marker (Drive-synced)
   if(s.status){ out.status=s.status; out.wonAmount=s.wonAmount||''; out.wonDate=s.wonDate||''; }  // won/lost from profile
   if(s.tasks && s.tasks.length) out.tasks=s.tasks;                                                // dated follow-up to-dos
@@ -2747,6 +2748,9 @@ function parseProfile(md, name){
       }
     }}
   }
+  // Opening — optional Claude-authored verbatim recap. When present it OVERRIDES the app's
+  // generated opening (blank-line-separated paragraphs → spoken beats). Authored second-person.
+  const openingRecap = section(/Opening/i).trim();
   const summaries = [...callLog.matchAll(/^[-*]\s*Summary:\s*(.+)$/gim)].map(m=>m[1].trim());
   const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
   const personalText = section(/Personal/i).replace(/^[\s\-*]+/gm,'').trim();   // full section, for income/spending/SS/pension
@@ -2794,7 +2798,7 @@ function parseProfile(md, name){
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
     whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, notes, personalText, prep,
-    missedCall, status:wonStatus||undefined, wonAmount, wonDate };
+    openingRecap, missedCall, status:wonStatus||undefined, wonAmount, wonDate };
 }
 
 async function gapiJSON(url){
@@ -2856,6 +2860,7 @@ async function syncFromDrive(){
         if(ex.notes && ex.notes.length && !(intel.notes&&intel.notes.length)) intel.notes=ex.notes;  // keep offline notes if Drive has none yet
         if(ex.tasks && ex.tasks.length && !(intel.tasks&&intel.tasks.length)) intel.tasks=ex.tasks; // keep offline-added tasks
         if(ex.prep && ex.prep.length && !(intel.prep&&intel.prep.length)) intel.prep=ex.prep;       // keep Prep Sheet if a later profile rewrite dropped it
+        if(ex.openingRecap && !intel.openingRecap) intel.openingRecap=ex.openingRecap;              // keep an authored Opening if a later rewrite dropped it
       }
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
@@ -2943,6 +2948,17 @@ function coachContent(c, type){
     return {title:`❓ Questions for ${fn}`, html: gapHtml+sitHtml};
   }
   if(type==='open'){
+    // Claude-authored opening wins: render it verbatim (it's written second-person), and skip the
+    // generated beats entirely. Paragraphs (blank-line separated, else per line) become spoken beats.
+    if(i.openingRecap && i.openingRecap.trim()){
+      const raw=i.openingRecap.trim();
+      let paras=raw.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
+      if(paras.length<=1) paras=raw.split(/\n/).map(p=>p.trim()).filter(Boolean);
+      paras=paras.map(p=>strip(p.replace(/^[-*]\s*/,'').replace(/\s*\n\s*/g,' ')));
+      const html=paras.map(p=>`<p class="recap">${esc(p)}</p>`).join('')
+        +`<p class="recap-note">Authored recap — read as written; open with the question and let them answer.</p>`;
+      return {title:`🎬 Opening for ${fn}`, html};
+    }
     // Call-type-aware recap. A Proposal call recaps the picture and sets up presenting the plan;
     // a Decision call recaps the SOLUTION + its value and drives to a decision; Enrollment closes
     // the paperwork; Discovery stays exploratory. Every recap opens with a grounded personal touch.

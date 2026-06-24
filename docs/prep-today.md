@@ -44,6 +44,15 @@ repo in scope. Nothing else to do — it runs unattended.
    - **Planning Flags (flags)** — the things to watch / plan around.
    - **Strategy Angles (angles)** — how to play the call.
 
+3b. **Author an `## Opening`** for each confirmed client too — a **verbatim,
+   second-person** recap the advisor reads aloud (the app renders it in place of
+   the auto-generated opening). Three or so blank-line-separated beats: (1) a real
+   personal question grounded in the Personal notes, (2) a recap of where things
+   stand in the client's own terms — what matters most to them, (3) what today is
+   about + the drive to the next step. Write it like a sharp advisor would actually
+   talk — natural, specific, no third-person ("your daughters", "you value …", not
+   "his"/"he"). Same fidelity rules apply. Refresh it if the notes changed.
+
 4. **Fidelity rules (non-negotiable):**
    - Author **only** from what's in the profile notes. Never invent a number.
    - If a fee/savings figure isn't confirmed in the notes, label it
@@ -51,8 +60,9 @@ repo in scope. Nothing else to do — it runs unattended.
      Fee Delta card for the pattern). Never assert an unverified fee saving.
    - Tie each flag/angle to something the notes actually say.
 
-5. **Write it back.** Insert the `## Prep Sheet` section just **before**
-   `## Close Action / Next Step`, keep everything else byte-for-byte, and
+5. **Write it back.** Insert the `## Opening` section (just before `## Prep Sheet`)
+   and the `## Prep Sheet` section just **before** `## Close Action / Next Step`,
+   keep everything else byte-for-byte, and
    `create_file` the full updated profile into the same folder
    (`parentId = 1SIWV5Xl9382wWvL7HhEBtlkiOPrsvw41`, mime `text/markdown`,
    `disableConversionToGoogleType: true`). The app keeps the newest copy and

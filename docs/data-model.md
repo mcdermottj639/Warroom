@@ -188,6 +188,13 @@ Updated: <Mon D, YYYY>
 - Objection: <their hesitation, verbatim where possible>
 - Response: <how to reframe it>
 
+## Opening               ← optional but ideal: a VERBATIM, second-person opening to read aloud
+<A real personal question grounded in the notes.>
+
+<Recap of where things stand, in their words — what matters most to them.>
+
+<What today is about + drive to the next step. Each blank-line paragraph = one spoken beat.>
+
 ## Prep Sheet            ← optional but ideal for proposal/decision calls (see §7)
 ### <Title> (table|cashflow|flags|angles)
 - …

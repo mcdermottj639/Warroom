@@ -87,13 +87,20 @@ client's name or "new notes" never hurt, but aren't required.)
 - **`docs/data-model.md`** is the source of truth.
   - **§7** = the **Prep Sheet** cards (Claude-authored, app-rendered:
     `## Prep Sheet` → `### Title (table|cashflow|flags|angles)`).
+  - **`## Opening`** (optional, Claude-authored) = a **verbatim, second-person**
+    opening recap. When present it **overrides** the app's generated 🎬 Opening
+    (blank-line-separated paragraphs become spoken beats). Author it on every
+    notes→profile write and in the morning Prep routine — the template generator is
+    a fallback; a hand-written opening is far better. Open with a real personal
+    question, recap what matters in their words, then drive to today's purpose.
   - **§8** = the **canonical profile template + "capture everything" routing
     table.** Follow it for every notes→profile write: every fact from the photo
     goes into the section the app reads it from; nothing summarized away.
 - The app parses these profile sections: `## Snapshot` (Stage, moveable assets,
   Accounts, Product, Confidence, Solution, Why), `## Personal / Relationship`
   (labeled bullets: Family / Life & retirement / Spending / Social Security-pension
-  / Health), `## Objection & Response`, `## Prep Sheet`, `## Close Action / Next
+  / Health), `## Objection & Response`, `## Opening` (authored verbatim recap),
+  `## Prep Sheet`, `## Close Action / Next
   Step` (incl. the `Next call:` line and the `Missed call: <ISO>` line), `## Tasks`,
   `## My Notes`, `## Call Log`, and a `Status:` line (won/lost).
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
@@ -165,9 +172,11 @@ client's name or "new notes" never hurt, but aren't required.)
   The **❓ Questions** pop-up always **leads with the discovery topics this client's
   notes are missing** (the same six `DISCO_TOPICS` the Overview Discovery Depth stat
   scores), then the situational asks — so every gap gets probed on the next call.
-- **Opening recap is call-type-aware** (Decision recaps the solution+value and
+- **Opening recap**: if the profile carries a `## Opening` section (Claude-authored),
+  the 🎬 Opening pop-up renders **that** verbatim. Otherwise it falls back to a
+  **call-type-aware generated recap** (Decision recaps the solution+value and
   drives to a decision; Enrollment = paperwork; Discovery = exploratory; Proposal =
-  present-the-plan) and opens with a **verbatim personal question** from the notes.
+  present-the-plan) opening with a **verbatim personal question** from the notes.
   Pop-up content is **what the advisor says out loud**; coaching meta goes in the
   small footnote. Profile clauses (solution/goals are written third-person) are run
   through **`youify()`** so the spoken beats read second-person ("his daughters" →
