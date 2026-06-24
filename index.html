@@ -264,6 +264,21 @@
   .gauge .g-num span{font-size:12px;color:var(--ink-dim);margin-left:1px}
   .gauge .g-lbl{font-size:11px;color:var(--ink);font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-top:10px}
   .gauge .g-sub{font-size:10.5px;color:var(--ink-dim);font-weight:600;margin-top:2px}
+  /* stage funnel bars */
+  .ovwrap .ovfocus{margin-bottom:4px}
+  .frrow{display:flex;align-items:center;gap:10px;padding:7px 2px;cursor:pointer;border-radius:8px;transition:background .12s}
+  .frrow:hover{background:rgba(96,165,250,.08)}
+  .frlbl{font-size:12px;font-weight:700;color:var(--ink);width:78px;flex-shrink:0}
+  .frbar{flex:1;height:14px;border-radius:7px;background:rgba(255,255,255,.06);overflow:hidden;min-width:40px}
+  .frfill{display:block;height:100%;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,var(--bc) 55%,transparent),var(--bc));
+    box-shadow:0 0 10px -1px var(--bc);transition:width .5s cubic-bezier(.2,.7,.3,1)}
+  .frval{font-size:11.5px;font-weight:700;color:var(--ink-dim);white-space:nowrap;min-width:96px;text-align:right}
+  /* discovery coverage bars */
+  .covrow{display:flex;align-items:center;gap:9px;padding:3.5px 0}
+  .covlbl{font-size:11px;font-weight:700;color:var(--ink-dim);width:96px;flex-shrink:0}
+  .covbar{flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden;min-width:30px}
+  .covfill{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#7c3aed,#a78bfa);box-shadow:0 0 8px -1px #a78bfa;transition:width .5s ease}
+  .covpct{font-size:10.5px;font-weight:700;color:var(--ink-dim);width:34px;text-align:right}
   .nextcall{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--gold);border-radius:11px;padding:12px 16px;margin-bottom:16px}
   .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;flex:none}
@@ -688,7 +703,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r72';
+const BUILD = 'build 2026-06-24 · r73';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1370,12 +1385,12 @@ function renderOverview(){
 
   const wins = S.clients.filter(c=>c.intel.status==='won');
 
-  // Due follow-ups: overdue + anything due through the end of this week
+  // Follow-ups owed now — undated (owed, no date) or due today/earlier (overdue). Not future-dated.
   const _pad=n=>String(n).padStart(2,'0');
-  const weekISO = weekEnd.getFullYear()+'-'+_pad(weekEnd.getMonth()+1)+'-'+_pad(weekEnd.getDate());
+  const todayISO = today0.getFullYear()+'-'+_pad(today0.getMonth()+1)+'-'+_pad(today0.getDate());
   const dueTasks=[];
   S.clients.forEach(c=> (c.intel.tasks||[]).forEach((t,idx)=>{ if(t.done) return;
-    if(t.due && t.due>weekISO) return; dueTasks.push({c,t,idx}); }));
+    if(t.due && t.due>todayISO) return; dueTasks.push({c,t,idx}); }));
   dueTasks.sort((a,b)=> ((a.t.due||'9999-99')<(b.t.due||'9999-99')?-1:1));
   const overdueCount = dueTasks.filter(x=>dueClass(x.t.due)==='task-over').length;
 
@@ -1393,10 +1408,6 @@ function renderOverview(){
       + (dueTasks.length?`<div class="bodynote" style="padding-top:${todays.length?'12px':'0'}">📌 Follow-ups owed${overdueCount?` · ${overdueCount} overdue`:''} (${dueTasks.length})</div>${dueTasks.slice(0,6).map(taskRow).join('')}`
         + (dueTasks.length>6?`<div class="bodynote" style="padding-top:8px">+ ${dueTasks.length-6} more — see Command Center</div>`:''):'')
     : '<div class="bodynote" style="padding:4px 0">Nothing due today and no calls on the books. 👌</div>';
-
-  const next3 = upcoming.slice(0,3);
-  const nextInner = next3.length ? next3.map(callRow).join('')
-    : '<div class="bodynote" style="padding:4px 0">No upcoming calls scheduled.</div>';
 
   const hi = (()=>{ const h=new Date().getHours(); return h<12?'Good morning':h<17?'Good afternoon':'Good evening'; })();
   const dateStr = today0.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
@@ -1443,9 +1454,78 @@ function renderOverview(){
   const rCool = weighted?Math.round(atRisk/weighted*100):0;
   const rPend = active.length?Math.round(pend.length/active.length*100):0;
 
+  // ===== Conversation-quality analytics (all from existing intel; no fabricated figures) =====
+  const has = a => Array.isArray(a) && a.length;   // mirror of renderDetail's local helper
+
+  // --- 1. Stage Funnel + Win Rate ---
+  const STAGES=[{k:'discovery',lbl:'Discovery',c:'#60a5fa'},{k:'proposal',lbl:'Proposal',c:'#38bdf8'},{k:'decision',lbl:'Decision',c:'#a78bfa'}];
+  const stageBuckets=STAGES.map(s=>{ const cs=active.filter(c=>{ const st=(c.intel.stage||'').toLowerCase();
+      return s.k==='discovery' ? (st.includes('discovery')||st.includes('inbound')||st.includes('intro')||(!st.includes('proposal')&&!st.includes('decision'))) : st.includes(s.k); });
+    return {...s, n:cs.length, ev:cs.reduce((a,c)=>a+expectedValue(c.intel),0)}; });
+  const funnelMax=Math.max(1,...stageBuckets.map(b=>b.n));
+  const funnelRows=stageBuckets.map(b=>`<div class="frrow" data-jump="sec-top">
+      <span class="frlbl">${b.lbl}</span>
+      <span class="frbar"><span class="frfill" style="width:${Math.round(b.n/funnelMax*100)}%;--bc:${b.c}"></span></span>
+      <span class="frval">${b.n} · ${fmtVal(b.ev)}</span></div>`).join('');
+
+  // --- 2. Objection Handling (Proposal/Decision clients with a logged objection) ---
+  const objTarget=active.filter(c=>['proposal','decision'].includes((c.intel.stage||'').toLowerCase()));
+  const objHave=objTarget.filter(c=>has(c.intel.objections));
+  const objRate=objTarget.length?Math.round(objHave.length/objTarget.length*100):0;
+  const objMissing=objTarget.filter(c=>!has(c.intel.objections));
+  const objList = objTarget.length===0 ? '<div class="bodynote" style="padding:4px 0">No clients at proposal/decision yet.</div>'
+    : objMissing.length===0 ? '<div class="bodynote" style="padding:4px 0">Every proposal/decision has a logged objection. 👌</div>'
+    : `<div class="bodynote">No hesitation captured (${objMissing.length}) — did you probe?</div>`
+      + objMissing.slice(0,5).map(c=>`<div class="ovrow" data-code="${c.code}"><span class="when">${esc((c.intel.stage||'').slice(0,4))}</span><div class="nm">${esc(c.name)}<div class="sub">no objection logged</div></div></div>`).join('')
+      + (objMissing.length>5?`<div class="bodynote" style="padding-top:6px">+ ${objMissing.length-5} more</div>`:'');
+
+  // --- 3. Activity Trend — calls logged per week over the last 8 weeks (real history from call logs) ---
+  const AW=8;
+  const wkStart=new Date(today0); wkStart.setDate(wkStart.getDate()-wkStart.getDay()); // Sunday of this week
+  const actB=Array.from({length:AW},(_,i)=>{ const ds=new Date(wkStart); ds.setDate(ds.getDate()-(AW-1-i)*7); return {ds,n:0}; });
+  const winStart=actB[0].ds;
+  S.clients.forEach(c=> (c.intel.callHistory||[]).forEach(h=>{ const d=parseLogDate(h.date||''); if(!d) return;
+    if(d<winStart || d>today0) return; const wi=Math.floor((d-winStart)/(7*DAYMS)); if(wi>=0&&wi<AW) actB[wi].n++; }));
+  const actMax=Math.max(1,...actB.map(b=>b.n));
+  const actTotal=actB.reduce((s,b)=>s+b.n,0);
+  const AVW=340,AVH=130,abase=AVH-20,atop=14,abw=AVW/AW;
+  const ayOf=n=>abase-(n/actMax)*(abase-atop);
+  const actBars=actB.map((b,i)=>{ const x=i*abw+abw*0.20, w=abw*0.60, y=ayOf(b.n), h=abase-y;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3" fill="url(#actbar)" opacity="${b.n?0.92:0.25}"/>
+      <text x="${(i*abw+abw/2).toFixed(1)}" y="${AVH-4}" text-anchor="middle" class="velx">${b.ds.toLocaleDateString(undefined,{month:'numeric',day:'numeric'})}</text>`; }).join('');
+  const actPts=actB.map((b,i)=>`${(i*abw+abw/2).toFixed(1)},${ayOf(b.n).toFixed(1)}`).join(' ');
+  const actSvg=`<svg viewBox="0 0 ${AVW} ${AVH}" class="velsvg" role="img" aria-label="Calls logged per week">
+    <defs>
+      <linearGradient id="actbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#3b82f6" stop-opacity=".55"/></linearGradient>
+    </defs>
+    ${actBars}
+    <polyline points="${actPts}" fill="none" stroke="url(#velline)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#velglow)"/>
+  </svg>`;
+
+  // --- 4. Discovery Depth — reuse the client view's "captured data" detectors (parity with renderDetail) ---
+  const DEPTH=[
+    {k:'Accounts', f:i=>has(i.accounts)},
+    {k:'Income/Spend', f:i=>!!incomeSpendingBody(i)},
+    {k:'Family/Why', f:i=>!!familyWhyBody(i)},
+    {k:'Fee', f:i=>!!(i.fee&&i.fee.from)},
+    {k:'Goals', f:i=>has(i.goals)},
+    {k:'Objection', f:i=>has(i.objections)}
+  ];
+  const depthScores=active.map(c=>({c, n:DEPTH.reduce((a,d)=>a+(d.f(c.intel)?1:0),0)}));
+  const avgDepth=active.length?Math.round(depthScores.reduce((a,x)=>a+x.n,0)/(active.length*DEPTH.length)*100):0;
+  const covRows=DEPTH.map(d=>{ const pct=active.length?Math.round(active.filter(c=>d.f(c.intel)).length/active.length*100):0;
+    return `<div class="covrow"><span class="covlbl">${d.k}</span><span class="covbar"><span class="covfill" style="width:${pct}%"></span></span><span class="covpct">${pct}%</span></div>`; }).join('');
+  const thin=depthScores.filter(x=>x.n<DEPTH.length).sort((a,b)=>a.n-b.n).slice(0,4);
+  const thinList=thin.length?`<div class="bodynote" style="padding-top:10px">Thinnest profiles — fill the gaps</div>`
+      + thin.map(x=>{ const miss=DEPTH.filter(d=>!d.f(x.c.intel)).map(d=>d.k).slice(0,3).join(', ');
+        return `<div class="ovrow" data-code="${x.c.code}"><span class="when">${x.n}/${DEPTH.length}</span><div class="nm">${esc(x.c.name)}<div class="sub ellip">missing: ${esc(miss)}</div></div></div>`; }).join(''):'';
+
   $('#main').innerHTML = `<div class="ovwrap"><div class="ovinner">
     <div class="ovhead"><h2>🏠 Overview</h2>
       <div class="meta">${hi} · ${dateStr} · ${active.length} active · weighted pipeline ${fmtVal(weighted)}</div></div>
+
+    <div class="groupttl">🎯 Today's Focus</div>
+    <div class="card ovfocus">${focusInner}</div>
 
     <div class="ovhero">
       <button class="ovtile t-cyan" data-jump="sec-top"><span class="cnrs"></span><span class="ot-ring" style="--p:${avgProb}" title="${avgProb}% EV-weighted close probability"></span><span class="ot-go">›</span>
@@ -1458,17 +1538,21 @@ function renderOverview(){
         <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">no next call booked</div></button>
     </div>
 
-    <div class="ovgrid">
-      <div><div class="groupttl">🎯 Today's Focus</div><div class="card">${focusInner}</div></div>
-      <div><div class="groupttl">📅 Next Up</div><div class="card">${nextInner}</div>
-        ${wins.length?`<div class="groupttl" style="margin-top:14px">🏆 Wins</div><div class="card"><div class="ovrow" data-jump-cc="sec-wins" style="cursor:pointer"><div class="nm">${wins.length} closed</div><span class="when">view ›</span></div></div>`:''}</div>
-    </div>
-
     <div class="ovcharts">
       <div><div class="groupttl">📈 Pipeline Velocity</div>
         <div class="card velcard"><div class="velsub">Expected value by close week · next 6 weeks · ${fmtVal(velTotal)} in flight</div>${velSvg}</div></div>
       <div><div class="groupttl">🎯 Win Probability</div>
         <div class="card"><div class="gauges">${gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')}${gauge(closeRate,'Close rate',`${wonN}W · ${lostN}L`,'#f472b6')}</div></div></div>
+
+      <div><div class="groupttl">📊 Activity Trend</div>
+        <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks</div>${actSvg}</div></div>
+      <div><div class="groupttl">🪜 Stage Funnel + Win Rate</div>
+        <div class="card"><div class="velsub">${active.length} active · ${closeRate}% win rate · ${wonN}W · ${lostN}L</div>${funnelRows}</div></div>
+
+      <div><div class="groupttl">🔎 Discovery Depth</div>
+        <div class="card"><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${gauge(avgDepth,'Avg capture','of 6 topics','#a78bfa')}<div style="flex:1;min-width:170px">${covRows}</div></div>${thinList}</div></div>
+      <div><div class="groupttl">🧯 Objection Handling</div>
+        <div class="card"><div class="gauges">${gauge(objRate,'Obj. logged',`${objHave.length}/${objTarget.length} prop/dec`,'#f472b6')}</div>${objList}</div></div>
     </div>
 
     <div class="ovnav">
@@ -1477,8 +1561,7 @@ function renderOverview(){
     </div>
   </div></div>`;
 
-  document.querySelectorAll('.ovtile[data-jump]').forEach(b=> b.onclick = ()=> renderDashboard(b.dataset.jump));
-  document.querySelectorAll('[data-jump-cc]').forEach(b=> b.onclick = ()=> renderDashboard(b.dataset.jumpCc));
+  document.querySelectorAll('.ovtile[data-jump], .frrow[data-jump]').forEach(b=> b.onclick = ()=> renderDashboard(b.dataset.jump));
   document.querySelectorAll('.ovrow[data-code]').forEach(el=> el.onclick = ()=>{
     const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
   });

@@ -125,15 +125,20 @@ client's name or "new notes" never hurt, but aren't required.)
 ## Feature map (what already exists — don't rebuild)
 - **Overview** is the **landing page** the app opens to (🏠 nav button above Command
   Center). It's a neon-HUD "command deck" (glassmorphism, scoped to `.ovwrap` so it
-  stays dark even in light theme): four **hero KPI tiles** (Weighted pipeline ·
-  Upcoming calls · Cooling $ at risk · Pending decisions) that **deep-link** into the
-  matching Command Center section, a **Today's Focus** block (calls today +
-  follow-ups owed), a **Next Up** teaser, **Pipeline Velocity** (SVG bar+line of EV by
-  expected-close week, next 6 wks — forward projection, not yet historical) and **Win
-  Probability** (two conic gauges: EV-weighted avg close prob + historical close
-  rate), and Enter-Command-Center / Clients buttons. On Overview the **sidebar client
-  list is collapsed** — searching reveals matches. All values reuse existing
-  computations (no new storage). `renderOverview()`.
+  stays dark even in light theme). Top = the only **action** block: **🎯 Today's Focus**
+  (calls today + follow-ups owed — undated or due today/overdue). Everything below is a
+  **stats/analytics board**: four **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
+  Cooling $ at risk · Pending decisions) that **deep-link** into the matching Command
+  Center section, then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by
+  expected-close week, next 6 wks — forward projection), **Win Probability** (two conic
+  gauges: EV-weighted avg close prob + historical close rate), **Stage Funnel + Win Rate**
+  (bars by stage + won/lost rate), **Activity Trend** (8-wk SVG of calls logged/week from
+  `callHistory` dates — genuine history), **Discovery Depth** (avg "capture" gauge +
+  per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
+  detectors `incomeSpendingBody`/`familyWhyBody`/`has(...)` for parity), and **Objection
+  Handling** (gauge of proposal/decision clients with a logged objection + a list of those
+  missing one). On Overview the **sidebar client list is collapsed** — searching reveals
+  matches. All values reuse existing computations (no new storage). `renderOverview()`.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Follow-ups (tasks owed, next 2 weeks) → Pending Decisions → Top 10 → Cooling →
   Wins. Every client row shows a **note flag** (gold pill + count when notes exist;
