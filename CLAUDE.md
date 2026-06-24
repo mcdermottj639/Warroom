@@ -98,7 +98,13 @@ client's name or "new notes" never hurt, but aren't required.)
   and a `Status:` line (won/lost).
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
   the manual next-call override, call-type override, `## My Notes`, `## Tasks`,
-  `## Prep Sheet`, won/lost status.
+  `## Prep Sheet`, won/lost status, and the **`missedCall`** marker.
+- **Missed call** — a client's detail next-call banner has a **📵 Missed** button
+  (`markMissedCall`): it clears the booked call (`nextCallSet=''`), sets a sticky
+  `missedCall` date + a "Missed call … — reschedule" `pendingDecision`, and logs a
+  dated `## My Notes` line. Missed clients surface at the **top of Pending Decisions**
+  (any stage) and are excluded from Cooling; setting a new next call or logging a call
+  clears the marker.
 
 ## Writing profiles from photos (the main workflow)
 - HEIC photos: convert with `pillow-heif` (`pip install pillow-heif`; register the

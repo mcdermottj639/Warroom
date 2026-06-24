@@ -491,9 +491,13 @@
   @media (max-width:820px){
     body{height:auto;overflow:auto}
     #app{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;min-height:100dvh}
+    #app.noside{grid-template-rows:1fr}     /* Overview: no sidebar row on phones either */
     .side{border-right:none;border-bottom:1px solid var(--line)}
     .clist{max-height:40vh}
     .pad{padding:16px 14px}
+    .ovinner{padding:18px 16px 30px}
+    .ovbar{margin-bottom:16px}
+    .ovhead h2{font-size:22px}
     .grid{grid-template-columns:1fr}
     .head{flex-direction:column;gap:10px}
     .head .btns{flex-wrap:wrap}
@@ -508,13 +512,16 @@
   /* iOS safe areas (notch / status bar / home indicator) for installed PWA */
   @supports (padding: env(safe-area-inset-top)){
     body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);
-      background:var(--panel);z-index:60}
+      background:var(--safebar,var(--panel));z-index:60}
     .side .top{padding-top:calc(16px + env(safe-area-inset-top))}
     .secnav{top:env(safe-area-inset-top)}
     .main{padding-bottom:env(safe-area-inset-bottom)}
     .clist{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
     .lockcard{margin-top:env(safe-area-inset-top)}
     .pad{padding-left:max(30px,env(safe-area-inset-left));padding-right:max(30px,env(safe-area-inset-right))}
+    /* Overview is full-screen: clear the notch/status bar and respect side insets */
+    .ovinner{padding-top:calc(24px + env(safe-area-inset-top));
+      padding-left:max(26px,env(safe-area-inset-left));padding-right:max(26px,env(safe-area-inset-right))}
   }
   @media (max-width:820px){
     @supports (padding: env(safe-area-inset-top)){
@@ -727,7 +734,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r78';
+const BUILD = 'build 2026-06-24 · r79';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1413,12 +1420,13 @@ function renderOverview(){
   const upWeek = upcoming.filter(x=>x.d<=weekEnd);
   const todays = upcoming.filter(x=> x.d.getTime()===today0.getTime());
 
-  const cooling = active.filter(isCooling).map(c=>({c, ev:expectedValue(c.intel)}));
+  const cooling = active.filter(c=>isCooling(c) && !c.intel.missedCall).map(c=>({c, ev:expectedValue(c.intel)}));
   const atRisk = cooling.reduce((s,r)=>s+r.ev, 0);
 
   const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=today0); };
-  const pend = active.filter(c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase())
-      && !hasFutureCall(c) && !isCooling(c));
+  const pend = active.filter(c => !hasFutureCall(c) && (
+      !!c.intel.missedCall ||
+      (['proposal','decision'].includes((c.intel.stage||'').toLowerCase()) && !isCooling(c))));
 
   const wins = S.clients.filter(c=>c.intel.status==='won');
 
@@ -1647,14 +1655,17 @@ function renderDashboard(jumpTo){
   // (Future call → they're in Upcoming. Faded past our timing → they're in Cooling.)
   const _todayP=new Date(); _todayP.setHours(0,0,0,0);
   const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=_todayP); };
-  const pend = active.filter(c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase())
-      && !hasFutureCall(c) && !isCooling(c))
-    .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
+  // Missed-call clients land here regardless of stage; otherwise the usual proposal/decision-with-no-call set.
+  const pend = active.filter(c => !hasFutureCall(c) && (
+        !!c.intel.missedCall ||
+        (['proposal','decision'].includes((c.intel.stage||'').toLowerCase()) && !isCooling(c))))
+    .sort((a,b)=> (b.intel.missedCall?1:0)-(a.intel.missedCall?1:0) || expectedValue(b.intel)-expectedValue(a.intel));
   const pendRows = pend.length ? pend.slice(0,10).map(c=>{
+    const missed = !!c.intel.missedCall;
     const issue = c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending';
-    const cls = c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
+    const cls = missed?'CRITICAL':c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
     return `<div class="crow" data-code="${c.code}">
-      <span class="riskbadge risk-${cls}">${esc(c.intel.priority||'')}</span>
+      <span class="riskbadge risk-${cls}">${missed?'📵 MISSED':esc(c.intel.priority||'')}</span>
       <div style="flex:1;min-width:0"><b>${esc(c.name)}</b> ${noteFlag(c)}<div class="fc ellip">${esc(issue)}</div></div>
       <span class="chev">›</span></div>`;
   }).join('')
@@ -1665,7 +1676,7 @@ function renderDashboard(jumpTo){
   const openFlags = active.reduce((s,c)=>s+(c.intel.specialFlags||c.intel.complications||[]).length,0);
 
   // Cooling deals — proposals fading, driven by the client's own stated timing (scheduled ones excluded)
-  const cooling = active.filter(isCooling).map(c=>({c, st:dealState(c), ev:expectedValue(c.intel)}))
+  const cooling = active.filter(c=>isCooling(c) && !c.intel.missedCall).map(c=>({c, st:dealState(c), ev:expectedValue(c.intel)}))
     .sort((a,b)=> (b.ev*(b.st.days||1)) - (a.ev*(a.st.days||1)));
   const atRisk = cooling.reduce((s,r)=>s+r.ev,0);
   const coolRows = cooling.length ? cooling.map(r=>{
@@ -1813,7 +1824,10 @@ function renderList(){
   const el = $('#clist'); el.innerHTML='';
   const db = $('#dashBtn'); if(db) db.classList.toggle('active', S.active==='__dash__');
   const ob = $('#ovBtn'); if(ob) ob.classList.toggle('active', S.active==='__overview__');
-  const app = document.getElementById('app'); if(app) app.classList.toggle('noside', S.active==='__overview__');
+  const onOverview = S.active==='__overview__';
+  const app = document.getElementById('app'); if(app) app.classList.toggle('noside', onOverview);
+  // match the iOS status-bar strip to the surface below it (dark HUD on Overview)
+  document.body.style.setProperty('--safebar', onOverview ? '#06080f' : '');
   const open = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
   const q = S.query||'';
   const visible = q ? open.filter(c =>
@@ -2003,7 +2017,9 @@ function renderDetail(c){
         ${['Intro','Discovery','Proposal','Decision','Enrollment','Follow-Up'].map(t=>`<option ${t===ct?'selected':''}>${t}</option>`).join('')}
         <option value="__auto">↺ Auto${i.nextCallTypeSet?'':' (on)'}</option></select>`; })():''}
       <button class="nc-set" id="setNcBtn">${ncLabel?'✏️ Change':'+ Set'}</button>
+      ${ncLabel&&!i.status?'<button class="nc-set" id="missedBtn">📵 Missed</button>':''}
     </div>
+    ${i.missedCall?`<div class="meta" style="margin:-8px 0 14px;color:var(--warm)">📵 Missed call ${esc(new Date(i.missedCall+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}))} — moved to Pending Decisions; reschedule to clear.</div>`:''}
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
         : (ds.state&&!['Fresh',null].includes(ds.state))?`<b style="color:var(--warm)">${ds.overdue?'OVERDUE':ds.state.toUpperCase()}</b>` : '';
       return `<div class="meta" style="margin:-8px 0 14px">🕑 Last touch: ${lt!=null?lt+' day'+(lt===1?'':'s')+' ago':'—'}${tag?' · '+tag:''}</div>`; })()}
@@ -2053,12 +2069,17 @@ function renderDetail(c){
     const intel = {...c.intel};
     if(v.trim().toLowerCase()==='auto') delete intel.nextCallSet;   // revert to notes-derived
     else intel.nextCallSet = v.trim();                    // explicit value ('' = cleared)
+    if(v.trim() && v.trim().toLowerCase()!=='auto'){      // rescheduling clears a "missed call" marker
+      delete intel.missedCall;
+      if((intel.pendingDecision||'').startsWith('Missed call')) delete intel.pendingDecision;
+    }
     await saveClient(c.code, c.name, intel);
     await loadClients();
     const c2=S.clients.find(x=>x.code===c.code);
     renderDetail(c2);
     if(v.trim() && v.trim().toLowerCase()!=='auto') syncNextCallToDrive(c2);   // reflect the new date in Drive
   };
+  if($('#missedBtn')) $('#missedBtn').onclick = ()=> markMissedCall(c.code);
   if($('#ncTypeSel')) $('#ncTypeSel').onchange = async (e)=>{
     const v=e.target.value; const intel={...c.intel};
     if(v==='__auto') delete intel.nextCallTypeSet;          // revert to the inferred type
@@ -2748,6 +2769,7 @@ async function syncFromDrive(){
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
         if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
+        if(ex.missedCall) intel.missedCall=ex.missedCall;                  // "missed call" marker (until rescheduled/logged)
         if(ex.notes && ex.notes.length && !(intel.notes&&intel.notes.length)) intel.notes=ex.notes;  // keep offline notes if Drive has none yet
         if(ex.tasks && ex.tasks.length && !(intel.tasks&&intel.tasks.length)) intel.tasks=ex.tasks; // keep offline-added tasks
         if(ex.prep && ex.prep.length && !(intel.prep&&intel.prep.length)) intel.prep=ex.prep;       // keep Prep Sheet if a later profile rewrite dropped it
@@ -3058,6 +3080,24 @@ async function saveNotesFor(c, notes){
     await saveClient(c.code, c.name, {...intel, _md:r.md, _driveFileId:r.id}); res();
   }catch(e){ rej(e); } })); }catch(e){ /* offline — kept locally, pushes next save */ }
   await loadClients();
+}
+// Mark a client as having missed their call → drop the booked call, log a dated note, and
+// flag them so they surface in Command Center's Pending Decisions until rescheduled.
+async function markMissedCall(code){
+  const c=S.clients.find(x=>x.code===code); if(!c || ['won','lost'].includes(c.intel.status)) return;
+  const d=new Date(); const _p=n=>String(n).padStart(2,'0');
+  const iso=d.getFullYear()+'-'+_p(d.getMonth()+1)+'-'+_p(d.getDate());
+  const nice=d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+  if(!confirm(`Mark ${c.name} as a missed call (${nice})?\n\nThey'll move to Pending Decisions and the booked call will be cleared.`)) return;
+  const notes=(c.intel.notes||[]).slice();
+  notes.unshift({ d:d.toLocaleDateString(undefined,{month:'short',day:'numeric'}), t:`Missed call — ${nice}` });
+  // stage the sticky markers on the in-memory client so saveNotesFor persists them too
+  c.intel = {...c.intel, missedCall:iso, nextCallSet:'', pendingDecision:`Missed call ${nice} — reschedule` };
+  await saveNotesFor(c, notes);   // local + Drive (note) + reload
+  const c2=S.clients.find(x=>x.code===code);
+  if(S.active===code && c2) renderDetail(c2);
+  else if(S.active==='__dash__') renderDashboard();
+  else if(S.active==='__overview__') renderOverview();
 }
 function openNotes(code){
   notesCode=code; const c=S.clients.find(x=>x.code===code); if(!c) return;
