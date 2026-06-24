@@ -184,6 +184,7 @@ The file is large; these are the load-bearing pieces a new session will likely t
   dates via `parseLogDate` (e.g. "the 30th", "late June"); `nextCallType(i)` infers
   Intro/Discovery/Proposal/Decision/Enrollment from the notes (rule of thumb: advance one
   stage past the call just held). These drive **Upcoming Calls** + the next-call banner.
+  `nextCallMinutes(i)` extracts the call's clock time so same-day Upcoming rows sort earliest-first.
 - **Log call** — `openLog` → `driveLogCall(name, editFn)` with `profileEdit` appends a
   Call Log entry, updates Stage/next-step, and writes back to Drive in place.
 - **Re-engage email** — `openReengage` drafts a re-engagement email; `driveSaveEmail` saves it

@@ -734,7 +734,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r80';
+const BUILD = 'build 2026-06-24 · r81';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1148,6 +1148,20 @@ function nextExpectedDate(i){
   if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 15);  // "back in August" => mid-month
   return null;
 }
+// minutes-past-midnight of the booked call's time (for ordering same-day calls). Pulls a clock
+// time ("5:00 PM", "9 am", schedule.time) from the next-call text; returns 9999 when none is stated
+// (untimed calls sort last within their day). Honors AM/PM; bare times are taken as written.
+function nextCallMinutes(i){
+  const src=[i.nextCallSet, i.nextCall, i.closeAction, i.schedule&&i.schedule.time].filter(Boolean).join('  ');
+  const m=src.match(/(\d{1,2}):(\d{2})\s*([ap]\.?m\.?)?|(\d{1,2})\s*([ap]\.?m\.?)/i);
+  if(!m) return 9999;
+  let h, min, ap;
+  if(m[1]!==undefined){ h=+m[1]; min=+m[2]; ap=(m[3]||'').toLowerCase(); }
+  else { h=+m[4]; min=0; ap=(m[5]||'').toLowerCase(); }
+  if(h>23||min>59) return 9999;
+  if(ap[0]==='p' && h<12) h+=12; else if(ap[0]==='a' && h===12) h=0;
+  return h*60+min;
+}
 // the TYPE of the upcoming call — driven by the notes / where the deal actually is, not the
 // booking label. Order: explicit "Next call:" clause → agreed=Enrollment → proposal already
 // held=Decision → proposal still upcoming=Proposal → stage fallback (discovery/intro).
@@ -1420,7 +1434,7 @@ function renderOverview(){
 
   const today0=new Date(); today0.setHours(0,0,0,0);
   const weekEnd=new Date(today0); weekEnd.setDate(weekEnd.getDate()+((7-weekEnd.getDay())%7)); weekEnd.setHours(23,59,59,999);
-  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=>a.d-b.d);
+  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=> (a.d-b.d) || (nextCallMinutes(a.c.intel)-nextCallMinutes(b.c.intel)));
   const upWeek = upcoming.filter(x=>x.d<=weekEnd);
   const todays = upcoming.filter(x=> x.d.getTime()===today0.getTime());
 
@@ -1699,7 +1713,7 @@ function renderDashboard(jumpTo){
   // Upcoming calls — split into This Week vs. Future (beyond this Sunday)
   const today0=new Date(); today0.setHours(0,0,0,0);
   const weekEnd=new Date(today0); weekEnd.setDate(weekEnd.getDate()+((7-weekEnd.getDay())%7)); weekEnd.setHours(23,59,59,999); // coming Sunday
-  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=>a.d-b.d);
+  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=> (a.d-b.d) || (nextCallMinutes(a.c.intel)-nextCallMinutes(b.c.intel)));
   const upWeek = upcoming.filter(x=>x.d<=weekEnd);
   const upFuture = upcoming.filter(x=>x.d>weekEnd);
   const upRowOf = x=>{ const ty=nextCallType(x.c.intel); const detail=esc(x.c.intel.nextCall||'');
