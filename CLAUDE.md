@@ -137,8 +137,11 @@ client's name or "new notes" never hurt, but aren't required.)
   per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
   detectors `incomeSpendingBody`/`familyWhyBody`/`has(...)` for parity), and **Objection
   Handling** (gauge of proposal/decision clients with a logged objection + a list of those
-  missing one). On Overview the **sidebar client list is collapsed** — searching reveals
-  matches. All values reuse existing computations (no new storage). `renderOverview()`.
+  missing one). On Overview the **whole left sidebar is hidden** (`#app.noside`, toggled in
+  `renderList`) so it's a **full-screen** board; a **top toolbar** replaces it — brand +
+  `+ Client` / `☁️ Drive` / `🌙 Theme` / `⚔️ Command Center` / `🔒 Lock` (these reuse the
+  sidebar buttons' handlers via `.click()`). Client search/list lives in Command Center,
+  one click away. All values reuse existing computations (no new storage). `renderOverview()`.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Follow-ups (tasks owed, next 2 weeks) → Pending Decisions → Top 10 → Cooling →
   Wins. Every client row shows a **note flag** (gold pill + count when notes exist;
