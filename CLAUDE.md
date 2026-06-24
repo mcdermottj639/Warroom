@@ -169,7 +169,9 @@ client's name or "new notes" never hurt, but aren't required.)
   drives to a decision; Enrollment = paperwork; Discovery = exploratory; Proposal =
   present-the-plan) and opens with a **verbatim personal question** from the notes.
   Pop-up content is **what the advisor says out loud**; coaching meta goes in the
-  small footnote.
+  small footnote. Profile clauses (solution/goals are written third-person) are run
+  through **`youify()`** so the spoken beats read second-person ("his daughters" →
+  "your daughters", "he values" → "you value") — i.e. truly verbatim.
 - Editable **next-call date + type** (writes back to the Drive `Next call:` line);
   **Won** strips the profile to a minimal record; **Lost/Delete** removes the Drive
   file entirely.

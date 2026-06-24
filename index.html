@@ -734,7 +734,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r81';
+const BUILD = 'build 2026-06-24 · r82';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1240,6 +1240,35 @@ const cleanProduct = p => (p||'').split(/\s*[@(=]|\s+[—–]\s+/)[0].trim();
 // lowercase the first letter of a reason for mid-sentence flow, but keep brands/acronyms intact
 const PROPER=/^(Vanguard|Fisher|Schwab|Fidelity|Edward|Empower|Premier|Personal|Putnam|Jackson|Lincoln|TIAA|Baird|LPL|Principal|Mission|Morgan|Knights|Equitable|Ascensus|Merrill|Wells|Ally|Roth|Medicare|Google|Viasat|CalPERS|Schneider|Lockheed|Primerica|Robinhood|E-Trade)\b/;
 const deCap = s => (!s||/^[A-Z]{2,}/.test(s)||PROPER.test(s)) ? s : s.charAt(0).toLowerCase()+s.slice(1);
+// Rewrite a third-person profile clause ("he values X", "his daughters") into a VERBATIM,
+// second-person spoken line ("you value X", "your daughters") for the on-call pop-ups.
+// Handles common auxiliaries/contractions, possessives, and drops the 3rd-person verb -s.
+function youify(s){
+  if(!s) return s;
+  let t = ' ' + String(s) + ' ';
+  t = t
+    .replace(/\b(?:he|she)\s+is\b/gi,'you are')
+    .replace(/\b(?:he|she|they)\s+was\b/gi,'you were')
+    .replace(/\b(?:he|she)\s+has\b/gi,'you have')
+    .replace(/\b(?:he|she)\s+does\b/gi,'you do')
+    .replace(/\b(?:he|she)\s+goes\b/gi,'you go')
+    .replace(/\b(?:he|she)'s\b/gi,"you're")
+    .replace(/\b(?:he|she|they)'d\b/gi,"you'd")
+    .replace(/\b(?:he|she|they)'ll\b/gi,"you'll")
+    .replace(/\b(?:he|she|they)'ve\b/gi,"you've")
+    .replace(/\bthey're\b/gi,"you're")
+    .replace(/\bthey\s+are\b/gi,'you are')
+    .replace(/\bthey\s+have\b/gi,'you have');
+  t = t.replace(/\bhis\b/gi,'your').replace(/\bhers\b/gi,'yours')
+       .replace(/\btheirs\b/gi,'yours').replace(/\btheir\b/gi,'your').replace(/\bher\b/gi,'your');
+  // subject pronoun + present-tense verb → second person (strip the 3rd-person -s/-es)
+  t = t.replace(/\b(?:he|she|they)\s+([a-z]+?)(es|s)\b/gi,
+        (m,stem,suf)=> 'you ' + stem + (suf.toLowerCase()==='es' && !/(s|x|z|ch|sh)$/i.test(stem) ? 'e' : ''));
+  t = t.replace(/\b(?:he|she|they)\b/gi,'you')
+       .replace(/\b(?:him|them)\b/gi,'you')
+       .replace(/\b(?:himself|herself|themselves)\b/gi,'yourself');
+  return t.replace(/\s+/g,' ').trim();
+}
 function genIntro(name, o){
   const fn = firstName(name);
   const hook = o.solutionOffered ? lc1(strip(o.solutionOffered))
@@ -2892,7 +2921,7 @@ function coachContent(c, type){
     const sit=['What’s changed since we last spoke?'];
     (i.specialFlags||i.complications||[]).slice(0,2).forEach(f=> sit.push(`Confirm where things stand on: ${strip(f)}.`));
     (i.accounts||[]).filter(a=>!a.value).slice(0,1).forEach(a=> sit.push(`Can you confirm the balance and custodian on the ${strip(a.custodian)}?`));
-    (i.goals||[]).slice(0,1).forEach(g=> sit.push(`How firm are you on ${deCap(strip(g))}?`));
+    (i.goals||[]).slice(0,1).forEach(g=> sit.push(`How firm are you on ${deCap(youify(strip(g)))}?`));
     if(obj) sit.push(`You’d mentioned “${strip(obj.objection)}” — what’s really driving that?`);
     sit.push(isProposalStage(c) ? 'If everything lined up, any reason we couldn’t move forward today?' : 'When you picture this settled, what does it look like for you?');
     const gapHtml = gaps.length
@@ -2913,11 +2942,11 @@ function coachContent(c, type){
       return 'your '+cu+(a.value?` (${moneyShort(a.value)}${a.anchor?', already at Empower':''})`:(a.anchor?' (already at Empower)':'')); };
     const accs=A.map(acctPhrase);
     const pic = accs.length ? (accs.length>1 ? accs.slice(0,-1).join(', ')+', and '+accs.slice(-1) : accs[0]) : 'your full financial picture';
-    const reasons=(i.goals||i.whyConsolidate||[]).map(strip).filter(Boolean);
+    const reasons=(i.goals||i.whyConsolidate||[]).map(g=>youify(strip(g))).filter(Boolean);
     const objx=i.objections&&i.objections[0]&&strip(i.objections[0].objection);
     const target=A.find(a=>!a.anchor);
     const tname=target?('your '+strip(target.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim()):'your outside accounts';
-    const sol=strip(i.solutionOffered||'');
+    const sol=youify(strip(i.solutionOffered||''));
     const vTail='professional management, planning depth, and one team coordinating the full picture';
 
     // a warm, VERBATIM personal opener — an actual question to ask, grounded in the Personal
