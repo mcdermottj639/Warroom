@@ -688,7 +688,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r71';
+const BUILD = 'build 2026-06-24 · r72';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1698,6 +1698,11 @@ function renderList(){
       (c.intel.stage||'').toLowerCase().includes(q) ||
       (c.intel.moveable||'').toLowerCase().includes(q)) : open;
   $('#cstat').textContent = q ? (visible.length+' of '+open.length) : (open.length + (open.length===1?' client':' clients'));
+  // On the Overview the sidebar list stays collapsed — searching reveals matches on demand.
+  if(S.active==='__overview__' && !q){
+    el.innerHTML='<div class="bodynote" style="padding:14px;line-height:1.5">🔍 Search above to find a client.</div>';
+    return;
+  }
   if(q && !visible.length){ el.innerHTML='<div class="bodynote" style="padding:14px">No matches for “'+esc(S.query)+'”.</div>'; }
   for(const c of visible){
     const d = document.createElement('div');
