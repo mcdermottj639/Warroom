@@ -13,7 +13,8 @@ Read this first. It's the standing context for every session.
 **War Room** is a single-file, local-first, encrypted PWA for **one Empower
 financial advisor** (the repo owner) to prep for client calls. It syncs client
 "intel" from a Google Drive folder of `— Profile.md` files, decrypts on-device,
-and renders a Command Center + per-client coaching/planning views. The whole app
+and renders an Overview landing page, a Command Center, and per-client coaching/
+planning views. The whole app
 is **`index.html`** (vanilla JS, no build step), hosted on **GitHub Pages**.
 
 The owner's loop: he takes a photo of his call notes → **pastes it to Claude** →
@@ -122,6 +123,17 @@ client's name or "new notes" never hurt, but aren't required.)
   and NOT the client's own to-dos.
 
 ## Feature map (what already exists — don't rebuild)
+- **Overview** is the **landing page** the app opens to (🏠 nav button above Command
+  Center). It's a neon-HUD "command deck" (glassmorphism, scoped to `.ovwrap` so it
+  stays dark even in light theme): four **hero KPI tiles** (Weighted pipeline ·
+  Upcoming calls · Cooling $ at risk · Pending decisions) that **deep-link** into the
+  matching Command Center section, a **Today's Focus** block (calls today +
+  follow-ups owed), a **Next Up** teaser, **Pipeline Velocity** (SVG bar+line of EV by
+  expected-close week, next 6 wks — forward projection, not yet historical) and **Win
+  Probability** (two conic gauges: EV-weighted avg close prob + historical close
+  rate), and Enter-Command-Center / Clients buttons. On Overview the **sidebar client
+  list is collapsed** — searching reveals matches. All values reuse existing
+  computations (no new storage). `renderOverview()`.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Follow-ups (tasks owed, next 2 weeks) → Pending Decisions → Top 10 → Cooling →
   Wins. Every client row shows a **note flag** (gold pill + count when notes exist;
@@ -159,6 +171,11 @@ The file is large; these are the load-bearing pieces a new session will likely t
   `profileSetNotes`, `profileSetNextCall`, and `stripSection` each edit ONE part of the
   markdown losslessly; `driveLogCall` reads the live newest file, applies the edit, writes it
   back in place, then deletes duplicate copies (the auto-dedupe).
+- **Views / navigation** — three top-level views set `S.active`: `renderOverview()`
+  (`'__overview__'`, the landing page), `renderDashboard(jumpTo)` (`'__dash__'`, the
+  Command Center; optional `jumpTo` = a `sec-*` anchor id to scroll to, used by the
+  Overview hero tiles), and `renderDetail(c)` (a client). `renderList()` paints the
+  sidebar and collapses it on Overview. Boot opens `renderOverview()`.
 - **Parse → map → render** — `parseProfile(md)` → `mapImport(s)` (→ encrypted `intel`) →
   `renderDashboard()` / `renderDetail(c)`. Add a new profile field in all three.
 
