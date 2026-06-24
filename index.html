@@ -153,6 +153,34 @@
   .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;overflow-wrap:anywhere}
   .kc-v{font-size:18px;font-weight:700;margin-top:2px;overflow-wrap:anywhere}
   .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px;overflow-wrap:anywhere}
+  /* overview / landing page */
+  .ovhero{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:20px}
+  .ovtile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;
+    cursor:pointer;position:relative;overflow:hidden;text-align:left;width:100%;
+    transition:border-color .14s,transform .14s,box-shadow .14s}
+  .ovtile:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.28)}
+  .ovtile:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .ovtile .ot-l{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:800}
+  .ovtile .ot-v{font-size:32px;font-weight:800;margin-top:6px;line-height:1.05;color:var(--txt)}
+  .ovtile .ot-n{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:4px}
+  .ovtile .ot-go{position:absolute;top:14px;right:14px;color:var(--muted);font-size:14px;opacity:.55}
+  .ovtile.alert .ot-v{color:var(--gold)}
+  .ovgrid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;align-items:start}
+  @media(max-width:780px){.ovgrid{grid-template-columns:1fr}}
+  .ovrow{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+  .ovrow:last-child{border-bottom:none}
+  .ovrow:hover{background:var(--panel2)}
+  .ovrow .when{font-size:11px;color:var(--gold);font-weight:800;white-space:nowrap;min-width:62px}
+  .ovrow .nm{font-size:13px;font-weight:700;flex:1;min-width:0}
+  .ovrow .sub{font-size:11.5px;color:var(--muted)}
+  .ovnav{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+  .ovnav button{flex:1;min-width:210px;text-align:left;background:var(--panel2);border:1px solid var(--line);
+    color:var(--txt);border-radius:12px;padding:16px 18px;box-shadow:none}
+  .ovnav button:hover{border-color:var(--gold);filter:none}
+  .ovnav .obig{display:block;font-size:15px;font-weight:800}
+  .ovnav .osub{display:block;font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px}
+  .ovnav .cc{background:var(--metal-gold);color:var(--accent-ink);border-color:transparent}
+  .ovnav .cc .osub{color:rgba(26,22,4,.72)}
   .nextcall{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--gold);border-radius:11px;padding:12px 16px;margin-bottom:16px}
   .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;flex:none}
@@ -413,6 +441,7 @@
         <button class="sm ghost" id="themeBtn" title="Light / dark">🌙 Theme</button>
       </div>
     </div>
+    <div class="navrow"><button class="navbtn" id="ovBtn">🏠 Overview</button></div>
     <div class="navrow"><button class="navbtn" id="dashBtn">⚔️ Command Center</button></div>
     <div class="searchrow"><input id="clientSearch" type="search" placeholder="🔍 Search clients…" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
     <div class="clist" id="clist"></div>
@@ -576,7 +605,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-23 · r69';
+const BUILD = 'build 2026-06-24 · r70';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1235,7 +1264,98 @@ async function saveTouchLog(){
   await idbPut('meta', { id:'touchlog', enc: await aesEncrypt(S.MK_intel, JSON.stringify(S.touchLog||{})) });
 }
 
-function renderDashboard(){
+// Overview — the landing page. A 5-second "where do I stand / what's today" board built
+// entirely from values the Command Center already computes; each hero tile deep-links into
+// the matching Command Center section (renderDashboard(anchorId)).
+function renderOverview(){
+  S.active = '__overview__'; renderList();
+  const active = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  const weighted = active.reduce((s,c)=>s+expectedValue(c.intel), 0);
+
+  const today0=new Date(); today0.setHours(0,0,0,0);
+  const weekEnd=new Date(today0); weekEnd.setDate(weekEnd.getDate()+((7-weekEnd.getDay())%7)); weekEnd.setHours(23,59,59,999);
+  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=>a.d-b.d);
+  const upWeek = upcoming.filter(x=>x.d<=weekEnd);
+  const todays = upcoming.filter(x=> x.d.getTime()===today0.getTime());
+
+  const cooling = active.filter(isCooling).map(c=>({c, ev:expectedValue(c.intel)}));
+  const atRisk = cooling.reduce((s,r)=>s+r.ev, 0);
+
+  const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=today0); };
+  const pend = active.filter(c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase())
+      && !hasFutureCall(c) && !isCooling(c));
+
+  const wins = S.clients.filter(c=>c.intel.status==='won');
+
+  // Due follow-ups: overdue + anything due through the end of this week
+  const _pad=n=>String(n).padStart(2,'0');
+  const weekISO = weekEnd.getFullYear()+'-'+_pad(weekEnd.getMonth()+1)+'-'+_pad(weekEnd.getDate());
+  const dueTasks=[];
+  S.clients.forEach(c=> (c.intel.tasks||[]).forEach((t,idx)=>{ if(t.done) return;
+    if(t.due && t.due>weekISO) return; dueTasks.push({c,t,idx}); }));
+  dueTasks.sort((a,b)=> ((a.t.due||'9999-99')<(b.t.due||'9999-99')?-1:1));
+  const overdueCount = dueTasks.filter(x=>dueClass(x.t.due)==='task-over').length;
+
+  // Today's Focus — the calls happening today + the follow-ups owed now
+  const callRow = x=>{ const ty=nextCallType(x.c.intel);
+    return `<div class="ovrow" data-code="${x.c.code}">
+      <span class="when">${x.d.getTime()===today0.getTime()?'Today':x.d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span>
+      <div class="nm">${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span>
+        <div class="sub">${ty?esc(ty)+' call':esc(x.c.intel.callType||'')}</div></div></div>`; };
+  const taskRow = ({c,t})=>`<div class="ovrow" data-code="${c.code}">
+      <span class="when">${t.due?esc(dueLabel(t.due)):'—'}</span>
+      <div class="nm">${esc(c.name)}<div class="sub ellip">${esc(t.t)}</div></div></div>`;
+  const focusInner = (todays.length||dueTasks.length)
+    ? (todays.length?`<div class="bodynote">📞 Calls today (${todays.length})</div>${todays.map(callRow).join('')}`:'')
+      + (dueTasks.length?`<div class="bodynote" style="padding-top:${todays.length?'12px':'0'}">📌 Follow-ups owed${overdueCount?` · ${overdueCount} overdue`:''} (${dueTasks.length})</div>${dueTasks.slice(0,6).map(taskRow).join('')}`
+        + (dueTasks.length>6?`<div class="bodynote" style="padding-top:8px">+ ${dueTasks.length-6} more — see Command Center</div>`:''):'')
+    : '<div class="bodynote" style="padding:4px 0">Nothing due today and no calls on the books. 👌</div>';
+
+  const next3 = upcoming.slice(0,3);
+  const nextInner = next3.length ? next3.map(callRow).join('')
+    : '<div class="bodynote" style="padding:4px 0">No upcoming calls scheduled.</div>';
+
+  const hi = (()=>{ const h=new Date().getHours(); return h<12?'Good morning':h<17?'Good afternoon':'Good evening'; })();
+  const dateStr = today0.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+
+  $('#main').innerHTML = `<div class="pad">
+    <div class="head"><div><h2>🏠 Overview</h2>
+      <div class="meta">${hi} · ${dateStr} · ${active.length} active · weighted pipeline ${fmtVal(weighted)}</div></div></div>
+
+    <div class="ovhero">
+      <button class="ovtile" data-jump="sec-top"><span class="ot-go">›</span>
+        <div class="ot-l">Weighted pipeline</div><div class="ot-v">${fmtVal(weighted)}</div><div class="ot-n">EV across ${active.length} clients</div></button>
+      <button class="ovtile" data-jump="sec-upcoming"><span class="ot-go">›</span>
+        <div class="ot-l">Upcoming calls</div><div class="ot-v">${upcoming.length}</div><div class="ot-n">${upWeek.length} this week</div></button>
+      <button class="ovtile${atRisk?' alert':''}" data-jump="sec-cooling"><span class="ot-go">›</span>
+        <div class="ot-l">Cooling $ at risk</div><div class="ot-v">${fmtVal(atRisk)}</div><div class="ot-n">${cooling.length} fading</div></button>
+      <button class="ovtile${pend.length?' alert':''}" data-jump="sec-pending"><span class="ot-go">›</span>
+        <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">no next call booked</div></button>
+    </div>
+
+    <div class="ovgrid">
+      <div><div class="groupttl">🎯 Today's Focus</div><div class="card">${focusInner}</div></div>
+      <div><div class="groupttl">📅 Next Up</div><div class="card">${nextInner}</div>
+        ${wins.length?`<div class="groupttl" style="margin-top:14px">🏆 Wins</div><div class="card"><div class="ovrow" data-jump-cc="sec-wins" style="cursor:pointer"><div class="nm">${wins.length} closed</div><span class="when">view ›</span></div></div>`:''}</div>
+    </div>
+
+    <div class="ovnav">
+      <button class="cc" id="ovEnterCC"><span class="obig">⚔️ Enter Command Center</span><span class="osub">Full pipeline — upcoming, follow-ups, pending, top 10, cooling, wins</span></button>
+      <button id="ovClients"><span class="obig">🔍 Clients</span><span class="osub">Search & open any client's intel</span></button>
+    </div>
+  </div>`;
+
+  document.querySelectorAll('.ovtile[data-jump]').forEach(b=> b.onclick = ()=> renderDashboard(b.dataset.jump));
+  document.querySelectorAll('[data-jump-cc]').forEach(b=> b.onclick = ()=> renderDashboard(b.dataset.jumpCc));
+  document.querySelectorAll('.ovrow[data-code]').forEach(el=> el.onclick = ()=>{
+    const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
+  });
+  $('#ovEnterCC').onclick = ()=> renderDashboard();
+  $('#ovClients').onclick = ()=>{ const inp=$('#clientSearch'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center'}); } };
+  scrollMainTop();
+}
+
+function renderDashboard(jumpTo){
   S.active = '__dash__'; renderList();
   const active = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
   // a per-client note flag for every Command Center row — gold w/ count when notes exist,
@@ -1347,7 +1467,8 @@ function renderDashboard(){
 
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head"><div><h2>⚔️ Command Center</h2>
-      <div class="meta">${active.length} tracked · Weighted pipeline ${fmtVal(weighted)}</div></div></div>
+      <div class="meta">${active.length} tracked · Weighted pipeline ${fmtVal(weighted)}</div></div>
+      <div class="btns"><button class="sm ghost" id="ccBack">← Overview</button></div></div>
 
     <nav class="secnav" aria-label="Jump to section">
       <span class="jumpc">Jump to</span>
@@ -1426,12 +1547,17 @@ function renderDashboard(){
   });
   $('#topFab').onclick = ()=> scrollMainTop();
   $('#searchFab').onclick = ()=>{ const inp=$('#clientSearch'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center'}); } };
-  scrollMainTop();   // land at the top of Command Center consistently (same as client intel)
+  $('#ccBack').onclick = ()=> renderOverview();
+  // Deep-link from the Overview tiles: scroll to the requested section; otherwise land at top.
+  const jt = jumpTo && document.getElementById(jumpTo);
+  if(jt){ scrollMainTop(); jt.scrollIntoView({behavior:'smooth', block:'start'}); }
+  else scrollMainTop();
 }
 
 function renderList(){
   const el = $('#clist'); el.innerHTML='';
   const db = $('#dashBtn'); if(db) db.classList.toggle('active', S.active==='__dash__');
+  const ob = $('#ovBtn'); if(ob) ob.classList.toggle('active', S.active==='__overview__');
   const open = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
   const q = S.query||'';
   const visible = q ? open.filter(c =>
@@ -1937,7 +2063,7 @@ async function doUnlock(){
   $('#pass').value=''; if($('#pass2')) $('#pass2').value='';
   $('#lock').classList.add('hidden'); $('#app').classList.remove('hidden');
   await loadClients(); await loadAux();
-  if(S.clients.length){ renderDashboard(); } else renderList();
+  if(S.clients.length){ renderOverview(); } else renderList();
   // No auto-sync on open — tap ☁️ Drive to refresh (keeps Google sign-in from interrupting you).
 }
 
@@ -1973,6 +2099,7 @@ $('#themeBtn').onclick = ()=>{
   applyThemeBtn();
 };
 applyThemeBtn();
+$('#ovBtn').onclick = ()=> renderOverview();
 $('#dashBtn').onclick = ()=> renderDashboard();
 $('#clientSearch').oninput = e=>{ S.query = e.target.value.trim().toLowerCase(); renderList(); };
 $('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
