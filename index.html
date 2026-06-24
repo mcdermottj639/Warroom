@@ -734,7 +734,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r82';
+const BUILD = 'build 2026-06-24 · r83';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1264,6 +1264,16 @@ function youify(s){
   // subject pronoun + present-tense verb → second person (strip the 3rd-person -s/-es)
   t = t.replace(/\b(?:he|she|they)\s+([a-z]+?)(es|s)\b/gi,
         (m,stem,suf)=> 'you ' + stem + (suf.toLowerCase()==='es' && !/(s|x|z|ch|sh)$/i.test(stem) ? 'e' : ''));
+  // subject-DROPPED note clauses ("Thinks fee too high", "Values IRA access", "…but wants X"):
+  // a clause-initial / post-conjunction 3rd-person action verb → "you <base>". Curated verb list so
+  // "is/has/the fee" etc. are never touched (those only convert after an explicit pronoun, above).
+  const BASE={thinks:'think',wants:'want',values:'value',likes:'like',loves:'love',needs:'need',
+    prefers:'prefer',feels:'feel',hopes:'hope',plans:'plan',knows:'know',wishes:'wish',worries:'worry',
+    enjoys:'enjoy',owns:'own',holds:'hold',keeps:'keep',wonders:'wonder',considers:'consider',
+    expects:'expect',intends:'intend',dislikes:'dislike',fears:'fear',believes:'believe',
+    appreciates:'appreciate',hates:'hate',uses:'use',pays:'pay'};
+  t = t.replace(/(^\s*|[.;,—-]\s*|\b(?:and|but|so|who|that)\s+)(thinks|wants|values|likes|loves|needs|prefers|feels|hopes|plans|knows|wishes|worries|enjoys|owns|holds|keeps|wonders|considers|expects|intends|dislikes|fears|believes|appreciates|hates|uses|pays)\b/gi,
+        (m,pre,v)=> pre + 'you ' + (BASE[v.toLowerCase()]||v.toLowerCase()));
   t = t.replace(/\b(?:he|she|they)\b/gi,'you')
        .replace(/\b(?:him|them)\b/gi,'you')
        .replace(/\b(?:himself|herself|themselves)\b/gi,'yourself');
@@ -2922,7 +2932,7 @@ function coachContent(c, type){
     (i.specialFlags||i.complications||[]).slice(0,2).forEach(f=> sit.push(`Confirm where things stand on: ${strip(f)}.`));
     (i.accounts||[]).filter(a=>!a.value).slice(0,1).forEach(a=> sit.push(`Can you confirm the balance and custodian on the ${strip(a.custodian)}?`));
     (i.goals||[]).slice(0,1).forEach(g=> sit.push(`How firm are you on ${deCap(youify(strip(g)))}?`));
-    if(obj) sit.push(`You’d mentioned “${strip(obj.objection)}” — what’s really driving that?`);
+    if(obj) sit.push(`You’d mentioned “${youify(strip(obj.objection))}” — what’s really driving that?`);
     sit.push(isProposalStage(c) ? 'If everything lined up, any reason we couldn’t move forward today?' : 'When you picture this settled, what does it look like for you?');
     const gapHtml = gaps.length
       ? `<div class="askgrp"><div class="askh">🔎 Capture these — gaps in your notes (${gaps.length})</div>
@@ -2943,7 +2953,7 @@ function coachContent(c, type){
     const accs=A.map(acctPhrase);
     const pic = accs.length ? (accs.length>1 ? accs.slice(0,-1).join(', ')+', and '+accs.slice(-1) : accs[0]) : 'your full financial picture';
     const reasons=(i.goals||i.whyConsolidate||[]).map(g=>youify(strip(g))).filter(Boolean);
-    const objx=i.objections&&i.objections[0]&&strip(i.objections[0].objection);
+    const objx=i.objections&&i.objections[0]&&youify(strip(i.objections[0].objection));
     const target=A.find(a=>!a.anchor);
     const tname=target?('your '+strip(target.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim()):'your outside accounts';
     const sol=youify(strip(i.solutionOffered||''));
@@ -3047,7 +3057,7 @@ function coachContent(c, type){
   if(/Enroll/.test(ty))        ask = `“${fn}, let’s get your ${move} opened and kick off the transfer today — I’ll send the paperwork over right now. Good to go?”`;
   else if(/Decision/.test(ty)) ask = `“${fn}, based on everything we’ve gone through, my recommendation is ${move}. Are you comfortable getting that started today?”`;
   else if(/Proposal/.test(ty)) ask = `“${fn}, my recommendation is ${move}. I’d like to go ahead and get it set up — any reason we shouldn’t move forward?”`;
-  else                         ask = `“${fn}, the next step is to ${i.closeAction?deCap(strip(i.closeAction)):'map out the plan'} — can we lock that in right now?”`;
+  else                         ask = `“${fn}, the next step is to ${i.closeAction?deCap(youify(strip(i.closeAction))):'map out the plan'} — can we lock that in right now?”`;
   const items=[`Goal for this call: ${i.closeAction?deCap(strip(i.closeAction)):'move them one concrete step forward'}.`,
     `The ask — say it directly: ${ask}`,
     i.nextCall?`If they’re not ready, lock the next touch (${esc(i.nextCall)}).`:'If they’re not ready, lock a specific next date before you hang up.'];
