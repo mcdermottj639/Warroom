@@ -152,8 +152,12 @@ client's name or "new notes" never hurt, but aren't required.)
   `callHistory` dates — genuine history), **Discovery Depth** (avg "capture" gauge +
   per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
   detectors `incomeSpendingBody`/`familyWhyBody`/`has(...)` for parity), and **Objection
-  Handling** (gauge of proposal/decision clients with a logged objection + a list of those
-  missing one). On Overview the **whole left sidebar is hidden** (`#app.noside`, toggled in
+  Handling** (your **close rate by objection type** — every objection is bucketed via
+  `objCategory()`, and a de-named won/lost **objection ledger** `S.objLog` (encrypted in
+  IndexedDB meta, appended in `setStatus` via `logObjectionOutcome`) gives won-vs-lost per
+  category; bars show strongest→toughest, with current open objections by type. Rates
+  accrue going forward since past won/lost objections weren't retained). On Overview the
+  **whole left sidebar is hidden** (`#app.noside`, toggled in
   `renderList`) so it's a **full-screen** board; a **top toolbar** replaces it — brand +
   `+ Client` / `☁️ Drive` / `🌙 Theme` / `⚔️ Command Center` / `🔒 Lock` (these reuse the
   sidebar buttons' handlers via `.click()`). Client search/list lives in Command Center,
