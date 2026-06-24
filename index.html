@@ -259,8 +259,11 @@
   .ovnav .cc .osub{color:rgba(6,18,31,.74)}
   .ovwrap .badge{filter:saturate(1.1)}
   /* analytics row — velocity chart + win-probability gauges */
-  .ovcharts{display:grid;grid-template-columns:1.62fr 1fr;gap:16px;align-items:start;margin-top:16px}
+  .ovcharts{display:grid;grid-template-columns:1.62fr 1fr;gap:16px;align-items:stretch;margin-top:16px}
   @media(max-width:820px){.ovcharts{grid-template-columns:1fr}}
+  /* equal-height paired cards: each cell stretches, its card fills, lighter content centers */
+  .ovcharts>div{display:flex;flex-direction:column;min-width:0}
+  .ovcharts>div>.card{flex:1;display:flex;flex-direction:column;justify-content:center}
   .velcard{padding-top:12px}
   .velsub{font-size:10.5px;color:var(--ink-dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
   .velsvg{width:100%;height:auto;display:block;overflow:visible}
@@ -722,7 +725,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r76';
+const BUILD = 'build 2026-06-24 · r77';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1259,7 +1262,7 @@ const DISCO_TOPICS = [
   {k:'Family/Why',   has:i=>!!familyWhyBody(i),                                 q:'Tell me about the family — and what you want this money to do for the people you care about.'},
   {k:'Fee',          has:i=>!!(i.fee&&i.fee.from),                              q:'Do you know what you’re paying now — the fee or expense on the current accounts?'},
   {k:'Goals',        has:i=>Array.isArray(i.goals)&&i.goals.length,             q:'What’s prompting you to look at this now — what are you hoping to accomplish?'},
-  {k:'Objection',    has:i=>Array.isArray(i.objections)&&i.objections.length,   q:'Is anything giving you pause about moving forward?'}
+  {k:'Concerns',     has:i=>Array.isArray(i.objections)&&i.objections.length,   q:'Is anything giving you pause about moving forward?'}
 ];
 const discoveryGaps = i => DISCO_TOPICS.filter(t=>!t.has(i));
 
