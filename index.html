@@ -178,7 +178,9 @@
   /* top toolbar (replaces the sidebar on Overview) */
   .ovbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
     margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--edge)}
-  .ovbrand{font-weight:800;letter-spacing:.14em;font-size:13px;color:#cfe0f5;text-shadow:0 0 16px rgba(56,189,248,.4)}
+  .ovbrand{font-weight:800;letter-spacing:.14em;font-size:13px;color:#cfe0f5;text-shadow:0 0 16px rgba(56,189,248,.4);
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .ovbuild{font-size:10px;font-weight:600;letter-spacing:.03em;color:var(--ink-dim);text-shadow:none;text-transform:none}
   .ovbar-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .ovbar-actions button{background:var(--glass);border:1px solid var(--edge);color:var(--ink);
     border-radius:10px;padding:9px 13px;font-weight:700;font-size:12.5px;white-space:nowrap;
@@ -725,7 +727,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r77';
+const BUILD = 'build 2026-06-24 · r78';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1551,7 +1553,7 @@ function renderOverview(){
   const themeIcon = document.documentElement.dataset.theme==='light' ? '☀️' : '🌙';
   $('#main').innerHTML = `<div class="ovwrap"><div class="ovinner">
     <div class="ovbar">
-      <div class="ovbrand">▚ WAR ROOM</div>
+      <div class="ovbrand">▚ WAR ROOM<span class="ovbuild">${esc(BUILD)}</span></div>
       <div class="ovbar-actions">
         <button id="ovbAdd">+ Client</button>
         <button id="ovbDrive">☁️ Drive</button>
