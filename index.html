@@ -741,7 +741,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r86';
+const BUILD = 'build 2026-06-24 · r87';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1468,10 +1468,11 @@ const expectedValue = i => Math.round(moveableNum(i)*stageProb(i)*recencyFactor(
 
 /* ---- follow-up flag done-state + re-engagement touch log (encrypted) ---- */
 async function loadAux(){
-  S.flagsDone = new Set(); S.touchLog = {}; S.objLog = [];
+  S.flagsDone = new Set(); S.touchLog = {}; S.objLog = []; S.outcomeLog = [];
   try{ const m = await idbGet('meta','flagsdone'); if(m) S.flagsDone = new Set(JSON.parse(await aesDecrypt(S.MK_intel, m.enc))); }catch(e){}
   try{ const m = await idbGet('meta','touchlog'); if(m) S.touchLog = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
   try{ const m = await idbGet('meta','objlog'); if(m) S.objLog = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
+  try{ const m = await idbGet('meta','outcomelog'); if(m) S.outcomeLog = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
 }
 async function saveFlagsDone(){
   await idbPut('meta', { id:'flagsdone', enc: await aesEncrypt(S.MK_intel, JSON.stringify([...S.flagsDone])) });
@@ -1479,17 +1480,23 @@ async function saveFlagsDone(){
 async function saveTouchLog(){
   await idbPut('meta', { id:'touchlog', enc: await aesEncrypt(S.MK_intel, JSON.stringify(S.touchLog||{})) });
 }
-// Objection ledger: {cat, outcome:'won'|'lost', date} per decided deal — powers the close-rate-by-type
-// stat. De-named (categories only, no client identity) and encrypted under MK_intel like touchLog.
+// Decided-deal ledgers (de-named, encrypted under MK_intel like touchLog) — these survive the
+// profile being stripped (Won) or deleted (Lost), so the Overview can compute REAL historical
+// close stats. objLog: {cat,outcome,date} per objection category. outcomeLog: {outcome,date} per
+// decided deal → the true Close Rate (wins ÷ wins+losses), which state alone can't give (losses
+// are deleted, so a state-based lost count is always 0).
 async function saveObjLog(){
   await idbPut('meta', { id:'objlog', enc: await aesEncrypt(S.MK_intel, JSON.stringify(S.objLog||[])) });
 }
-async function logObjectionOutcome(client, outcome){
-  const cats=[...new Set((client.intel.objections||[]).map(o=>objCategory(o.objection)))];
-  if(!cats.length) return;
+async function saveOutcomeLog(){
+  await idbPut('meta', { id:'outcomelog', enc: await aesEncrypt(S.MK_intel, JSON.stringify(S.outcomeLog||[])) });
+}
+async function logDealOutcome(client, outcome){
   const date=new Date().toISOString().slice(0,10);
-  S.objLog = (S.objLog||[]).concat(cats.map(cat=>({cat, outcome, date})));
-  try{ await saveObjLog(); }catch(e){}
+  S.outcomeLog = (S.outcomeLog||[]).concat([{outcome, date}]);                 // every decided deal → close rate
+  const cats=[...new Set((client.intel.objections||[]).map(o=>objCategory(o.objection)))];
+  if(cats.length) S.objLog = (S.objLog||[]).concat(cats.map(cat=>({cat, outcome, date})));   // + per objection type
+  try{ await saveOutcomeLog(); await saveObjLog(); }catch(e){}
 }
 
 // Bucket a free-text objection into a category, so the Overview can show "how I close" by type.
@@ -1563,7 +1570,10 @@ function renderOverview(){
   const mvW = active.reduce((s,c)=>s+moveableNum(c.intel), 0);
   const evW = active.reduce((s,c)=>s+moveableNum(c.intel)*stageProb(c.intel), 0);
   const avgProb = mvW ? Math.round(evW/mvW*100) : 0;          // EV-weighted close probability across the book
-  const wonN = wins.length, lostN = S.clients.filter(c=>c.intel.status==='lost').length;
+  // Close rate from the durable outcome ledger (losses are deleted from state, so a live count
+  // can't see them); accrues as deals are marked Won/Lost going forward.
+  const wonN = (S.outcomeLog||[]).filter(o=>o.outcome==='won').length;
+  const lostN = (S.outcomeLog||[]).filter(o=>o.outcome==='lost').length;
   const closeRate = (wonN+lostN) ? Math.round(wonN/(wonN+lostN)*100) : 0;
   const gauge = (pct,label,sub,c)=>`<div class="gauge" style="--p:${pct};--gc:${c}">
       <div class="g-ring"><div class="g-num">${pct}<span>%</span></div></div>
@@ -1703,7 +1713,7 @@ function renderOverview(){
       <div><div class="groupttl">📈 Pipeline Velocity</div>
         <div class="card velcard"><div class="velsub">Expected value by close week · next 6 weeks · ${fmtVal(velTotal)} in flight</div>${velSvg}</div></div>
       <div><div class="groupttl">🎯 Win Probability</div>
-        <div class="card"><div class="gauges">${gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')}${gauge(closeRate,'Close rate',`${wonN}W · ${lostN}L`,'#f472b6')}</div></div></div>
+        <div class="card"><div class="gauges">${gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')}${gauge(closeRate,'Close rate',(wonN+lostN)?`${wonN}W · ${lostN}L`:'as you mark deals','#f472b6')}</div></div></div>
 
       <div><div class="groupttl">📊 Activity Trend</div>
         <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks</div>${actSvg}</div></div>
@@ -2207,7 +2217,7 @@ function renderDetail(c){
   document.querySelectorAll('[data-coach]').forEach(b=> b.onclick = ()=> openCoach(c.code, b.dataset.coach));
   document.querySelectorAll('[data-widget]').forEach(b=> b.onclick = ()=> openWidget(c.code, b.dataset.widget));
   const setStatus = async (status, amount)=>{
-    if(status==='won'||status==='lost') await logObjectionOutcome(c, status);  // record objection→outcome before erasing
+    if(status==='won'||status==='lost') await logDealOutcome(c, status);  // record outcome (+objection types) before erasing
     if(status==='won'){
       // keep only a minimal record — name + amount moved; erase the rest from Drive
       const wonAmount = normMoney(amount||c.intel.moveable||'');

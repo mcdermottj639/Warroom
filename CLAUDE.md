@@ -147,7 +147,9 @@ client's name or "new notes" never hurt, but aren't required.)
   Cooling $ at risk · Pending decisions) that **deep-link** into the matching Command
   Center section, then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by
   expected-close week, next 6 wks — forward projection), **Win Probability** (two conic
-  gauges: EV-weighted avg close prob + historical close rate), **Stage Funnel + Win Rate**
+  gauges: EV-weighted avg close prob + historical close rate from the durable de-named
+  `S.outcomeLog` ledger — losses are deleted from state so a live count can't see them;
+  accrues as deals are marked Won/Lost), **Stage Funnel + Win Rate**
   (bars by stage + won/lost rate), **Activity Trend** (8-wk SVG of calls logged/week from
   `callHistory` dates — genuine history), **Discovery Depth** (avg "capture" gauge +
   per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
