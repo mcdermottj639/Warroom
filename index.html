@@ -741,7 +741,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r87';
+const BUILD = 'build 2026-06-24 · r88';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1423,6 +1423,7 @@ function mapImport(s){
   };
   if(s.openingRecap) out.openingRecap=s.openingRecap;                                              // Claude-authored verbatim opening (overrides generated)
   if(s.missedCall) out.missedCall=s.missedCall;                                                    // "missed call" marker (Drive-synced)
+  if(s.nextCallCleared) out.nextCallCleared=true;                                                  // profile says no call booked → clears a stale next-call override on sync
   if(s.status){ out.status=s.status; out.wonAmount=s.wonAmount||''; out.wonDate=s.wonDate||''; }  // won/lost from profile
   if(s.tasks && s.tasks.length) out.tasks=s.tasks;                                                // dated follow-up to-dos
   if(s.notes && s.notes.length) out.notes=s.notes;                                                 // advisor's running notes (Drive-synced)
@@ -2776,6 +2777,9 @@ function parseProfile(md, name){
   const closeAction = closeBlock.split(/\n\s*\n/)[0].replace(/\s*Watch:.*$/is,'').trim();
   const watch = (closeBlock.match(/Watch:\s*(.+)/is)||[])[1]||'';
   const flags = watch.split(/;|\.\s/).map(s=>s.trim()).filter(s=>s.length>3).slice(0,4);
+  // explicit "no call booked" marker — authoritative (clears a stale next-call override on sync, like missedCall).
+  // matches "No call scheduled/booked/set/yet" or "Next call: none/TBD/not scheduled/unscheduled".
+  const nextCallCleared = /\bno\s+(?:call|next\s+call)\s+(?:scheduled|booked|set|yet)\b|\bnext\s+call:\s*(?:none|n\/a|tbd|not\s+(?:yet\s+)?(?:scheduled|booked|set)|unscheduled|none\s+scheduled|to\s+be\s+(?:scheduled|determined))/i.test(closeBlock);
 
   // most recent call summary + a personal snippet => lastCall
   // dated to-do tasks ("## Tasks" → "- [ ] 2026-06-25 — look into X")
@@ -2863,7 +2867,7 @@ function parseProfile(md, name){
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
     whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, notes, personalText, prep,
-    openingRecap, missedCall, status:wonStatus||undefined, wonAmount, wonDate };
+    openingRecap, missedCall, nextCallCleared, status:wonStatus||undefined, wonAmount, wonDate };
 }
 
 async function gapiJSON(url){
@@ -2918,7 +2922,10 @@ async function syncFromDrive(){
       if(ex){
         if(ex.status && !intel.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; } // profile status wins; else keep local
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
-        if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
+        // advisor's manual next-call override — preserved across sync, UNLESS the new profile explicitly
+        // says no call is booked (then the profile wins and the stale override is dropped, like missedCall)
+        if(intel.nextCallCleared) delete intel.nextCallSet;
+        else if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;
         if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
         // missedCall is NOT preserved here — it lives in the profile now, so a re-parse is authoritative
         // (preserving it would resurrect a marker that a reschedule/log already cleared in the markdown)

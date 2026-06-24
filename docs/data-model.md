@@ -201,6 +201,10 @@ Updated: <Mon D, YYYY>
 
 ## Close Action / Next Step
 Next call: <Type> call — <date + time>. <what the next call is for; Watch: …>
+# If nothing is rebooked (a pending decision they'll "get back to you" on), say so
+# explicitly: lead with "No call scheduled" (or "Next call: none | TBD | not scheduled").
+# The app reads that as authoritative and CLEARS any stale in-app next-call override on
+# sync, so the client drops into Pending Decisions instead of lingering in Upcoming.
 
 ## Tasks                 ← only real to-dos you owe them (emails, getting/confirming info)
 - [ ] YYYY-MM-DD — <task>

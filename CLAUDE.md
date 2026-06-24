@@ -105,7 +105,18 @@ client's name or "new notes" never hurt, but aren't required.)
   `## My Notes`, `## Call Log`, and a `Status:` line (won/lost).
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
   the manual next-call override, call-type override, `## My Notes`, `## Tasks`,
-  `## Prep Sheet`, and won/lost status.
+  `## Prep Sheet`, and won/lost status. **Exception:** if a profile's Close Action
+  explicitly says **no call is booked** (see "No next call" below), that override is
+  **dropped** on sync — the profile wins.
+- **No next call** — when a call ends with nothing rebooked (a pending decision the
+  client will "get back to you" on), write it explicitly in `## Close Action / Next
+  Step`: lead with **`No call scheduled`** (or use `Next call: none` / `TBD` /
+  `not scheduled` / `to be determined`). `parseProfile` reads this into
+  `intel.nextCallCleared`, which **clears any stale manual next-call override** on the
+  next sync (mirrors `missedCall` being authoritative). Without it, an old in-app
+  next-call date sticks around and the client wrongly stays in **Upcoming Calls**
+  instead of dropping into **Pending Decisions**. (`nextExpectedDate` returns null →
+  Pending. A future profile that books a real `Next call:` date surfaces normally.)
 - **Missed call** — a client's detail next-call banner has a **📵 Missed** button
   (`markMissedCall`). It's **Drive-synced**: `profileSetMissed` writes a
   `Missed call: <ISO>` line into the profile and **drops the booked `Next call:`
