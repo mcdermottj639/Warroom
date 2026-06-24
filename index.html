@@ -722,7 +722,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r75';
+const BUILD = 'build 2026-06-24 · r76';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1936,8 +1936,6 @@ function renderDetail(c){
   const panel = (ttl,meta,body,cls='',open=false)=>`<div class="apanel ${open?'open':''}">
     <div class="ahead"><span class="ttl">${ttl}</span><span class="ameta">${esc(meta||'')}</span><span class="chev">▸</span></div>
     <div class="abody ${cls}">${body}</div></div>`;
-  const cnt = (a,word)=> has(a) ? a.length+' '+word+(a.length>1?'s':'') : '—';
-  const P = (cond,ttl,meta,body,cls,open)=> cond ? panel(ttl,meta,body,cls||'',!!open) : '';
 
   // Pending decision shows only when specific to this client (explicit, or at a decision point)
   const stLow = (i.stage||'').toLowerCase();
@@ -1946,13 +1944,15 @@ function renderDetail(c){
   // Client-data widgets — top pop-up buttons (the parsed facts). "Follow-up flags" is intentionally
   // omitted here: the Watch-outs coaching button already surfaces those same flags (deduped per request).
   const dataDefs = [
+    ['tldr','📋 TL;DR', i.solutionOffered||i.closeAction||has(i.goals)||has(i.objections)],
     ['assets','🏦 Assets', has(i.accounts)],
     ['streams','📈 Streams', has(i.incomeStreams)],
     ['income','💵 Income & Spending', !!incomeSpendingBody(i)],
     ['family','❤️ Family & Why', !!familyWhyBody(i)],
     ['fee','💸 Fee', feeRows.length],
     ['goals','🎯 Goals', has(i.goals)],
-    ['pending','⏳ Pending', hasPending]
+    ['pending','⏳ Pending', hasPending],
+    ['callhist','📞 Call history', has(i.callHistory)]
   ];
   const dataRow = dataDefs.filter(d=>d[2]).map(d=>`<button data-widget="${d[0]}">${esc(d[1])}</button>`).join('');
   // Prep Sheet — Claude-authored cheat-sheet cards (Fee Delta / Income & Cash Flow / Planning Flags / Strategy Angles)
@@ -1963,28 +1963,14 @@ function renderDetail(c){
   // pitch / Why Empower / Reframe objection / Watch-outs) cover on-call boosts better.
   const helper = '';
 
-  // Complete call history — newest first (dated entries sort down; undated keep their order)
-  const chSorted = (i.callHistory||[]).map((h,idx)=>({h,idx,d:parseLogDate(h.date)}))
-    .sort((a,b)=> (b.d?+b.d:0)-(a.d?+a.d:0) || a.idx-b.idx).map(x=>x.h);
-  const chBody = chSorted.length ? chSorted.map(h=>`<div class="chentry">
-      <div class="ch-h">${esc(h.date||'—')}${h.callType?' · '+esc(h.callType):''}</div>
-      ${h.summary?`<div class="ch-s">${esc(h.summary)}</div>`:''}
-      ${h.leftOff?`<div class="ch-l">Left off: ${esc(h.leftOff)}</div>`:''}
-    </div>`).join('') : '<div class="bodynote" style="padding-top:0">No call log in the profile yet.</div>';
-
-  // My notes — advisor's own running log (now lives in a top-bar dialog, not an inline panel)
+  // My notes — advisor's own running log (lives in the top-bar 🗒️ Notes dialog).
+  // TL;DR and Call history are now pop-up widgets in the Client-data row (see dataWidget).
   const myNotes = i.notes || [];
 
-  const histNotes = [
-    P(i.solutionOffered||i.closeAction||has(i.goals)||has(i.objections),'TL;DR — the close','',tldrBody(c),'tldr',true),
-    panel('📞 Call history', cnt(chSorted,'call'), chBody, '', false)
-  ].join('');
-
-  // header jump-nav — only the sections that actually render
-  const secnav = `<nav class="secnav" aria-label="Jump to section"><span class="jumpc">Jump to</span>
-    ${prepGroup?'<button data-target="p-prep" aria-label="Jump to Prep Sheet">🧾 Prep</button>':''}
-    <button data-target="p-hist" aria-label="Jump to TL;DR &amp; History">📋 TL;DR</button>
-  </nav>`;
+  // header jump-nav — only the Prep Sheet remains as an in-page scroll target
+  const secnav = prepGroup ? `<nav class="secnav" aria-label="Jump to section"><span class="jumpc">Jump to</span>
+    <button data-target="p-prep" aria-label="Jump to Prep Sheet">🧾 Prep</button>
+  </nav>` : '';
 
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head">
@@ -2039,7 +2025,6 @@ function renderDetail(c){
     <div class="kstrip">${kstrip}</div>
 
     ${prepGroup?`<div class="groupttl" id="p-prep">🧾 Prep Sheet</div>${prepGroup}`:''}
-    <div class="groupttl" id="p-hist">📒 History &amp; Notes</div>${histNotes}
     <button class="fab" id="backFab" aria-label="Back to Command Center">⚔️ Command Center</button>
   </div>`;
 
@@ -3019,6 +3004,19 @@ function dataWidget(c, key){
       <span class="riskbadge risk-${risk}">${risk}</span>
       <span style="font-weight:700">${esc(issue)}</span></div>
       <div class="note" style="margin-top:8px">The on-call ask lives in 🤝 Next-step play.</div>`};
+  }
+  if(key==='tldr'){
+    return {title:'📋 TL;DR — the close', html: tldrBody(c) || none};
+  }
+  if(key==='callhist'){
+    const chSorted = (i.callHistory||[]).map((h,idx)=>({h,idx,d:parseLogDate(h.date)}))
+      .sort((a,b)=> (b.d?+b.d:0)-(a.d?+a.d:0) || a.idx-b.idx).map(x=>x.h);
+    return {title:`📞 Call history${chSorted.length?` · ${chSorted.length} call${chSorted.length>1?'s':''}`:''}`,
+      html: chSorted.length ? chSorted.map(h=>`<div class="chentry">
+        <div class="ch-h">${esc(h.date||'—')}${h.callType?' · '+esc(h.callType):''}</div>
+        ${h.summary?`<div class="ch-s">${esc(h.summary)}</div>`:''}
+        ${h.leftOff?`<div class="ch-l">Left off: ${esc(h.leftOff)}</div>`:''}
+      </div>`).join('') : '<div class="bodynote" style="padding-top:0">No call log in the profile yet.</div>'};
   }
   return {title:'', html:none};
 }

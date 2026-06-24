@@ -148,8 +148,11 @@ client's name or "new notes" never hurt, but aren't required.)
   click = notes popup inline).
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching:
   Opening, Questions, How to pitch, Why Empower, Reframe objection, Next-step play,
-  Watch-outs) and **📊 Client data** (Assets, Streams, Income & Spending, Family &
-  Why, Fee, Goals, Pending). Below: **🧾 Prep Sheet** group, then History & Notes.
+  Watch-outs) and **📊 Client data** pop-up widgets (📋 TL;DR, Assets, Streams, Income &
+  Spending, Family & Why, Fee, Goals, Pending, 📞 Call history) — each opens in the shared
+  pop-up via `dataWidget(c,key)`. Below the widgets sits only the **🧾 Prep Sheet** group
+  (the deeper Claude-authored cards). There's no inline "History & Notes" section: TL;DR
+  and Call history are widgets above, and **notes** live in the top-bar **🗒️ Notes** dialog.
   The **❓ Questions** pop-up always **leads with the discovery topics this client's
   notes are missing** (the same six `DISCO_TOPICS` the Overview Discovery Depth stat
   scores), then the situational asks — so every gap gets probed on the next call.
