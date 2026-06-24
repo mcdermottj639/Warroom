@@ -94,16 +94,19 @@ client's name or "new notes" never hurt, but aren't required.)
   Accounts, Product, Confidence, Solution, Why), `## Personal / Relationship`
   (labeled bullets: Family / Life & retirement / Spending / Social Security-pension
   / Health), `## Objection & Response`, `## Prep Sheet`, `## Close Action / Next
-  Step` (incl. the `Next call:` line), `## Tasks`, `## My Notes`, `## Call Log`,
-  and a `Status:` line (won/lost).
+  Step` (incl. the `Next call:` line and the `Missed call: <ISO>` line), `## Tasks`,
+  `## My Notes`, `## Call Log`, and a `Status:` line (won/lost).
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
   the manual next-call override, call-type override, `## My Notes`, `## Tasks`,
-  `## Prep Sheet`, won/lost status, and the **`missedCall`** marker.
+  `## Prep Sheet`, and won/lost status.
 - **Missed call** — a client's detail next-call banner has a **📵 Missed** button
-  (`markMissedCall`): it clears the booked call (`nextCallSet=''`), sets a sticky
-  `missedCall` date + a "Missed call … — reschedule" `pendingDecision`, and logs a
-  dated `## My Notes` line. Missed clients surface at the **top of Pending Decisions**
-  (any stage) and are excluded from Cooling; setting a new next call or logging a call
+  (`markMissedCall`). It's **Drive-synced**: `profileSetMissed` writes a
+  `Missed call: <ISO>` line into the profile and **drops the booked `Next call:`
+  line**, plus a dated `## My Notes` entry — so the state crosses devices.
+  `parseProfile`→`mapImport` read it back into `intel.missedCall` (NOT a local sticky).
+  `nextExpectedDate` returns null for a missed client, so they surface at the **top of
+  Pending Decisions** (any stage, tagged 📵 MISSED) and are excluded from Cooling.
+  Setting a new next call (`profileSetNextCall`) or logging a call (`profileEdit`)
   clears the marker.
 
 ## Writing profiles from photos (the main workflow)
@@ -188,8 +191,8 @@ The file is large; these are the load-bearing pieces a new session will likely t
 - **In-app profile editor** — `renderEditor(c)` edits fields and writes back via `driveLogCall`.
 - **KPI strip** — `deriveKpis(c)` synthesizes the chip row when a profile carries none.
 - **Surgical Drive writers** — `profileEdit`, `profileSetStatus`, `profileSetTasks`,
-  `profileSetNotes`, `profileSetNextCall`, and `stripSection` each edit ONE part of the
-  markdown losslessly; `driveLogCall` reads the live newest file, applies the edit, writes it
+  `profileSetNotes`, `profileSetNextCall`, `profileSetMissed`, and `stripSection` each edit
+  ONE part of the markdown losslessly; `driveLogCall` reads the live newest file, applies the edit, writes it
   back in place, then deletes duplicate copies (the auto-dedupe).
 - **Views / navigation** — three top-level views set `S.active`: `renderOverview()`
   (`'__overview__'`, the landing page), `renderDashboard(jumpTo)` (`'__dash__'`, the

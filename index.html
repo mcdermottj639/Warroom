@@ -734,7 +734,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r79';
+const BUILD = 'build 2026-06-24 · r80';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1126,6 +1126,9 @@ const isProposalStage = c => ['proposal','decision'].includes((c.intel.stage||''
 
 // The client's own words drive timing: a stated/scheduled next contact date.
 function nextExpectedDate(i){
+  // a missed-call marker means there's no booked call (until rescheduled, which clears it) —
+  // unless the advisor has since set an explicit override
+  if(i.missedCall && !(i.nextCallSet!==undefined && i.nextCallSet!==null && i.nextCallSet!=='')) return null;
   // advisor's manual override wins (empty string = explicitly cleared → no scheduled call)
   if(i.nextCallSet!==undefined && i.nextCallSet!==null) return i.nextCallSet ? parseLogDate(i.nextCallSet) : null;
   if(i.nextCall){ const d=parseLogDate(i.nextCall); if(d) return d; }
@@ -1350,6 +1353,7 @@ function mapImport(s){
     answerKey: s.answerKey || [],
     callHistory: s.callHistory || (s.lastCall?[{date:'',callType:s.callType||'',summary:s.lastCall,leftOff:s.closeAction||''}]:[])
   };
+  if(s.missedCall) out.missedCall=s.missedCall;                                                    // "missed call" marker (Drive-synced)
   if(s.status){ out.status=s.status; out.wonAmount=s.wonAmount||''; out.wonDate=s.wonDate||''; }  // won/lost from profile
   if(s.tasks && s.tasks.length) out.tasks=s.tasks;                                                // dated follow-up to-dos
   if(s.notes && s.notes.length) out.notes=s.notes;                                                 // advisor's running notes (Drive-synced)
@@ -1662,7 +1666,9 @@ function renderDashboard(jumpTo){
     .sort((a,b)=> (b.intel.missedCall?1:0)-(a.intel.missedCall?1:0) || expectedValue(b.intel)-expectedValue(a.intel));
   const pendRows = pend.length ? pend.slice(0,10).map(c=>{
     const missed = !!c.intel.missedCall;
-    const issue = c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending';
+    const missDate = missed ? new Date(c.intel.missedCall+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
+    const issue = missed ? `Missed call ${missDate} — reschedule`
+      : (c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending');
     const cls = missed?'CRITICAL':c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
     return `<div class="crow" data-code="${c.code}">
       <span class="riskbadge risk-${cls}">${missed?'📵 MISSED':esc(c.intel.priority||'')}</span>
@@ -2485,6 +2491,7 @@ function profileSetNextCall(rawMd, dateStr, typeStr){
   if(!md.trim()) md=`# Client — Profile\n`;
   const date=(dateStr||'').trim();
   if(!date) return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';   // nothing concrete to write
+  md=md.replace(/^[ \t]*Missed call:.*$\n?/gim,'');             // a fresh booking clears the missed-call marker
   const clause=`Next call: ${typeStr?typeStr+' call':'Call'} — ${date}.`;
   const hdr=md.match(/^##\s.*Close Action.*$/mi);
   if(hdr){
@@ -2503,9 +2510,30 @@ function profileSetNextCall(rawMd, dateStr, typeStr){
   }
   return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
 }
+// write/clear a "Missed call: <ISO>" line in the Close Action section, and drop the booked
+// "Next call:" clause (they missed it). iso='' removes the marker. Durable to Drive → syncs.
+function profileSetMissed(rawMd, iso){
+  let md=(rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');
+  if(!md.trim()) md=`# Client — Profile\n`;
+  md=md.replace(/^[ \t]*Missed call:.*$\n?/gim,'');             // drop any existing marker first
+  if(iso){
+    md=md.replace(/Next call:\s*[^.\n]*\.?/i,'').replace(/[ \t]+$/gm,'');   // clear the booked call
+    const line=`Missed call: ${iso}`;
+    const hdr=md.match(/^##\s.*Close Action.*$/mi);
+    if(hdr){ const s=md.indexOf(hdr[0])+hdr[0].length; md=md.slice(0,s)+'\n'+line+md.slice(s); }
+    else {
+      const block='\n## Close Action / Next Step\n'+line+'\n';
+      const cl=md.match(/^##\s.*Call Log.*$/mi);
+      if(cl){ const at=md.indexOf(cl[0]); md=md.slice(0,at)+block+'\n'+md.slice(at); }
+      else md=md.trimEnd()+'\n'+block;
+    }
+  }
+  return md.replace(/\n{3,}/g,'\n\n').trim()+'\n';
+}
 function profileEdit(rawMd, opts){
   let md = (rawMd||'').replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g,'$1');   // normalize escaped → clean
   if(!md.trim()) md = `# ${opts.name||'Client'} — Profile\n`;
+  md = md.replace(/^[ \t]*Missed call:.*$\n?/gim,'');   // a logged call resolves any missed-call marker
   const todayLong = opts.todayLong || new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   if(/^Updated:.*$/mi.test(md)) md = md.replace(/^Updated:.*$/mi, 'Updated: '+todayLong);
   else md = md.replace(/^(#[^\n]*\n)/, '$1Updated: '+todayLong+'\n');
@@ -2598,6 +2626,7 @@ function parseProfile(md, name){
     const am=statusLine.match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/); if(am) wonAmount=am[0].replace(/\s+/g,'');
     const dm=statusLine.match(/\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/); if(dm) wonDate=dm[0];
   }
+  const missedCall = get(/^[-*]?\s*Missed call:\s*(.+)$/i);
   const mvLine = get(/Outside\s*\/?\s*moveable assets:\s*(.+)$/i);
   const mvTok = mvLine.match(/~?\$\s?[\d.,]+\s*[KMmBb]?\+?/);
   const moveable = mvTok ? mvTok[0].replace(/\s+/g,'') : '';
@@ -2712,7 +2741,7 @@ function parseProfile(md, name){
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
     feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
     whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, notes, personalText, prep,
-    status:wonStatus||undefined, wonAmount, wonDate };
+    missedCall, status:wonStatus||undefined, wonAmount, wonDate };
 }
 
 async function gapiJSON(url){
@@ -2769,7 +2798,8 @@ async function syncFromDrive(){
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
         if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;   // advisor's manual next-call override
         if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
-        if(ex.missedCall) intel.missedCall=ex.missedCall;                  // "missed call" marker (until rescheduled/logged)
+        // missedCall is NOT preserved here — it lives in the profile now, so a re-parse is authoritative
+        // (preserving it would resurrect a marker that a reschedule/log already cleared in the markdown)
         if(ex.notes && ex.notes.length && !(intel.notes&&intel.notes.length)) intel.notes=ex.notes;  // keep offline notes if Drive has none yet
         if(ex.tasks && ex.tasks.length && !(intel.tasks&&intel.tasks.length)) intel.tasks=ex.tasks; // keep offline-added tasks
         if(ex.prep && ex.prep.length && !(intel.prep&&intel.prep.length)) intel.prep=ex.prep;       // keep Prep Sheet if a later profile rewrite dropped it
@@ -3091,9 +3121,14 @@ async function markMissedCall(code){
   if(!confirm(`Mark ${c.name} as a missed call (${nice})?\n\nThey'll move to Pending Decisions and the booked call will be cleared.`)) return;
   const notes=(c.intel.notes||[]).slice();
   notes.unshift({ d:d.toLocaleDateString(undefined,{month:'short',day:'numeric'}), t:`Missed call — ${nice}` });
-  // stage the sticky markers on the in-memory client so saveNotesFor persists them too
-  c.intel = {...c.intel, missedCall:iso, nextCallSet:'', pendingDecision:`Missed call ${nice} — reschedule` };
-  await saveNotesFor(c, notes);   // local + Drive (note) + reload
+  const intel = {...c.intel, missedCall:iso, nextCallSet:'', pendingDecision:`Missed call ${nice} — reschedule`, notes};
+  await saveClient(c.code, c.name, intel);   // local first (instant + offline-safe)
+  // push to Drive: write the Missed call line + clear the booked Next call + add the note
+  try{ await new Promise((res,rej)=> withDriveToken(async ()=>{ try{
+    const r=await driveLogCall(c.name, baseMd=> profileSetNotes(profileSetMissed(baseMd, iso), notes));
+    await saveClient(c.code, c.name, {...intel, _md:r.md, _driveFileId:r.id}); res();
+  }catch(e){ rej(e); } })); }catch(e){ /* offline — kept locally, pushes on next Drive sync */ }
+  await loadClients();
   const c2=S.clients.find(x=>x.code===code);
   if(S.active===code && c2) renderDetail(c2);
   else if(S.active==='__dash__') renderDashboard();
