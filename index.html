@@ -752,7 +752,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r94';
+const BUILD = 'build 2026-06-25 · r95';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2963,13 +2963,23 @@ async function syncFromDrive(){
       await saveClient(codeByName[nm] || newCode(), nm, intel);
       n++;
     }
+    // prune: a client deleted / marked Lost on another device leaves NO Drive file. Drop any local
+    // client that was previously synced (has a _driveFileId) but is now absent from Drive, so the
+    // delete crosses devices. Gate on _driveFileId so a client just created offline here (not yet
+    // pushed) is never wiped — only ones that genuinely existed on Drive and then vanished.
+    let pruned=0;
+    for(const nm in exByName){
+      if(byName[nm]) continue;                          // still on Drive → keep
+      if(!(exByName[nm] && exByName[nm]._driveFileId)) continue;   // never synced → not a remote delete
+      await deleteClient(codeByName[nm]); pruned++;
+    }
     // self-heal: delete the duplicate copies so there's one file per client
     let removed=0;
     for(const id of losers){ try{ const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}`,
       {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); if(r.ok) removed++; }catch(e){} }
     driveToken = null;
     await loadClients(); renderDashboard();
-    alert('Synced '+n+' client(s)'+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');
+    alert('Synced '+n+' client(s)'+(pruned?` · removed ${pruned} deleted elsewhere`:'')+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');
   }catch(e){
     alert('Drive sync failed: '+e.message);
   }finally{ setDriveBtn('☁️ Drive'); }
