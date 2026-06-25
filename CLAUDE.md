@@ -194,7 +194,15 @@ client's name or "new notes" never hurt, but aren't required.)
   when unset since this is a single-user app — it tracks the **current calendar month's** won
   assets (`wonMval`/`wonMn`, mirrored into the snapshot ledger) — beside a 6-month
   SVG bar chart of **$ won per month** with each bar labelled by win count; source is the durable
-  won-client records `wonAmount`/`wonDate`), then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
+  won-client records `wonAmount`/`wonDate` **plus a manual monthly backfill**. The Wins row has a
+  **📊 backfill** button (`openBackfill`) → a dialog of one $-input per month (current calendar year,
+  Jan→this month) so the advisor can enter **raw monthly win totals with no client data** — useful to
+  seed history (e.g. first half of the year). Stored device-local in localStorage `wr_winHist`
+  (`{"YYYY-MM": dollars}`, de-named — just $ totals, safe for the public repo); `winHist()`/`winMonthKey()`
+  read it and `histIn(start,end)` sums it into the goal ring (`wonMval`/`wonQval`) and every momentum
+  bar (it **adds on top of** any client-derived $ for that month, so months with no client records still
+  show their real number; backfill carries no win count, so those bars show $ with no count label)),
+  then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
   next 6 wks — forward projection; the subtitle also shows EV **not yet booked** = `weighted −
   bookedEV` so the chart reconciles with the Weighted-pipeline tile instead of silently
   undercounting), **Win Probability** (two conic

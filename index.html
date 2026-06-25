@@ -318,6 +318,10 @@
   .ovgoalset{border:1px solid var(--edge);background:rgba(255,255,255,.04);color:var(--ink-dim);
     font-size:10.5px;font-weight:700;letter-spacing:.3px;border-radius:8px;padding:5px 9px;cursor:pointer;transition:color .15s,border-color .15s}
   .ovgoalset:hover{color:#34d399;border-color:#34d399}
+  .ovgoalbtns{display:flex;flex-direction:column;gap:6px}
+  .bfrow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .bfrow label{flex:0 0 130px;font-size:13px;color:var(--muted);font-weight:600}
+  .bfrow .bfin{flex:1;min-width:0}
   .gauge .g-ring.nogoal::before{content:'';position:absolute;inset:0;border-radius:50%;
     background:conic-gradient(rgba(52,211,153,.30) 100%,transparent 0);
     -webkit-mask:radial-gradient(closest-side,transparent 67%,#000 69%);mask:radial-gradient(closest-side,transparent 67%,#000 69%)}
@@ -802,6 +806,17 @@
   <p class="note" id="taskErr" style="color:var(--danger);margin-top:8px"></p>
 </dialog>
 
+<!-- BACKFILL WINS DIALOG -->
+<dialog id="backfillDlg">
+  <h3 style="margin-bottom:4px">📊 Backfill monthly wins</h3>
+  <p class="note" style="margin-bottom:10px">Enter the <b>total assets won each month</b> — no client detail needed — so your history and the momentum chart show real numbers. Stored on this device only (just dollar totals). Accepts “4M” or “4000000”; leave blank for none.</p>
+  <div id="backfillRows"></div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+    <button class="ghost" onclick="backfillDlg.close()">Cancel</button>
+    <button id="backfillSave">Save</button>
+  </div>
+</dialog>
+
 <script>
 /* ============================================================
    War Room — local-first encrypted client intel
@@ -810,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r102';
+const BUILD = 'build 2026-06-25 · r103';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1866,10 +1881,13 @@ function renderOverview(){
   const mStartW=new Date(_nowW2.getFullYear(), _nowW2.getMonth(), 1);
   const mLbl=_nowW2.toLocaleDateString(undefined,{month:'long'});
   const wonAmtOf = c => assetVal(normMoney(c.intel.wonAmount||c.intel.moveable||''));
+  const hist=winHist();                                   // manual monthly backfill — de-named $ totals only
+  const histIn=(start,end)=>{ let s=0; const d=new Date(start); while(d<end){ s+=hist[winMonthKey(d)]||0; d.setMonth(d.getMonth()+1); } return s; };
+  const nextQStart=new Date(_nowW2.getFullYear(), qNum*3, 1), nextMStart=new Date(_nowW2.getFullYear(), _nowW2.getMonth()+1, 1);
   const winsQ = wins.filter(c=>{ const d=parseLogDate(c.intel.wonDate||''); return d && d>=qStartW; });
-  const wonQval = winsQ.reduce((s,c)=>s+wonAmtOf(c),0), wonQn = winsQ.length;
+  const wonQval = winsQ.reduce((s,c)=>s+wonAmtOf(c),0) + histIn(qStartW,nextQStart), wonQn = winsQ.length;
   const winsM = wins.filter(c=>{ const d=parseLogDate(c.intel.wonDate||''); return d && d>=mStartW; });
-  const wonMval = winsM.reduce((s,c)=>s+wonAmtOf(c),0), wonMn = winsM.length;
+  const wonMval = winsM.reduce((s,c)=>s+wonAmtOf(c),0) + histIn(mStartW,nextMStart), wonMn = winsM.length;
   // Monthly assets-won goal — defaults to $4M (single-user app), overridable via the goal button.
   const winGoal = (()=>{ const g=parseFloat(localStorage.getItem('wr_winGoalM')||''); return g>0?g:4000000; })();
   const goalPct = winGoal ? Math.min(100, Math.round(wonMval/winGoal*100)) : 0;
@@ -1879,6 +1897,7 @@ function renderOverview(){
   wins.forEach(c=>{ const d=parseLogDate(c.intel.wonDate||''); if(!d||d<mStart0) return;
     const mi=(d.getFullYear()-mStart0.getFullYear())*12+(d.getMonth()-mStart0.getMonth());
     if(mi>=0&&mi<MW){ mb[mi].v+=wonAmtOf(c); mb[mi].n++; } });
+  mb.forEach(b=>{ b.v += hist[winMonthKey(b.ds)]||0; });   // layer in any manual monthly backfill
   const winMax=Math.max(1,...mb.map(b=>b.v)), win6$=mb.reduce((s,b)=>s+b.v,0), win6n=mb.reduce((s,b)=>s+b.n,0);
   const WVW=340,WVH=130,wbase=WVH-20,wtop=14,wbw=WVW/MW, wyOf=v=>wbase-(v/winMax)*(wbase-wtop);
   const winBars=mb.map((b,i)=>{ const x=i*wbw+wbw*0.20,w=wbw*0.60,y=wyOf(b.v),h=wbase-y;
@@ -1946,7 +1965,7 @@ function renderOverview(){
 
     <div class="groupttl">🏆 Wins & Momentum</div>
     <div class="card ovwins">
-      <div class="ovwins-goal">${goalBlock}<button class="ovgoalset" id="ovGoalSet">${winGoal?'✎ goal':'🎯 set goal'}</button></div>
+      <div class="ovwins-goal">${goalBlock}<div class="ovgoalbtns"><button class="ovgoalset" id="ovGoalSet">${winGoal?'✎ goal':'🎯 set goal'}</button><button class="ovgoalset" id="ovBackfill">📊 backfill</button></div></div>
       <div class="ovwins-chart">
         <div class="velsub">${win6n} win${win6n===1?'':'s'} · ${fmtVal(win6$)} · last ${MW} months${wonMn?` · ${esc(mLbl)}: ${fmtVal(wonMval)}`:''}</div>
         ${winSvg}
@@ -1992,6 +2011,7 @@ function renderOverview(){
     if(v===null) return; const n=assetVal(v.trim());
     if(n>0) localStorage.setItem('wr_winGoalM', String(n)); else localStorage.removeItem('wr_winGoalM');
     renderOverview(); };
+  const bfBtn=$('#ovBackfill'); if(bfBtn) bfBtn.onclick=openBackfill;
   // Top toolbar — reuse the sidebar's existing handlers (sidebar is hidden on Overview).
   $('#ovbAdd').onclick   = ()=> $('#addBtn').click();
   $('#ovbDrive').onclick = ()=> $('#driveBtn').click();
@@ -3663,6 +3683,25 @@ $('#notesAddBtn').onclick = async ()=>{
   await saveNotesFor(c, notes); renderNotesList();
 };
 $('#notesDlg').addEventListener('close', ()=>{ const c=S.clients.find(x=>x.code===notesCode); if(c && S.active===c.code) renderDetail(c); else if(S.active==='__dash__') renderDashboard(); });
+
+/* ---- 📊 Backfill monthly wins (raw $ totals, no client data; device-local) ---- */
+function winMonthKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function winHist(){ try{ const o=JSON.parse(localStorage.getItem('wr_winHist')||'{}'); return (o&&typeof o==='object')?o:{}; }catch(e){ return {}; } }
+function openBackfill(){
+  const h=winHist(), now=new Date(), rows=[];
+  // current calendar year, January → this month (covers the first half of the year)
+  for(let m=0;m<=now.getMonth();m++){ const d=new Date(now.getFullYear(),m,1), k=winMonthKey(d);
+    rows.push(`<div class="bfrow"><label>${esc(d.toLocaleDateString(undefined,{month:'long',year:'numeric'}))}</label><input class="bfin" data-mk="${k}" inputmode="decimal" placeholder="e.g. 4M" value="${h[k]?esc(String(h[k])):''}"></div>`); }
+  $('#backfillRows').innerHTML=rows.join('');
+  $('#backfillDlg').showModal();
+}
+$('#backfillSave').onclick=()=>{
+  const h=winHist();
+  document.querySelectorAll('#backfillRows .bfin').forEach(inp=>{ const k=inp.dataset.mk, n=assetVal((inp.value||'').trim());
+    if(n>0) h[k]=n; else delete h[k]; });
+  localStorage.setItem('wr_winHist', JSON.stringify(h));
+  $('#backfillDlg').close(); renderOverview();
+};
 
 /* ---- follow-up tasks (dated to-dos, persisted to Drive) ---- */
 let tasksCode=null;
