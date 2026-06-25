@@ -229,13 +229,21 @@ client's name or "new notes" never hurt, but aren't required.)
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Top 10 → Pending Decisions → Follow-ups (tasks owed, next 2 weeks) → Cooling →
   Wins. Every client row shows a **note flag** (green pill + count when notes exist;
-  click = notes popup inline). Below the section nav a **priority-filter chip row**
+  click = notes popup inline). A **priority-filter chip row**
   (`.fchip`, state in `S.ccFilter`) narrows every active-derived section at once
   (All / CRITICAL / HOT / WARM / PIPELINE — only priorities present are shown). The
-  **KPI strip** has five chips (Weighted · Upcoming · Pending · Follow-ups · Cooling),
-  each a **button that deep-links** to its section and (when no filter is active) carries
-  a **week-over-week trend chip** (`trChip`, reusing the Overview's `S.ovWeekAgo`
-  baseline; suppressed while filtered since the baseline is the full book). Inline row
+  **KPI strip is the sole section-nav surface** (the old "Jump to" `.secnav` row was
+  removed in r101 — every widget is now a tappable jump): **six chips**
+  (Weighted→Top 10 · Upcoming · Pending · Follow-ups · Cooling · **Won this quarter**→Wins),
+  each a **button that deep-links** to its section (`data-jump`→`scrollIntoView`) and
+  carries a visible **tap affordance** (`.kc-go`, e.g. "Top 10 ›", "Wins ›") naming the
+  destination, plus (when no filter is active) a **week-over-week trend chip**
+  (`trChip`, reusing the Overview's `S.ovWeekAgo`
+  baseline; suppressed while filtered since the baseline is the full book). The Wins chip
+  shows quarter-won $ (`wonQval`) + the lifetime win rate; Top 10 and Wins have no
+  like-named widget so the Weighted-pipeline and Won-this-quarter chips are their labeled
+  entry points. (`.secnav` still styles the per-client Prep-Sheet jump nav in
+  `renderDetail`.) Inline row
   actions: **Upcoming** rows have a 📞 **Log** button (`openLog`) + a `TODAY` tag on
   same-day calls; **Pending Decisions** rows have a 📅 **Reschedule** button
   (`quickReschedule` — prompts, saves, clears any missed marker, syncs to Drive);

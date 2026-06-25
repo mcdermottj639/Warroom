@@ -178,7 +178,9 @@
   .dtbl td.col-act{white-space:nowrap;width:1%}
   .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;overflow-wrap:anywhere}
   .kc-v{font-size:18px;font-weight:700;margin-top:2px;overflow-wrap:anywhere}
-  .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px;overflow-wrap:anywhere}
+  .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px;overflow-wrap:anywhere;display:flex;align-items:flex-end;justify-content:space-between;gap:6px}
+  .kc-go{color:var(--muted);font-weight:700;white-space:nowrap;flex-shrink:0;transition:color .12s}
+  button.kchip:hover .kc-go,button.kchip:focus-visible .kc-go{color:var(--gold)}
   /* ===== Overview — neon HUD command deck (scoped to .ovwrap; dark even in light theme) ===== */
   .ovwrap{position:relative;min-height:100%;color:#e9f0fb;background:#06080f;
     --c1:#38bdf8;--c2:#c084fc;--c3:#f472b6;--c4:#a78bfa;
@@ -808,7 +810,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r100';
+const BUILD = 'build 2026-06-25 · r101';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2089,6 +2091,8 @@ function renderDashboard(jumpTo){
   const winTotal = wins.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
   const wonN=(S.outcomeLog||[]).filter(o=>o.outcome==='won').length, lostN=(S.outcomeLog||[]).filter(o=>o.outcome==='lost').length;
   const winRate = (wonN+lostN) ? Math.round(wonN/(wonN+lostN)*100) : null;
+  const wonQ = winsAll.filter(c=>winIn(c,'quarter'));
+  const wonQval = wonQ.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
   const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 ${noteFlag(c)} <b>${esc(c.name)}</b></div>
     <div class="r">${esc(normMoney(c.intel.wonAmount||c.intel.moveable)||'—')}</div>
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
@@ -2127,24 +2131,15 @@ function renderDashboard(jumpTo){
       <div class="meta">${filt==='all'?`${active.length} tracked`:`${active.length} of ${allActive.length} · ${esc(filt)}`} · Weighted pipeline ${fmtVal(weighted)}</div></div>
       <div class="btns"><button class="sm ghost" id="ccBack">← Overview</button></div></div>
 
-    <nav class="secnav" aria-label="Jump to section">
-      <span class="jumpc">Jump to</span>
-      <button data-target="sec-upcoming" aria-label="Jump to Upcoming Calls">📅 Upcoming</button>
-      <button data-target="sec-top" aria-label="Jump to Top 10 Opportunities">🎯 Top 10</button>
-      <button data-target="sec-pending" aria-label="Jump to Pending Decisions">⏳ Pending${pend.length?(' ('+pend.length+')'):''}</button>
-      <button data-target="sec-tasks" aria-label="Jump to Follow-ups">📌 Follow-ups${allTasks.length?(' ('+allTasks.length+(overdueCount?'·'+overdueCount+'!':'')+')'):''}</button>
-      <button data-target="sec-cooling" aria-label="Jump to Cooling Deals">🧊 Cooling${cooling.length?(' ('+cooling.length+')'):''}</button>
-      <button data-target="sec-wins" aria-label="Jump to Wins">🏆 Wins${wins.length?(' ('+wins.length+')'):''}</button>
-    </nav>
-
     <div class="ccfilter" aria-label="Filter by priority"><span class="jumpc">Priority</span>${fchips}</div>
 
     <div class="kstrip">
-      <button class="kchip" data-jump="sec-top"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n">EV across ${active.length} ${tc(weighted, wa&&wa.weighted, true, true)}</div></button>
-      <button class="kchip" data-jump="sec-upcoming"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n">scheduled ahead ${tc(upcoming.length, wa&&wa.upN, true, false)}</div></button>
-      <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n">no next call ${tc(pend.length, wa&&wa.pendN, false, false)}</div></button>
-      <button class="kchip" data-jump="sec-tasks"><div class="kc-l">Follow-ups</div><div class="kc-v">${allTasks.length}</div><div class="kc-n">${overdueCount?`${overdueCount} overdue`:'owed · 2 wks'}</div></button>
-      <button class="kchip" data-jump="sec-cooling"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n">${cooling.length} fading ${tc(atRisk, wa&&wa.atRisk, false, true)}</div></button>
+      <button class="kchip" data-jump="sec-top"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n"><span>EV across ${active.length} ${tc(weighted, wa&&wa.weighted, true, true)}</span><span class="kc-go">Top 10 ›</span></div></button>
+      <button class="kchip" data-jump="sec-upcoming"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n"><span>scheduled ahead ${tc(upcoming.length, wa&&wa.upN, true, false)}</span><span class="kc-go">Upcoming ›</span></div></button>
+      <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n"><span>no next call ${tc(pend.length, wa&&wa.pendN, false, false)}</span><span class="kc-go">Pending ›</span></div></button>
+      <button class="kchip" data-jump="sec-tasks"><div class="kc-l">Follow-ups</div><div class="kc-v">${allTasks.length}</div><div class="kc-n"><span>${overdueCount?`${overdueCount} overdue`:'owed · 2 wks'}</span><span class="kc-go">Follow-ups ›</span></div></button>
+      <button class="kchip" data-jump="sec-cooling"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n"><span>${cooling.length} fading ${tc(atRisk, wa&&wa.atRisk, false, true)}</span><span class="kc-go">Cooling ›</span></div></button>
+      <button class="kchip" data-jump="sec-wins"><div class="kc-l">Won this quarter</div><div class="kc-v">${fmtVal(wonQval)}</div><div class="kc-n"><span>${wonQ.length} closed${winRate!=null?` · ${winRate}% rate`:''}</span><span class="kc-go">Wins ›</span></div></button>
     </div>
 
     <div class="groupttl" id="sec-upcoming">📅 Upcoming Calls</div>
@@ -2210,8 +2205,8 @@ function renderDashboard(jumpTo){
   document.querySelectorAll('[data-resched]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); quickReschedule(b.dataset.resched); });
   document.querySelectorAll('[data-log]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openLog(b.dataset.log); });
   document.querySelectorAll('[data-notecode]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openNotes(b.dataset.notecode); });
-  document.querySelectorAll('.secnav button, .kchip[data-jump]').forEach(b=> b.onclick = ()=>{
-    const el = document.getElementById(b.dataset.target||b.dataset.jump);
+  document.querySelectorAll('.kchip[data-jump]').forEach(b=> b.onclick = ()=>{
+    const el = document.getElementById(b.dataset.jump);
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
   document.querySelectorAll('.fchip').forEach(b=> b.onclick = ()=>{ S.ccFilter=b.dataset.filt; renderDashboard(); });
