@@ -810,7 +810,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r101';
+const BUILD = 'build 2026-06-25 · r102';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1863,11 +1863,16 @@ function renderOverview(){
   const _nowW2=new Date(); const qNum=Math.floor(_nowW2.getMonth()/3)+1;
   const qStartW=new Date(_nowW2.getFullYear(), (qNum-1)*3, 1);
   const qLbl=`Q${qNum} ${_nowW2.getFullYear()}`;
+  const mStartW=new Date(_nowW2.getFullYear(), _nowW2.getMonth(), 1);
+  const mLbl=_nowW2.toLocaleDateString(undefined,{month:'long'});
   const wonAmtOf = c => assetVal(normMoney(c.intel.wonAmount||c.intel.moveable||''));
   const winsQ = wins.filter(c=>{ const d=parseLogDate(c.intel.wonDate||''); return d && d>=qStartW; });
   const wonQval = winsQ.reduce((s,c)=>s+wonAmtOf(c),0), wonQn = winsQ.length;
-  const winGoal = (()=>{ const g=parseFloat(localStorage.getItem('wr_winGoalQ')||''); return g>0?g:0; })();
-  const goalPct = winGoal ? Math.min(100, Math.round(wonQval/winGoal*100)) : 0;
+  const winsM = wins.filter(c=>{ const d=parseLogDate(c.intel.wonDate||''); return d && d>=mStartW; });
+  const wonMval = winsM.reduce((s,c)=>s+wonAmtOf(c),0), wonMn = winsM.length;
+  // Monthly assets-won goal — defaults to $4M (single-user app), overridable via the goal button.
+  const winGoal = (()=>{ const g=parseFloat(localStorage.getItem('wr_winGoalM')||''); return g>0?g:4000000; })();
+  const goalPct = winGoal ? Math.min(100, Math.round(wonMval/winGoal*100)) : 0;
   // 6-month $-won momentum bars (count labelled on each bar)
   const MW=6, mb=Array.from({length:MW},(_,i)=>({ ds:new Date(_nowW2.getFullYear(), _nowW2.getMonth()-(MW-1-i), 1), v:0, n:0 }));
   const mStart0=mb[0].ds;
@@ -1883,12 +1888,10 @@ function renderOverview(){
   const winSvg=`<svg viewBox="0 0 ${WVW} ${WVH}" class="velsvg" role="img" aria-label="Assets won per month">
     <defs><linearGradient id="winbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ee7b7"/><stop offset="1" stop-color="#10b981" stop-opacity=".55"/></linearGradient></defs>
     ${winBars}</svg>`;
-  const goalBlock = winGoal
-    ? gauge(goalPct,`${qLbl} goal`,`${fmtVal(wonQval)} of ${fmtVal(winGoal)}`,'#34d399')
-    : `<div class="gauge"><div class="g-ring nogoal"><div class="g-num" style="font-size:16px">${fmtVal(wonQval)}</div></div><div class="g-lbl">${esc(qLbl)} won</div><div class="g-sub">set a quarter goal →</div></div>`;
+  const goalBlock = gauge(goalPct,`${mLbl} goal`,`${fmtVal(wonMval)} of ${fmtVal(winGoal)}`,'#34d399');
 
   // ---- Snapshot ledger → "since your last visit" strip (#6) + hero week-over-week trend chips (#7) ----
-  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length, wonQn, wonQval,
+  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length, wonQn, wonQval, wonMn, wonMval,
     missed:missed.map(c=>c.code), cooling:cooling.map(r=>r.c.code), pending:pend.map(c=>c.code) };
   const { prev, weekAgo } = recordOverviewSnap(cur);
   const sinceStrip=(()=>{ if(!prev) return '';
@@ -1937,15 +1940,15 @@ function renderOverview(){
         <div class="ot-l">Cooling $ at risk</div><div class="ot-v">${fmtVal(atRisk)}</div><div class="ot-n">${cooling.length} fading ${trChip(atRisk, weekAgo&&weekAgo.atRisk, false, true, waLbl)}</div></button>
       <button class="ovtile t-purple" data-jump="sec-pending"><span class="cnrs"></span><span class="ot-ring" style="--p:${rPend}" title="${rPend}% of the book awaiting a decision"></span><span class="ot-go">›</span>
         <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">no next call booked ${trChip(pend.length, weekAgo&&weekAgo.pendN, false, false, waLbl)}</div></button>
-      <button class="ovtile t-green" data-jump="sec-wins"><span class="cnrs"></span><span class="ot-ring" style="--p:${goalPct}" title="${winGoal?goalPct+'% of '+qLbl+' goal':'no quarter goal set'}"></span><span class="ot-go">›</span>
-        <div class="ot-l">Won this quarter</div><div class="ot-v">${fmtVal(wonQval)}</div><div class="ot-n">${wonQn} deal${wonQn===1?'':'s'} ${trChip(wonQn, weekAgo&&weekAgo.wonQn, true, false, waLbl)}</div></button>
+      <button class="ovtile t-green" data-jump="sec-wins"><span class="cnrs"></span><span class="ot-ring" style="--p:${goalPct}" title="${goalPct}% of ${esc(mLbl)} goal (${fmtVal(winGoal)})"></span><span class="ot-go">›</span>
+        <div class="ot-l">Won this month</div><div class="ot-v">${fmtVal(wonMval)}</div><div class="ot-n">${wonMn} deal${wonMn===1?'':'s'} ${trChip(wonMn, weekAgo&&weekAgo.wonMn, true, false, waLbl)}</div></button>
     </div>
 
     <div class="groupttl">🏆 Wins & Momentum</div>
     <div class="card ovwins">
       <div class="ovwins-goal">${goalBlock}<button class="ovgoalset" id="ovGoalSet">${winGoal?'✎ goal':'🎯 set goal'}</button></div>
       <div class="ovwins-chart">
-        <div class="velsub">${win6n} win${win6n===1?'':'s'} · ${fmtVal(win6$)} · last ${MW} months${wonQn?` · ${esc(qLbl)}: ${fmtVal(wonQval)}`:''}</div>
+        <div class="velsub">${win6n} win${win6n===1?'':'s'} · ${fmtVal(win6$)} · last ${MW} months${wonMn?` · ${esc(mLbl)}: ${fmtVal(wonMval)}`:''}</div>
         ${winSvg}
       </div>
     </div>
@@ -1982,12 +1985,12 @@ function renderOverview(){
   if(fhd){ const toggle=()=>{ const now=localStorage.getItem('wr_focusCollapsed')==='1';
       localStorage.setItem('wr_focusCollapsed', now?'0':'1'); renderOverview(); };
     fhd.onclick=toggle; fhd.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }; }
-  // Quarter wins goal — a plain $ target (not sensitive), stored locally; accepts "2M"/"2000000".
+  // Monthly wins goal — a plain $ target (not sensitive), stored locally; accepts "4M"/"4000000".
   const gset=$('#ovGoalSet');
-  if(gset) gset.onclick=()=>{ const cur0=parseFloat(localStorage.getItem('wr_winGoalQ')||'')||0;
-    const v=prompt('Quarterly assets-won goal (e.g. 2M or 2000000) — blank to clear:', cur0?String(cur0):'');
+  if(gset) gset.onclick=()=>{ const cur0=parseFloat(localStorage.getItem('wr_winGoalM')||'')||0;
+    const v=prompt('Monthly assets-won goal (e.g. 4M or 4000000) — blank to reset to $4M default:', cur0?String(cur0):'4000000');
     if(v===null) return; const n=assetVal(v.trim());
-    if(n>0) localStorage.setItem('wr_winGoalQ', String(n)); else localStorage.removeItem('wr_winGoalQ');
+    if(n>0) localStorage.setItem('wr_winGoalM', String(n)); else localStorage.removeItem('wr_winGoalM');
     renderOverview(); };
   // Top toolbar — reuse the sidebar's existing handlers (sidebar is hidden on Overview).
   $('#ovbAdd').onclick   = ()=> $('#addBtn').click();

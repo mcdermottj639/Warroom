@@ -185,12 +185,14 @@ client's name or "new notes" never hurt, but aren't required.)
   `wonQn`/`wonQval`; the win delta is guarded > 0 so a quarter rollover can't show a negative
   win); it's hidden on the very first visit. Everything below is a
   **stats/analytics board**: five **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
-  Cooling $ at risk · Pending decisions · **Won this quarter** — the last deep-links to 🏆 Wins
-  and its ring shows % of the quarter goal) that **deep-link** into the matching Command
+  Cooling $ at risk · Pending decisions · **Won this month** — the last deep-links to 🏆 Wins
+  and its ring shows % of the monthly goal) that **deep-link** into the matching Command
   Center section and each carry a **week-over-week trend chip** (`trChip` — ▲/▼ vs the
   ~7-day-old snapshot, green=good/red=bad per metric direction; absent until a baseline exists),
-  then a full-width **🏆 Wins & Momentum** row (a quarterly **assets-won goal ring** — target set
-  via prompt, stored in localStorage `wr_winGoalQ`, accepts "2M"/"2000000" — beside a 6-month
+  then a full-width **🏆 Wins & Momentum** row (a **monthly assets-won goal ring** — target set
+  via prompt, stored in localStorage `wr_winGoalM`, accepts "4M"/"4000000", **defaults to $4M**
+  when unset since this is a single-user app — it tracks the **current calendar month's** won
+  assets (`wonMval`/`wonMn`, mirrored into the snapshot ledger) — beside a 6-month
   SVG bar chart of **$ won per month** with each bar labelled by win count; source is the durable
   won-client records `wonAmount`/`wonDate`), then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
   next 6 wks — forward projection; the subtitle also shows EV **not yet booked** = `weighted −
