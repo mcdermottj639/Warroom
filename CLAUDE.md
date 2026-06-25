@@ -181,7 +181,7 @@ client's name or "new notes" never hurt, but aren't required.)
   sidebar buttons' handlers via `.click()`). Client search/list lives in Command Center,
   one click away. All values reuse existing computations (no new storage). `renderOverview()`.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
-  → Follow-ups (tasks owed, next 2 weeks) → Pending Decisions → Top 10 → Cooling →
+  → Top 10 → Pending Decisions → Follow-ups (tasks owed, next 2 weeks) → Cooling →
   Wins. Every client row shows a **note flag** (gold pill + count when notes exist;
   click = notes popup inline).
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching:
