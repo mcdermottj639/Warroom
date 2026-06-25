@@ -741,7 +741,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r91';
+const BUILD = 'build 2026-06-24 · r92';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1768,7 +1768,7 @@ function renderDashboard(jumpTo){
 
   const oppRows = ranked.slice(0,10).map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
     <td><span class="rank">${idx+1}</span></td>
-    <td>${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span> ${noteFlag(r.c)}</td>
+    <td>${noteFlag(r.c)} ${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
     <td>${esc(r.c.intel.stage||'')}</td>
     <td class="r">${esc(moneyShort(r.c.intel.moveable))}</td>
     <td class="r">${Math.round(r.p*100)}%</td>
@@ -1791,7 +1791,7 @@ function renderDashboard(jumpTo){
     const cls = missed?'CRITICAL':c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
     return `<div class="crow" data-code="${c.code}">
       <span class="riskbadge risk-${cls}">${missed?'📵 MISSED':esc(c.intel.priority||'')}</span>
-      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b> ${noteFlag(c)}<div class="fc ellip">${esc(issue)}</div></div>
+      <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">${esc(issue)}</div></div>
       <span class="chev">›</span></div>`;
   }).join('')
       + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more with no next call booked</div>`:'')
@@ -1809,7 +1809,7 @@ function renderDashboard(jumpTo){
     const ago = t.overdue ? `overdue ${t.days}d` : `${t.days}d quiet`;
     return `<div class="crow" data-code="${r.c.code}">
       <span class="riskbadge risk-${cls}">${esc((t.state||'').toUpperCase())}</span>
-      <div style="flex:1;min-width:0"><b>${esc(r.c.name)}</b> ${noteFlag(r.c)}
+      <div style="flex:1;min-width:0">${noteFlag(r.c)} <b>${esc(r.c.name)}</b>
         <div class="fc ellip">${ago} · ${esc(cadenceStep(t.days))}</div></div>
       <span class="ev">${fmtVal(r.ev)}</span>
       <button class="sm iconbtn" data-reeng="${r.c.code}" aria-label="Re-engage ${esc(r.c.name)}">✉️</button></div>`;
@@ -1824,7 +1824,7 @@ function renderDashboard(jumpTo){
   const upRowOf = x=>{ const ty=nextCallType(x.c.intel); const detail=esc(x.c.intel.nextCall||'');
     return `<tr class="click" data-code="${x.c.code}">
     <td>${x.d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</td>
-    <td>${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span> ${noteFlag(x.c)}</td>
+    <td>${noteFlag(x.c)} ${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span></td>
     <td>${ty?`<b style="color:var(--gold)">${esc(ty)} call</b>`:''}${detail?(ty?' · ':'')+detail:(ty?'':esc(x.c.intel.callType||''))}</td>
     <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`; };
   const upRowsWeek = upWeek.length ? upWeek.map(upRowOf).join('') : '<tr><td colspan="4" style="color:var(--muted)">No calls scheduled this week.</td></tr>';
@@ -1833,7 +1833,7 @@ function renderDashboard(jumpTo){
   // Wins
   const wins = S.clients.filter(c=>c.intel.status==='won');
   const winTotal = wins.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
-  const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 <b>${esc(c.name)}</b> ${noteFlag(c)}</div>
+  const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 ${noteFlag(c)} <b>${esc(c.name)}</b></div>
     <div class="r">${esc(normMoney(c.intel.wonAmount||c.intel.moveable)||'—')}</div>
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
     <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '<div class="bodynote" style="padding-top:0">No wins logged yet — mark a client ✓ Won and they’ll be tracked here.</div>';
@@ -1849,7 +1849,7 @@ function renderDashboard(jumpTo){
   allTasks.sort((a,b)=> ((a.t.due||'9999-99')<(b.t.due||'9999-99')?-1:1));
   const taskRows = (allTasks.length ? allTasks.map(({c,t,idx})=>`<div class="crow" data-code="${c.code}">
       <input type="checkbox" class="task-chk-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Mark done" title="Mark done">
-      <div style="flex:1;min-width:0"><b>${esc(c.name)}</b> ${noteFlag(c)}<div class="fc ellip">${esc(t.t)}</div></div>
+      <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">${esc(t.t)}</div></div>
       ${t.due?`<span class="task-due ${dueClass(t.due)}">${esc(dueLabel(t.due))}</span>`:'<span class="fc">no date</span>'}
       <button class="note-del task-del-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Delete follow-up">✕</button></div>`).join('')
     : '<div class="bodynote" style="padding-top:0">Nothing due in the next 2 weeks. 👌</div>')
