@@ -182,7 +182,7 @@ client's name or "new notes" never hurt, but aren't required.)
   one click away. All values reuse existing computations (no new storage). `renderOverview()`.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Top 10 → Pending Decisions → Follow-ups (tasks owed, next 2 weeks) → Cooling →
-  Wins. Every client row shows a **note flag** (gold pill + count when notes exist;
+  Wins. Every client row shows a **note flag** (green pill + count when notes exist;
   click = notes popup inline).
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching:
   Opening, Questions, How to pitch, Why Empower, Reframe objection, Next-step play,

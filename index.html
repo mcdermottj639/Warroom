@@ -442,12 +442,12 @@
   .noteflag{background:none;border:none;box-shadow:none;padding:0 2px;margin:0;font-size:12.5px;
     line-height:1;vertical-align:middle;opacity:.16;filter:grayscale(1);cursor:pointer;transition:opacity .12s}
   .noteflag:hover{opacity:.5}
-  /* has notes → unmistakable gold pill with the note count */
-  .noteflag.has{opacity:1;filter:none;background:var(--gold);color:var(--on-gold);
+  /* has notes → unmistakable GREEN pill with the note count (distinct from gold WARM / red HOT badges) */
+  .noteflag.has{opacity:1;filter:none;background:#1f9d57;color:#fff;
     border-radius:7px;padding:1px 6px 1px 4px;display:inline-flex;align-items:center;gap:2px;
     box-shadow:0 1px 2px rgba(0,0,0,.25)}
   .noteflag.has:hover{filter:brightness(1.08)}
-  .noteflag.has .nfn{color:var(--on-gold);font-size:10px;font-weight:800;line-height:1}
+  .noteflag.has .nfn{color:#fff;font-size:10px;font-weight:800;line-height:1}
   .coachlist{margin:0;padding-left:20px}
   .coachlist li{font-size:14px;line-height:1.5;margin-bottom:10px}
   .askgrp{margin-bottom:16px}
@@ -741,7 +741,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r90';
+const BUILD = 'build 2026-06-24 · r91';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
