@@ -201,7 +201,21 @@ client's name or "new notes" never hurt, but aren't required.)
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Top 10 → Pending Decisions → Follow-ups (tasks owed, next 2 weeks) → Cooling →
   Wins. Every client row shows a **note flag** (green pill + count when notes exist;
-  click = notes popup inline).
+  click = notes popup inline). Below the section nav a **priority-filter chip row**
+  (`.fchip`, state in `S.ccFilter`) narrows every active-derived section at once
+  (All / CRITICAL / HOT / WARM / PIPELINE — only priorities present are shown). The
+  **KPI strip** has five chips (Weighted · Upcoming · Pending · Follow-ups · Cooling),
+  each a **button that deep-links** to its section and (when no filter is active) carries
+  a **week-over-week trend chip** (`trChip`, reusing the Overview's `S.ovWeekAgo`
+  baseline; suppressed while filtered since the baseline is the full book). Inline row
+  actions: **Upcoming** rows have a 📞 **Log** button (`openLog`) + a `TODAY` tag on
+  same-day calls; **Pending Decisions** rows have a 📅 **Reschedule** button
+  (`quickReschedule` — prompts, saves, clears any missed marker, syncs to Drive);
+  **Cooling** keeps its ✉️ re-engage. **Wins** has a This-month / This-quarter / All
+  **time-frame toggle** (`S.winFrame`, filtered by `parseLogDate(wonDate)`) and shows a
+  lifetime **win rate** (from `S.outcomeLog`) in its header. On **narrow phones
+  (≤560px)** the data tables drop the low-signal probability column (`.col-opt`) and
+  tighten spacing instead of scrolling sideways.
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching:
   Opening, Questions, How to pitch, Why Empower, Reframe objection, Next-step play,
   Watch-outs) and **📊 Client data** pop-up widgets (📋 TL;DR, Assets, Streams, Income &

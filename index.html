@@ -163,6 +163,19 @@
   /* KPI strip in detail */
   .kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:18px}
   .kchip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;overflow-wrap:anywhere}
+  button.kchip{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .12s}
+  button.kchip:hover{border-color:var(--gold)}
+  button.kchip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  /* Priority filter chips (Command Center) */
+  .ccfilter{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:-6px 0 16px}
+  .fchip{background:var(--panel2);color:var(--muted);border:1px solid var(--line);border-radius:20px;
+    padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;transition:border-color .12s,color .12s}
+  .fchip:hover{border-color:var(--gold)}
+  .fchip.on{background:var(--metal-gold);color:var(--accent-ink);border-color:transparent}
+  .fchip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .todaytag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.4px;background:#f87171;color:#1a0606;
+    padding:1px 5px;border-radius:6px;vertical-align:middle}
+  .dtbl td.col-act{white-space:nowrap;width:1%}
   .kc-l{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;overflow-wrap:anywhere}
   .kc-v{font-size:18px;font-weight:700;margin-top:2px;overflow-wrap:anywhere}
   .kc-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:1px;overflow-wrap:anywhere}
@@ -545,6 +558,13 @@
     dialog{width:94vw;max-width:94vw;padding:16px}
     dialog input,dialog textarea{font-size:16px}
   }
+  /* Narrow phones: drop the low-signal probability column and tighten the data tables so the
+     remaining columns fit without horizontal scrolling. */
+  @media (max-width:560px){
+    .dtbl .col-opt{display:none}
+    .dtbl th,.dtbl td{padding:6px 5px;font-size:12px}
+    .ccfilter{gap:5px}
+  }
 
   /* iOS safe areas (notch / status bar / home indicator) for installed PWA */
   @supports (padding: env(safe-area-inset-top)){
@@ -771,7 +791,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r96';
+const BUILD = 'build 2026-06-25 · r97';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1571,6 +1591,37 @@ function objCategory(s){
   return 'Other';
 }
 
+// Week-over-week trend chip — ▲/▼ delta vs a baseline snapshot; green when the move is "good"
+// for that metric (goodUp), red otherwise. money=true formats the delta as currency.
+// Shared by the Overview hero tiles and the Command Center KPI strip.
+function trChip(now, was, goodUp, money, base){
+  if(was==null) return ''; const d=now-was; if(!d) return '';
+  const v=money?fmtVal(Math.abs(d)):Math.abs(d);
+  return `<span class="ot-tr ${(d>0)===goodUp?'up':'down'}" title="vs ${base?esc(base):'last week'}">${d>0?'▲':'▼'} ${v}</span>`;
+}
+
+// Reschedule a client's next call from anywhere (a Command Center row or the detail banner).
+// Mirrors the detail #setNcBtn flow: prompt → save → clear any missed marker → sync to Drive →
+// re-render whichever view is showing.
+async function quickReschedule(code){
+  const c=S.clients.find(x=>x.code===code); if(!c) return;
+  const i=c.intel; const t0=new Date(); t0.setHours(0,0,0,0); const nc=nextExpectedDate(i);
+  const ovr=(i.nextCallSet!==undefined && i.nextCallSet!==null);
+  const cur = ovr ? (i.nextCallSet||'') : (i.nextCall || (nc&&nc>=t0 ? nc.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''));
+  const v=prompt('Set next call — a date like "Jun 30", "7/13", or "Jul 13 at 2pm".\nLeave blank to clear it. Type "auto" to read it from the notes.', cur);
+  if(v===null) return;
+  const live=v.trim() && v.trim().toLowerCase()!=='auto';
+  const intel={...i};
+  if(v.trim().toLowerCase()==='auto') delete intel.nextCallSet;
+  else intel.nextCallSet=v.trim();
+  if(live){ delete intel.missedCall; if((intel.pendingDecision||'').startsWith('Missed call')) delete intel.pendingDecision; }
+  await saveClient(c.code, c.name, intel);
+  await loadClients();
+  const c2=S.clients.find(x=>x.code===c.code);
+  if(live) syncNextCallToDrive(c2);
+  if(S.active==='__dash__') renderDashboard(); else if(S.active==='__overview__') renderOverview(); else if(c2) renderDetail(c2);
+}
+
 // Overview — the landing page. A 5-second "where do I stand / what's today" board built
 // entirely from values the Command Center already computes; each hero tile deep-links into
 // the matching Command Center section (renderDashboard(anchorId)).
@@ -1770,10 +1821,6 @@ function renderOverview(){
   const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length,
     missed:missed.map(c=>c.code), cooling:cooling.map(r=>r.c.code), pending:pend.map(c=>c.code) };
   const { prev, weekAgo } = recordOverviewSnap(cur);
-  const trChip=(now,was,goodUp,money,base)=>{ if(was==null) return '';
-    const d=now-was; if(!d) return '';
-    const v=money?fmtVal(Math.abs(d)):Math.abs(d);
-    return `<span class="ot-tr ${(d>0)===goodUp?'up':'down'}" title="vs ${base?esc(base):'last week'}">${d>0?'▲':'▼'} ${v}</span>`; };
   const sinceStrip=(()=>{ if(!prev) return '';
     const newOf=(a,p)=>{ const ps=new Set(p||[]); return (a||[]).filter(x=>!ps.has(x)).length; };
     const nMiss=newOf(cur.missed,prev.missed), nCool=newOf(cur.cooling,prev.cooling), nPend=newOf(cur.pending,prev.pending);
@@ -1854,7 +1901,13 @@ function renderOverview(){
 
 function renderDashboard(jumpTo){
   S.active = '__dash__'; renderList();
-  const active = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  const allActive = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  // Priority filter (chips under the section nav) — narrows every active-derived section at once.
+  const PRIOS = ['CRITICAL','HOT','WARM','PIPELINE'];
+  const prioOf = c => (c.intel.priority||'PIPELINE');
+  const present = PRIOS.filter(p => allActive.some(c => prioOf(c)===p));
+  const filt = (S.ccFilter && present.includes(S.ccFilter)) ? S.ccFilter : 'all';
+  const active = filt==='all' ? allActive : allActive.filter(c => prioOf(c)===filt);
   // a per-client note flag for every Command Center row — gold w/ count when notes exist,
   // faint otherwise; click pops the notes dialog inline (view + add) without leaving the dash.
   const noteFlag = c => { const n=(c.intel.notes||[]).length;
@@ -1862,27 +1915,13 @@ function renderDashboard(jumpTo){
   const ranked = active.map(c => ({c, ev:expectedValue(c.intel), p:stageProb(c.intel)}))
     .sort((a,b)=> b.ev - a.ev);
   const weighted = ranked.reduce((s,r)=>s+r.ev, 0);
-  const todayName = DAYS_FULL[new Date().getDay()];
-  const todays = active.filter(c => (c.intel.schedule?.day||'').toLowerCase().includes(todayName.toLowerCase()));
-
-  // This week — anything with a schedule, sorted by weekday then time
-  const scheduled = active.filter(c => c.intel.schedule && (c.intel.schedule.day||c.intel.schedule.time));
-  const dayOf = c => { const d=(c.intel.schedule.day||'').match(/Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/i); return d?d[0].replace(/^./,x=>x.toUpperCase()):''; };
-  const t2m = t => { const m=(t||'').match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i); if(!m) return 9999; let h=+m[1]%12; if(/pm/i.test(m[3]||'')) h+=12; return h*60+(+(m[2]||0)); };
-  scheduled.sort((a,b)=> (DAY_ORDER[dayOf(a)]||9)-(DAY_ORDER[dayOf(b)]||9) || t2m(a.intel.schedule.time)-t2m(b.intel.schedule.time));
-
-  const schedRows = scheduled.length ? scheduled.map(c=>`<tr class="click" data-code="${c.code}">
-    <td>${esc(dayOf(c))}</td><td>${esc(c.intel.schedule.time||'')}</td>
-    <td>${esc(c.name)} <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'')}</span></td>
-    <td>${esc(c.intel.callType||'')}</td><td class="r">${esc(moneyShort(c.intel.moveable))}</td></tr>`).join('')
-    : `<tr><td colspan="5" style="color:var(--muted)">No scheduled calls.</td></tr>`;
 
   const oppRows = ranked.slice(0,10).map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
     <td><span class="rank">${idx+1}</span></td>
     <td>${noteFlag(r.c)} ${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
     <td>${esc(r.c.intel.stage||'')}</td>
     <td class="r">${esc(moneyShort(r.c.intel.moveable))}</td>
-    <td class="r">${Math.round(r.p*100)}%</td>
+    <td class="r col-opt">${Math.round(r.p*100)}%</td>
     <td class="r">${fmtVal(r.ev)}</td></tr>`).join('');
 
   // Pending decisions = at Proposal/Decision, but with NO future call booked and NOT yet cooling.
@@ -1903,13 +1942,11 @@ function renderDashboard(jumpTo){
     return `<div class="crow" data-code="${c.code}">
       <span class="riskbadge risk-${cls}">${missed?'📵 MISSED':esc(c.intel.priority||'')}</span>
       <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">${esc(issue)}</div></div>
+      <button class="sm iconbtn" data-resched="${c.code}" aria-label="Reschedule ${esc(c.name)}" title="${missed?'Reschedule — clears the missed flag':'Book the next call'}">📅</button>
       <span class="chev">›</span></div>`;
   }).join('')
       + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more with no next call booked</div>`:'')
     : '<div class="bodynote" style="padding-top:0">Every open decision has a call booked or is in Cooling. 👌</div>';
-
-  // Flags live inside each client's profile (not a standalone list); keep a count for the KPI.
-  const openFlags = active.reduce((s,c)=>s+(c.intel.specialFlags||c.intel.complications||[]).length,0);
 
   // Cooling deals — proposals fading, driven by the client's own stated timing (scheduled ones excluded)
   const cooling = active.filter(c=>isCooling(c) && !c.intel.missedCall).map(c=>({c, st:dealState(c), ev:expectedValue(c.intel)}))
@@ -1932,22 +1969,34 @@ function renderDashboard(jumpTo){
   const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=> (a.d-b.d) || (nextCallMinutes(a.c.intel)-nextCallMinutes(b.c.intel)));
   const upWeek = upcoming.filter(x=>x.d<=weekEnd);
   const upFuture = upcoming.filter(x=>x.d>weekEnd);
+  const todays = upcoming.filter(x=> x.d.getTime()===today0.getTime());   // calls due today → flagged in the table
   const upRowOf = x=>{ const ty=nextCallType(x.c.intel); const detail=esc(x.c.intel.nextCall||'');
+    const isToday = x.d.getTime()===today0.getTime();
     return `<tr class="click" data-code="${x.c.code}">
-    <td>${x.d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</td>
+    <td>${isToday?'<span class="todaytag">TODAY</span> ':''}${x.d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</td>
     <td>${noteFlag(x.c)} ${esc(x.c.name)} <span class="badge b-${esc(x.c.intel.priority||'PIPELINE')}">${esc(x.c.intel.priority||'')}</span></td>
     <td>${ty?`<b style="color:var(--gold)">${esc(ty)} call</b>`:''}${detail?(ty?' · ':'')+detail:(ty?'':esc(x.c.intel.callType||''))}</td>
-    <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td></tr>`; };
-  const upRowsWeek = upWeek.length ? upWeek.map(upRowOf).join('') : '<tr><td colspan="4" style="color:var(--muted)">No calls scheduled this week.</td></tr>';
-  const upRowsFuture = upFuture.length ? upFuture.map(upRowOf).join('') : '<tr><td colspan="4" style="color:var(--muted)">Nothing scheduled beyond this week yet.</td></tr>';
+    <td class="r">${esc(moneyShort(x.c.intel.moveable))}</td>
+    <td class="r col-act"><button class="sm iconbtn" data-log="${x.c.code}" aria-label="Log call with ${esc(x.c.name)}" title="Log this call">📞</button></td></tr>`; };
+  const upRowsWeek = upWeek.length ? upWeek.map(upRowOf).join('') : '<tr><td colspan="5" style="color:var(--muted)">No calls scheduled this week.</td></tr>';
+  const upRowsFuture = upFuture.length ? upFuture.map(upRowOf).join('') : '<tr><td colspan="5" style="color:var(--muted)">Nothing scheduled beyond this week yet.</td></tr>';
 
-  // Wins
-  const wins = S.clients.filter(c=>c.intel.status==='won');
+  // Wins — time-framed (this month / quarter / all) + a lifetime close rate from the de-named outcome ledger
+  const winFrame = ['month','quarter','all'].includes(S.winFrame) ? S.winFrame : 'all';
+  const _nowW=new Date(); const _mStart=new Date(_nowW.getFullYear(),_nowW.getMonth(),1);
+  const _qStart=new Date(_nowW.getFullYear(),Math.floor(_nowW.getMonth()/3)*3,1);
+  const winsAll = S.clients.filter(c=>c.intel.status==='won');
+  const winIn = (c,fr)=>{ if(fr==='all') return true; const d=parseLogDate(c.intel.wonDate||''); if(!d) return false; return fr==='month'? d>=_mStart : d>=_qStart; };
+  const winCount = fr => winsAll.filter(c=>winIn(c,fr)).length;
+  const wins = winsAll.filter(c=>winIn(c,winFrame));
   const winTotal = wins.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
+  const wonN=(S.outcomeLog||[]).filter(o=>o.outcome==='won').length, lostN=(S.outcomeLog||[]).filter(o=>o.outcome==='lost').length;
+  const winRate = (wonN+lostN) ? Math.round(wonN/(wonN+lostN)*100) : null;
   const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 ${noteFlag(c)} <b>${esc(c.name)}</b></div>
     <div class="r">${esc(normMoney(c.intel.wonAmount||c.intel.moveable)||'—')}</div>
     <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
-    <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('') : '<div class="bodynote" style="padding-top:0">No wins logged yet — mark a client ✓ Won and they’ll be tracked here.</div>';
+    <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('')
+    : `<div class="bodynote" style="padding-top:0">${winsAll.length?'No wins in this window — try a wider range.':'No wins logged yet — mark a client ✓ Won and they’ll be tracked here.'}</div>`;
 
   // Follow-ups — open tasks across all clients; only show the next 2 weeks (+ overdue / undated)
   const _ft=new Date(); _ft.setHours(0,0,0,0); _ft.setDate(_ft.getDate()+14);
@@ -1967,9 +2016,18 @@ function renderDashboard(jumpTo){
     + (laterCount?`<div class="bodynote" style="padding-top:10px">+ ${laterCount} scheduled further out — they’ll appear here as they come within 2 weeks.</div>`:'');
   const overdueCount = allTasks.filter(x=>dueClass(x.t.due)==='task-over').length;
 
+  // Week-over-week trend chips reuse the Overview snapshot baseline (S.ovWeekAgo, set once per
+  // session when the Overview renders at boot). Suppressed while a priority filter is active —
+  // the baseline is the full book, so a filtered count vs full baseline would be apples-to-oranges.
+  const wa = S.ovWeekAgo || null;
+  const waLbl = wa ? new Date(wa.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
+  const tc = (now,was,up,money)=> filt==='all' ? trChip(now,was,up,money,waLbl) : '';
+  const fchips = `<button class="fchip${filt==='all'?' on':''}" data-filt="all">All (${allActive.length})</button>`
+    + present.map(p=>`<button class="fchip${filt===p?' on':''}" data-filt="${p}">${esc(p)} (${allActive.filter(c=>prioOf(c)===p).length})</button>`).join('');
+
   $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
     <div class="head"><div><h2>⚔️ Command Center</h2>
-      <div class="meta">${active.length} tracked · Weighted pipeline ${fmtVal(weighted)}</div></div>
+      <div class="meta">${filt==='all'?`${active.length} tracked`:`${active.length} of ${allActive.length} · ${esc(filt)}`} · Weighted pipeline ${fmtVal(weighted)}</div></div>
       <div class="btns"><button class="sm ghost" id="ccBack">← Overview</button></div></div>
 
     <nav class="secnav" aria-label="Jump to section">
@@ -1982,25 +2040,28 @@ function renderDashboard(jumpTo){
       <button data-target="sec-wins" aria-label="Jump to Wins">🏆 Wins${wins.length?(' ('+wins.length+')'):''}</button>
     </nav>
 
+    <div class="ccfilter" aria-label="Filter by priority"><span class="jumpc">Priority</span>${fchips}</div>
+
     <div class="kstrip">
-      <div class="kchip"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n">EV across ${active.length}</div></div>
-      <div class="kchip"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n">scheduled ahead</div></div>
-      <div class="kchip"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n">${cooling.length} fading</div></div>
-      <div class="kchip"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n">no next call booked</div></div>
+      <button class="kchip" data-jump="sec-top"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n">EV across ${active.length} ${tc(weighted, wa&&wa.weighted, true, true)}</div></button>
+      <button class="kchip" data-jump="sec-upcoming"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n">scheduled ahead ${tc(upcoming.length, wa&&wa.upN, true, false)}</div></button>
+      <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n">no next call ${tc(pend.length, wa&&wa.pendN, false, false)}</div></button>
+      <button class="kchip" data-jump="sec-tasks"><div class="kc-l">Follow-ups</div><div class="kc-v">${allTasks.length}</div><div class="kc-n">${overdueCount?`${overdueCount} overdue`:'owed · 2 wks'}</div></button>
+      <button class="kchip" data-jump="sec-cooling"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n">${cooling.length} fading ${tc(atRisk, wa&&wa.atRisk, false, true)}</div></button>
     </div>
 
     <div class="groupttl" id="sec-upcoming">📅 Upcoming Calls</div>
     <div class="card">
       <div class="tabs" id="upTabs">
-        <button class="tab active" data-up="week">This Week (${upWeek.length})</button>
+        <button class="tab active" data-up="week">This Week (${upWeek.length}${todays.length?` · ${todays.length} today`:''})</button>
         <button class="tab" data-up="future">Future (${upFuture.length})</button>
       </div>
-      <table class="dtbl" id="upTblWeek"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th></tr></thead><tbody>${upRowsWeek}</tbody></table>
-      <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th></tr></thead><tbody>${upRowsFuture}</tbody></table>
+      <table class="dtbl" id="upTblWeek"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsWeek}</tbody></table>
+      <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsFuture}</tbody></table>
     </div>
 
     <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by expected value</div>
-    <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
+    <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r col-opt">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
 
     <div class="groupttl" id="sec-pending">⏳ Pending Decisions — open, no next call booked</div>
     <div class="card">${pendRows}</div>
@@ -2011,8 +2072,15 @@ function renderDashboard(jumpTo){
     <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
     <div class="card">${coolRows}</div>
 
-    <div class="groupttl" id="sec-wins">🏆 Wins${wins.length?` · ${fmtVal(winTotal)}`:''}</div>
-    <div class="card">${winRows}</div>
+    <div class="groupttl" id="sec-wins">🏆 Wins${wins.length?` · ${fmtVal(winTotal)}`:''}${winRate!=null?` · ${winRate}% win rate (${wonN}/${wonN+lostN})`:''}</div>
+    <div class="card">
+      <div class="tabs" id="winTabs">
+        <button class="tab${winFrame==='month'?' active':''}" data-wf="month">This month (${winCount('month')})</button>
+        <button class="tab${winFrame==='quarter'?' active':''}" data-wf="quarter">This quarter (${winCount('quarter')})</button>
+        <button class="tab${winFrame==='all'?' active':''}" data-wf="all">All (${winsAll.length})</button>
+      </div>
+      ${winRows}
+    </div>
     <div class="fabgroup">
       <button class="fab fab-icon" id="searchFab" aria-label="Search clients">🔍</button>
       <button class="fab" id="topFab" aria-label="Back to top of Command Center">↑ Top</button>
@@ -2042,11 +2110,15 @@ function renderDashboard(jumpTo){
     if(c && confirm('Delete this follow-up?')){ const tasks=(c.intel.tasks||[]).slice(); tasks.splice(ti,1); await saveTasksFor(c, tasks); renderDashboard(); }
   });
   document.querySelectorAll('[data-reeng]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openReengage(b.dataset.reeng); });
+  document.querySelectorAll('[data-resched]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); quickReschedule(b.dataset.resched); });
+  document.querySelectorAll('[data-log]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openLog(b.dataset.log); });
   document.querySelectorAll('[data-notecode]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openNotes(b.dataset.notecode); });
-  document.querySelectorAll('.secnav button').forEach(b=> b.onclick = ()=>{
-    const el = document.getElementById(b.dataset.target);
+  document.querySelectorAll('.secnav button, .kchip[data-jump]').forEach(b=> b.onclick = ()=>{
+    const el = document.getElementById(b.dataset.target||b.dataset.jump);
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
+  document.querySelectorAll('.fchip').forEach(b=> b.onclick = ()=>{ S.ccFilter=b.dataset.filt; renderDashboard(); });
+  document.querySelectorAll('#winTabs .tab').forEach(b=> b.onclick = ()=>{ S.winFrame=b.dataset.wf; renderDashboard(); });
   $('#topFab').onclick = ()=> scrollMainTop();
   $('#searchFab').onclick = ()=>{ const inp=$('#clientSearch'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center'}); } };
   $('#ccBack').onclick = ()=> renderOverview();
