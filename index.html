@@ -90,6 +90,11 @@
   .citem.active{background:var(--panel2);border-color:var(--line);box-shadow:inset 3px 0 0 var(--gold)}
   .citem .nm{font-weight:600;font-size:14px;display:flex;justify-content:space-between;
     align-items:center;gap:8px}
+  .citem .nm-l{display:flex;align-items:center;gap:7px;min-width:0}
+  /* call-scheduled checkbox: filled+green = a future call is booked; empty = none */
+  .citem .cbox{font-size:15px;line-height:1;flex:none}
+  .citem .cbox.on{color:#1f9d57}
+  .citem .cbox.off{color:var(--muted);opacity:.55}
   .citem .sub{font-size:11px;color:var(--muted);margin-top:3px}
   /* last-conversation age — warms up as it gets stale so old ones pop when scanning */
   .citem .lt{font-weight:600}
@@ -747,7 +752,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r93';
+const BUILD = 'build 2026-06-24 · r94';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1981,7 +1986,9 @@ function renderList(){
     const ltLabel = lt ? new Date(lt+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}) : 'no calls yet';
     const ltCls = days==null ? 'lt-stale' : days>30 ? 'lt-stale' : days>14 ? 'lt-cold' : days>7 ? 'lt-warm' : 'lt-fresh';
     const ltAge = days==null ? '' : days===0 ? ' · today' : days<=31 ? ` · ${days}d` : ` · ${Math.round(days/30.4)}mo`;
-    d.innerHTML = `<div class="nm">${esc(c.name)}
+    const _t0=new Date(); _t0.setHours(0,0,0,0); const _nd=nextExpectedDate(c.intel);
+    const future = !!(_nd && _nd>=_t0);                       // a call is booked for today/later
+    d.innerHTML = `<div class="nm"><span class="nm-l"><span class="cbox ${future?'on':'off'}" title="${future?'Future call scheduled':'No call scheduled'}">${future?'☑':'☐'}</span>${esc(c.name)}</span>
       <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'PIPELINE')}</span></div>
       <div class="sub">${esc(c.intel.callType||'')} · ${esc(c.intel.moveable||'')} · <span class="lt ${ltCls}" title="Last conversation">🗓 ${ltLabel}${ltAge}</span></div>`;
     d.onclick = ()=>{ S.active=c.code; renderList(); renderDetail(c); };
