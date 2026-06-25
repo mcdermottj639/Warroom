@@ -232,7 +232,10 @@ The file is large; these are the load-bearing pieces a new session will likely t
   (`'__overview__'`, the landing page), `renderDashboard(jumpTo)` (`'__dash__'`, the
   Command Center; optional `jumpTo` = a `sec-*` anchor id to scroll to, used by the
   Overview hero tiles), and `renderDetail(c)` (a client). `renderList()` paints the
-  sidebar and collapses it on Overview. Boot opens `renderOverview()`.
+  sidebar and collapses it on Overview. Each sidebar row's sub-line shows
+  `callType · moveable · 🗓 last-conversation date` (`effTouch(c)`), with the date
+  color-aged fresh→warm→cold→stale (≤7d / ≤14d / ≤30d / >30d) so quiet clients pop
+  when scanning. Boot opens `renderOverview()`.
 - **Parse → map → render** — `parseProfile(md)` → `mapImport(s)` (→ encrypted `intel`) →
   `renderDashboard()` / `renderDetail(c)`. Add a new profile field in all three.
 

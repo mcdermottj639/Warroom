@@ -91,6 +91,12 @@
   .citem .nm{font-weight:600;font-size:14px;display:flex;justify-content:space-between;
     align-items:center;gap:8px}
   .citem .sub{font-size:11px;color:var(--muted);margin-top:3px}
+  /* last-conversation age — warms up as it gets stale so old ones pop when scanning */
+  .citem .lt{font-weight:600}
+  .citem .lt.lt-fresh{color:var(--muted)}
+  .citem .lt.lt-warm{color:#c79121}
+  .citem .lt.lt-cold{color:#d97706}
+  .citem .lt.lt-stale{color:#dc4f4f}
   .side .foot{padding:12px 16px;border-top:1px solid var(--line);display:flex;
     justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
 
@@ -741,7 +747,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r92';
+const BUILD = 'build 2026-06-24 · r93';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1970,9 +1976,14 @@ function renderList(){
   for(const c of visible){
     const d = document.createElement('div');
     d.className = 'citem'+(S.active===c.code?' active':'');
+    const lt = effTouch(c);                                  // most recent conversation (last call-log date)
+    const days = lt ? daysSince(lt) : null;
+    const ltLabel = lt ? new Date(lt+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}) : 'no calls yet';
+    const ltCls = days==null ? 'lt-stale' : days>30 ? 'lt-stale' : days>14 ? 'lt-cold' : days>7 ? 'lt-warm' : 'lt-fresh';
+    const ltAge = days==null ? '' : days===0 ? ' · today' : days<=31 ? ` · ${days}d` : ` · ${Math.round(days/30.4)}mo`;
     d.innerHTML = `<div class="nm">${esc(c.name)}
       <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'PIPELINE')}</span></div>
-      <div class="sub">${esc(c.intel.callType||'')} · ${esc(c.intel.moveable||'')}</div>`;
+      <div class="sub">${esc(c.intel.callType||'')} · ${esc(c.intel.moveable||'')} · <span class="lt ${ltCls}" title="Last conversation">🗓 ${ltLabel}${ltAge}</span></div>`;
     d.onclick = ()=>{ S.active=c.code; renderList(); renderDetail(c); };
     el.appendChild(d);
   }
