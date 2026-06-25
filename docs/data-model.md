@@ -237,6 +237,24 @@ needed." Sparse sections just mean empty widgets — so err toward capturing mor
 This template is the standing instruction for every notes-to-profile conversion
 (this session, the regular Claude project, and the morning Prep routine).
 
+**Parse notes (r98+):**
+- The **labeled Personal bullets parse to structured fields** (`family`, `lifeRetire`,
+  `spending`, `ssPension`, `health`), which the 💵 Income & Spending and ❤️ Family & Why
+  widgets render directly — so keep each fact under its `- Label:` bullet rather than as
+  one prose blob. Free-text regex is only a fallback now.
+- List **as many `- Objection:` / `- Response:` pairs as the client has** — all of them
+  parse (the app no longer keeps just the first), feeding the Reframe coaching and the
+  Objection-Handling close-rate analytics.
+- The **📈 Income & Asset Streams** widget reads the Social Security / pension bullet
+  (`$2,100 SS at 67; $1,400 pension` → two label/amount chips). An optional
+  `## Income Streams` section (`- Label: $amount` bullets) adds more (rental, annuity, …).
+- `household.retirementGoal` comes from an explicit `Retirement goal: …` line or a
+  `$X/mo`/`$X/yr` figure inside the Life & retirement bullet.
+- **Signal flags** (crypto / single-stock / annuity / contractor / rental / RMD / LTC /
+  estate) are scanned from the whole profile, so the Why-Empower and Watch-outs coaching
+  fire even if you don't restate them in the `Watch:` clause. An **Empower-held account is
+  treated as the anchor** even when its tag is blank.
+
 ## 9. Threat model
 
 | Threat | Defended by |

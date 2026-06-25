@@ -103,6 +103,23 @@ client's name or "new notes" never hurt, but aren't required.)
   `## Prep Sheet`, `## Close Action / Next
   Step` (incl. the `Next call:` line and the `Missed call: <ISO>` line), `## Tasks`,
   `## My Notes`, `## Call Log`, and a `Status:` line (won/lost).
+- **Labeled Personal bullets parse to structured fields** (since r98). `parseProfile`
+  routes each `## Personal` bullet by its label into `family` / `lifeRetire` /
+  `spending` / `ssPension` / `health`, and the 💵 Income & Spending and ❤️ Family & Why
+  widgets render those **deterministically** (the old free-text regex is now only a
+  fallback when the labels are absent). So author the labeled bullets — that's what the
+  widgets read. Also derived: `household.retirementGoal` (from an explicit
+  `Retirement goal:` line or a `$X/mo|$/yr` figure in Life & retirement), and the **📈
+  Income & Asset Streams** widget is populated from the Social Security / pension bullet
+  (+ an optional `## Income Streams` section) — it's no longer dead.
+- **All `## Objection & Response` pairs are parsed** (since r98), not just the first —
+  `intel.objections` is the full array, feeding the 🧯 Reframe coaching and the Overview
+  Objection-Handling analytics. List multiple `- Objection:` / `- Response:` pairs freely.
+- **`specialFlags` = explicit `Watch:` clauses + a whole-profile signal scan** (since r98):
+  crypto / single-stock / annuity / contractor / rental / RMD / LTC / estate keywords found
+  anywhere in the profile become flags, so the 💎 Why-Empower and 🚩 Watch-outs coaching
+  fire even when those signals aren't crammed into a `Watch:` line. An **Empower-held
+  account counts as an anchor** even when its tag is blank.
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
   the manual next-call override, call-type override, `## My Notes`, `## Tasks`,
   `## Prep Sheet`, and won/lost status. **Exception — the next-call override (date +

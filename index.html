@@ -791,7 +791,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r97';
+const BUILD = 'build 2026-06-25 · r98';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1390,7 +1390,7 @@ const DISCO_TOPICS = [
   {k:'Accounts',     has:i=>Array.isArray(i.accounts)&&i.accounts.length,      q:'What accounts are in play — roughly how much is in each, and who holds them today?'},
   {k:'Income/Spend', has:i=>!!incomeSpendingBody(i),                            q:'What does the monthly income and spending picture look like in retirement?'},
   {k:'Family/Why',   has:i=>!!familyWhyBody(i),                                 q:'Tell me about the family — and what you want this money to do for the people you care about.'},
-  {k:'Fee',          has:i=>!!(i.fee&&i.fee.from),                              q:'Do you know what you’re paying now — the fee or expense on the current accounts?'},
+  {k:'Fee',          has:i=>!!(i.fee&&(i.fee.from||i.fee.to)),                   q:'Do you know what you’re paying now — the fee or expense on the current accounts?'},
   {k:'Goals',        has:i=>Array.isArray(i.goals)&&i.goals.length,             q:'What’s prompting you to look at this now — what are you hoping to accomplish?'},
   {k:'Concerns',     has:i=>Array.isArray(i.objections)&&i.objections.length,   q:'Is anything giving you pause about moving forward?'}
 ];
@@ -1434,7 +1434,9 @@ function mapImport(s){
   // accepts both the dashboard model and our intel model
   const accounts = (s.accounts||[]).map(a=>({
     custodian:a.custodian||a.name||'', value:a.value||'', tag:a.tag||'',
-    anchor:isAnchor(a.tag)
+    // an Empower-held account is the anchor even when the tag is blank (tag is the §8 signal, but a
+    // bare "Empower" custodian shouldn't silently count as moveable)
+    anchor:isAnchor(a.tag) || /\bempower\b/i.test(a.custodian||a.name||'')
   }));
   // Transferable = sum of non-anchor accounts (moveable), not the gross total
   const moveableSum = accounts.filter(a=>!a.anchor).reduce((t,a)=>t+assetVal(a.value),0);
@@ -1451,13 +1453,17 @@ function mapImport(s){
     accounts,
     incomeStreams: s.incomeStreams || [],
     personalText: s.personalText || '',
+    family: s.family || '', lifeRetire: s.lifeRetire || '', spending: s.spending || '',
+    ssPension: s.ssPension || '', health: s.health || '',
     household: s.household || {},
     fee: s.fee || {from:s.feeFrom,to:s.feeTo,savings:s.feeSavings},
     goals: s.goals || (s.whyConsolidate||[]),
     motivation: s.motivation || [],
-    objections: Array.isArray(s.objections)?s.objections:(s.objection?[{objection:s.objection,response:s.objectionResponse||''}]:[]),
+    objections: (Array.isArray(s.objections)&&s.objections.length)?s.objections:(s.objection?[{objection:s.objection,response:s.objectionResponse||''}]:[]),
     complications: s.complications || s.flags || [],
-    specialFlags: s.specialFlags || s.flags || [],
+    // explicit Watch: clauses first, then whole-profile signal flags (crypto/annuity/RMD/…) so the
+    // Why-Empower + Watch-outs coaching keys off them even when they're not in a Watch: line.
+    specialFlags: s.specialFlags || [...new Set([...(s.flags||[]), ...(s.signalFlags||[])])],
     decisionDrivers: s.decisionDrivers || [],
     product: s.product || '',
     productMatch: s.productMatch || (s.product?[{product:s.product,fit:'PRIMARY',rationale:s.solutionOffered||''}]:[]),
@@ -2171,11 +2177,17 @@ function renderList(){
 // TL;DR — a labeled brief (snapshot · quote · why move · solution · why not · confidence · timing · next)
 // Income / Spending — pull spending + SS/pension clauses verbatim from the notes (fidelity)
 function incomeSpendingBody(i){
-  const src=[i.personalText, i.closeAction, i.lastCall,
-    ...(i.callHistory||[]).flatMap(h=>[h.summary,h.leftOff])].filter(Boolean).join('\n');
-  const clauses=[...new Set(src.split(/[.;\n]|\s—\s/).map(s=>strip(s)).filter(s=>s && s.length>3))];
-  const spend=clauses.filter(c=>/\$/.test(c) && /spend|expens|\bincome\b/i.test(c) && !/social security|\bSS\b|pension/i.test(c));
-  const benefit=clauses.filter(c=>/social security|\bSS\b|pension/i.test(c));
+  // Prefer the labeled §8 bullets (deterministic); fall back to regex over free text only when absent.
+  let spend=[], benefit=[];
+  if(i.spending) spend = i.spending.split(/[;\n]/).map(s=>strip(s)).filter(Boolean);
+  if(i.ssPension) benefit = i.ssPension.split(/[;\n]/).map(s=>strip(s)).filter(Boolean);
+  if(!spend.length && !benefit.length){
+    const src=[i.personalText, i.closeAction, i.lastCall,
+      ...(i.callHistory||[]).flatMap(h=>[h.summary,h.leftOff])].filter(Boolean).join('\n');
+    const clauses=[...new Set(src.split(/[.;\n]|\s—\s/).map(s=>strip(s)).filter(s=>s && s.length>3))];
+    spend=clauses.filter(c=>/\$/.test(c) && /spend|expens|\bincome\b/i.test(c) && !/social security|\bSS\b|pension/i.test(c));
+    benefit=clauses.filter(c=>/social security|\bSS\b|pension/i.test(c));
+  }
   if(!spend.length && !benefit.length) return '';
   const grp=(lbl,arr)=> arr.length ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${arr.map(c=>`<div class="fin-item">${esc(c)}</div>`).join('')}</div>` : '';
   return `<div style="padding-top:13px">${grp('Spending &amp; income',spend)}${grp('Social Security &amp; pension',benefit)}</div>`;
@@ -2183,12 +2195,18 @@ function incomeSpendingBody(i){
 // Family & Why — the emotional why: family layout/dynamics + retirement aspirations/hobbies,
 // pulled verbatim from the Personal notes (fidelity — only what's actually written).
 function familyWhyBody(i){
-  const src=strip(i.personalText||i.personal||''); if(!src) return '';
-  const clauses=[...new Set(src.split(/[.;\n]|\s—\s/).map(s=>strip(s)).filter(s=>s && s.length>2))];
-  const FAM=/\b(?:wife|husband|spouse|partner|married|divorc\w*|widow\w*|fianc\w*|kids?|child(?:ren)?|sons?|daughters?|grandkids?|grandchild(?:ren)?|mother|father|mom|dad|parents?|family|household|siblings?|brothers?|sisters?|caregiv\w*)\b/i;
-  const WHY=/\b(?:travel\w*|trips?|cruises?|hobb\w*|golf\w*|fish\w*|boat\w*|sail\w*|garden\w*|volunteer\w*|spend (?:more )?time|free time|enjoy\w*|bucket list|downsiz\w*|relocat\w*|move to|cabins?|RV|second home|lake|beach|passion\w*|paint\w*|hik\w*|ski|skiing|wine|cook\w*|church|wants? to|hopes? to|looking forward|dream\w*|legacy|leave (?:money|something))\b/i;
-  const why=clauses.filter(c=>WHY.test(c));
-  const fam=clauses.filter(c=>FAM.test(c) && !why.includes(c));
+  // Prefer the labeled §8 bullets (Family: … / Life & retirement: …); regex-scrape only as fallback.
+  let fam=[], why=[];
+  if(i.family)     fam = i.family.split(/[;\n]/).map(s=>strip(s)).filter(Boolean);
+  if(i.lifeRetire) why = i.lifeRetire.split(/[;\n]/).map(s=>strip(s)).filter(Boolean);
+  if(!fam.length && !why.length){
+    const src=strip(i.personalText||i.personal||''); if(!src) return '';
+    const clauses=[...new Set(src.split(/[.;\n]|\s—\s/).map(s=>strip(s)).filter(s=>s && s.length>2))];
+    const FAM=/\b(?:wife|husband|spouse|partner|married|divorc\w*|widow\w*|fianc\w*|kids?|child(?:ren)?|sons?|daughters?|grandkids?|grandchild(?:ren)?|mother|father|mom|dad|parents?|family|household|siblings?|brothers?|sisters?|caregiv\w*)\b/i;
+    const WHY=/\b(?:travel\w*|trips?|cruises?|hobb\w*|golf\w*|fish\w*|boat\w*|sail\w*|garden\w*|volunteer\w*|spend (?:more )?time|free time|enjoy\w*|bucket list|downsiz\w*|relocat\w*|move to|cabins?|RV|second home|lake|beach|passion\w*|paint\w*|hik\w*|ski|skiing|wine|cook\w*|church|wants? to|hopes? to|looking forward|dream\w*|legacy|leave (?:money|something))\b/i;
+    why=clauses.filter(c=>WHY.test(c));
+    fam=clauses.filter(c=>FAM.test(c) && !why.includes(c));
+  }
   if(!fam.length && !why.length) return '';
   const grp=(lbl,arr)=> arr.length ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${arr.map(c=>`<div class="fin-item">${esc(c)}</div>`).join('')}</div>` : '';
   return `<div style="padding-top:13px">${grp('Family &amp; dynamics',fam)}${grp('Life &amp; retirement — the why',why)}</div>`;
@@ -2225,7 +2243,7 @@ function tldrBody(c){
   const lead=[i.moveable?moneyShort(i.moveable)+' moveable':'', i.stage||'', prod].filter(Boolean).join(' · ');
   const qm=((i.lastCall||'')+' '+((i.objections||[]).map(o=>o.objection).join(' '))).match(/[“"]([^”"]{6,140})[”"]/);
   const quote=qm?qm[1]:'';
-  const whyMove=(i.goals&&i.goals.length)? i.goals.map(strip).join('; ') : (i.objections&&i.objections[0]?strip(i.objections[0].objection):'');
+  const whyMove=(i.goals&&i.goals.length)? i.goals.slice(0,2).map(strip).join('; ')+(i.goals.length>2?'…':'') : (i.objections&&i.objections[0]?strip(i.objections[0].objection):'');
   const solution=i.solutionOffered||prod||'';
   const objTxt=(i.objections&&i.objections[0]&&strip(i.objections[0].objection))||'';
   const whyNot=(objTxt && objTxt!==strip(whyMove))?objTxt:'';
@@ -2958,6 +2976,16 @@ function parseProfile(md, name){
   const why = get(/^[-*]\s*Why consolidate:\s*(.+)$/i);
   const objection = get(/^[-*]\s*Objection:\s*(.+)$/i);
   const response = get(/^[-*]\s*Response:\s*(.+)$/i);
+  // ALL objection/response pairs in "## Objection & Response" (not just the first) — a client
+  // can carry several; the Reframe coaching + Overview Objection-Handling analytics read the array.
+  const objections=[]; { let cur=null;
+    for(const l of section(/Objection/i).split('\n')){
+      const om=l.match(/^[-*]\s*Objection:\s*(.+)$/i), rm=l.match(/^[-*]\s*Response:\s*(.+)$/i);
+      if(om){ if(cur) objections.push(cur); cur={objection:om[1].trim(), response:''}; }
+      else if(rm && cur){ cur.response=(cur.response?cur.response+' ':'')+rm[1].trim(); }
+    }
+    if(cur) objections.push(cur);
+  }
 
   // accounts: indented bullets under "- Accounts:"
   const accounts=[]; let inAcc=false;
@@ -3023,6 +3051,42 @@ function parseProfile(md, name){
   const summaries = [...callLog.matchAll(/^[-*]\s*Summary:\s*(.+)$/gim)].map(m=>m[1].trim());
   const personal = (section(/Personal/i).split('\n').find(l=>l.replace(/^[-*]\s*/,'').trim())||'').replace(/^[-*]\s*/,'').trim();
   const personalText = section(/Personal/i).replace(/^[\s\-*]+/gm,'').trim();   // full section, for income/spending/SS/pension
+  // Labeled §8 Personal bullets → structured fields the widgets render deterministically (no regex
+  // re-discovery). "- Family: …", "- Life & retirement (the why): …", "- Spending: …",
+  // "- Social Security / pension: …", "- Health / other: …". A label's value can wrap onto
+  // following indented lines.
+  const pbul = re => { const lines2=section(/Personal/i).split('\n'); let out='',on=false;
+    for(const l of lines2){ const m=l.match(/^[-*]\s*([^:]+):\s*(.*)$/);
+      if(m){ on=re.test(m[1]); if(on) out=(out?out+' ':'')+m[2].trim(); continue; }
+      if(on && /^\s+\S/.test(l)) out+=' '+l.trim(); else if(on && l.trim()==='') on=false; }
+    return strip(out); };
+  const family    = pbul(/family|spouse|household|relationship/i);
+  const lifeRetire= pbul(/life|retire|hobb|legacy|why/i);
+  const spending  = pbul(/spend|expens|budget|debt/i);
+  const ssPension = pbul(/social security|\bSS\b|pension|benefit/i);
+  const health    = pbul(/health|medicare|\bLTC\b|long-?term care|other/i);
+  // retirement goal: an explicit "Retirement goal: …" line anywhere, else a "$X/mo|/yr (income)" in Life & retirement
+  let retirementGoal = get(/Retirement goal:\s*(.+)$/i);
+  if(!retirementGoal){ const rg=(lifeRetire.match(/~?\$\s?[\d.,]+\s*[KkMm]?(?:\s*\/\s*(?:mo|month|yr|year))?/)||[])[0]; if(rg && /\/\s*(?:mo|month|yr|year)/i.test(lifeRetire)) retirementGoal=rg.replace(/\s+/g,''); }
+  // Income streams (the dead 📈 widget) — parse the SS/pension bullet + any "## Income Streams"
+  // section into clean label/amount chips ("$1,288 SS; $1,700 pension at 67" → two rows).
+  const parseStreams = str => { const out=[];
+    for(const part of (str||'').split(/;|\n/)){ const s=strip(part); if(!s) continue;
+      const am=(s.match(/~?\$\s?[\d.,]+\s*[KkMm]?\+?/)||[])[0];
+      let label = /social security|\bSS\b/i.test(s)?'Social Security' : /pension/i.test(s)?'Pension'
+        : /rental|real estate/i.test(s)?'Rental income' : /annuit/i.test(s)?'Annuity'
+        : /dividend/i.test(s)?'Dividends' : strip(s.replace(am||'','').replace(/\bat\s+\d+\b/i,'').replace(/[—–-]/g,' '))||'Income';
+      if(am||/[A-Za-z]/.test(label)) out.push({label, amount:am?am.replace(/\s+/g,''):''}); }
+    return out; };
+  const incomeStreams = [...parseStreams(ssPension), ...parseStreams(section(/Income Streams|Income & Asset/i))];
+  // Signal flags — scanned from the WHOLE profile so the Why-Empower / Watch-outs coaching fires
+  // even when these aren't crammed into a "Watch:" clause (which used to be their only source).
+  const SIGNALS=[ [/crypto|bitcoin|ethereum/i,'Crypto concentration'],
+    [/single[- ]stock|\bRSU\b|company stock|one stock|concentrated (?:equity|position|holding)/i,'Concentrated single-stock position'],
+    [/annuit/i,'Annuity in play'], [/contractor|1099|self-employed/i,'Contractor / self-employed income'],
+    [/rental|real estate/i,'Rental real estate'], [/\bRMD\b|required minimum/i,'RMD planning'],
+    [/\bLTC\b|long-?term care/i,'Long-term care need'], [/inherit|estate plan|legacy/i,'Estate / legacy planning'] ];
+  const signalFlags = SIGNALS.filter(([re])=>re.test(t)).map(([,lbl])=>lbl);
   const lastCall = [summaries[summaries.length-1], personal].filter(Boolean).join(' ').slice(0,600);
 
   // full call history — every "### <date> — <type>" block in the Call Log, with its details
@@ -3065,8 +3129,10 @@ function parseProfile(md, name){
 
   const whyConsolidate = why ? why.split(/;\s*/).map(x=>x.trim()).filter(Boolean) : [];
   return { name, stage:stageClean, confidence, totalAssetsMoveable:moveable, accounts, product,
-    feeFrom, feeTo, objection, objectionResponse:response, solutionOffered:solution,
-    whyConsolidate, closeAction, flags, lastCall, lastTouch, callHistory, tasks, notes, personalText, prep,
+    feeFrom, feeTo, objection, objectionResponse:response, objections, solutionOffered:solution,
+    whyConsolidate, closeAction, flags, signalFlags, lastCall, lastTouch, callHistory, tasks, notes, personalText, prep,
+    family, lifeRetire, spending, ssPension, health, incomeStreams,
+    household: retirementGoal?{retirementGoal}:undefined,
     openingRecap, missedCall, nextCallCleared, status:wonStatus||undefined, wonAmount, wonDate };
 }
 
