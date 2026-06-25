@@ -117,8 +117,9 @@ client's name or "new notes" never hurt, but aren't required.)
   Objection-Handling analytics. List multiple `- Objection:` / `- Response:` pairs freely.
 - **`specialFlags` = explicit `Watch:` clauses + a whole-profile signal scan** (since r98):
   crypto / single-stock / annuity / contractor / rental / RMD / LTC / estate keywords found
-  anywhere in the profile become flags, so the 🎯 Pitch & Why-Empower and 🚩 Watch-outs coaching
-  fire even when those signals aren't crammed into a `Watch:` line. An **Empower-held
+  anywhere in the profile become flags, so the 🎯 Pitch & Why Empower coaching (its Make-the-case
+  differentiators and Mind-these guardrails) fires even when those signals aren't crammed into a
+  `Watch:` line. An **Empower-held
   account counts as an anchor** even when its tag is blank.
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
   the manual next-call override, call-type override, `## My Notes`, `## Tasks`,
@@ -269,9 +270,9 @@ client's name or "new notes" never hurt, but aren't required.)
   lifetime **win rate** (from `S.outcomeLog`) in its header. On **narrow phones
   (≤560px)** the data tables drop the low-signal probability column (`.col-opt`) and
   tighten spacing instead of scrolling sideways.
-- **Client intel** top bar = two widget rows: **🎤 On the call** (coaching:
-  Opening, Questions, Pitch & Why Empower, Reframe objection, Next-step play,
-  Watch-outs) and **📊 Client data** pop-up widgets (📋 TL;DR, Assets, Streams, Income &
+- **Client intel** top bar = two widget rows: **🎤 On the call** (coaching, four
+  buttons mapped to the call arc: Opening → Questions → Pitch & Why Empower → Next-step
+  play) and **📊 Client data** pop-up widgets (📋 TL;DR, Assets, Streams, Income &
   Spending, Family & Why, Fee, Goals, Pending, 📞 Call history) — each opens in the shared
   pop-up via `dataWidget(c,key)`. Below the widgets sits only the **🧾 Prep Sheet** group
   (the deeper Claude-authored cards). There's no inline "History & Notes" section: TL;DR
@@ -279,6 +280,15 @@ client's name or "new notes" never hurt, but aren't required.)
   The **❓ Questions** pop-up always **leads with the discovery topics this client's
   notes are missing** (the same six `DISCO_TOPICS` the Overview Discovery Depth stat
   scores), then the situational asks — so every gap gets probed on the next call.
+  The **🎯 Pitch & Why Empower** pop-up is the **whole body of the call in one widget**
+  (consolidated r104–r106 from the old How-to-pitch + Why-Empower + Reframe-objection +
+  Watch-outs buttons). It renders three sections: **🎯 Make the case** (recommendation →
+  frame → their drivers → flag-tailored Empower differentiators → planning-depth/team),
+  **🧯 If they push back** (the on-file objection + its verbatim `response` + a tactical
+  reframe — only when an objection is on file), and **🚩 Mind these** (flag cautions +
+  the standing "verify linked accounts" guardrail). The **close** (product/goal/ask) is
+  NOT restated here — it lives in **🤝 Next-step play**, so the two don't overlap. All
+  built in `coachContent(c,'pitch')`.
 - **Opening recap**: if the profile carries a `## Opening` section (Claude-authored),
   the 🎬 Opening pop-up renders **that** verbatim. Otherwise it falls back to a
   **call-type-aware generated recap** (Decision recaps the solution+value and

@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r105';
+const BUILD = 'build 2026-06-25 · r106';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2420,8 +2420,8 @@ function renderDetail(c){
   const prepCards = i.prep || [];
   const prepGroup = prepCards.map((card,idx)=>
     panel(prepIcon(card.type)+' '+esc(card.title||''), '', prepCardBody(card), 'prepbody', idx===0)).join('');
-  // On-Call Helper section removed — the top coach buttons (Opening / Questions / Pitch &
-  // Why Empower / Reframe objection / Watch-outs) cover on-call boosts better.
+  // On-Call Helper section removed — the four top coach buttons (Opening / Questions /
+  // Pitch & Why Empower / Next-step play) cover on-call boosts better.
   const helper = '';
 
   // My notes — advisor's own running log (lives in the top-bar 🗒️ Notes dialog).
@@ -2476,9 +2476,7 @@ function renderDetail(c){
       <button data-coach="open">🎬 Opening</button>
       <button data-coach="ask">❓ Questions</button>
       <button data-coach="pitch">🎯 Pitch &amp; Why Empower</button>
-      ${(i.objections&&i.objections.length)?'<button data-coach="obj">🧯 Reframe objection</button>':''}
       <button data-coach="next">🤝 Next-step play</button>
-      <button data-coach="watch">🚩 Watch-outs</button>
     </div>
 
     ${dataRow?`<div class="widgetlbl">📊 Client data</div>
@@ -3539,45 +3537,45 @@ function coachContent(c, type){
       +`<p class="recap-note">Open with the personal question and let them answer · name the specifics so they feel remembered.</p>`;
     return {title:`🎬 ${label} for ${fn}`, html};
   }
-  if(type==='watch'){
-    const items=[];
-    (i.specialFlags||i.complications||[]).slice(0,3).forEach(f=> items.push(`Watch: ${strip(f)}.`));
-    const ob=(i.objections||[]).map(o=>o.objection).join(' ').toLowerCase();
-    if(/relative|friend|family/.test(ob)) items.push('Sensitive: their advisor is a relative/friend — don’t bash them, position the gap.');
-    if(/spouse|wife|husband|partner|marea/.test(ob)) items.push('Don’t push to close without the spouse — offer a 3-way.');
-    if(/crypto/.test((i.specialFlags||i.complications||[]).join(' ').toLowerCase())) items.push('Don’t over-pitch the crypto — plant the seed, keep today about the rollover.');
-    items.push('Verify linked accounts before quoting any numbers.');
-    return {title:`🚩 Watch-outs for ${fn}`, items:items.slice(0,5)};
-  }
   if(type==='pitch'){
-    // Merged "How to pitch" + "Why Empower": how to frame the recommendation AND the
-    // tailored Empower value points, in one flow — recommendation → frame → their drivers →
-    // differentiators (only those this client's flags trigger) → core depth → close aim.
+    // The whole body of the call in one widget: make the case (How-to-pitch + Why-Empower) →
+    // reframe if they push back (was 🧯 Reframe objection) → guardrails (was 🚩 Watch-outs).
+    // The close (product/goal/ask) lives in 🤝 Next-step play, so it's not restated here.
     const blob=((i.specialFlags||i.complications||[]).join(' ')+' '+(i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o.objection).join(' ')).toLowerCase();
-    const items=[];
-    if(prod) items.push(`Lead with the recommendation: <b>${esc(prod)}</b>.`);
-    items.push('Frame it as one coordinated plan across everything — simplifying, not a product sale.');
-    (i.goals||[]).slice(0,2).forEach(g=> items.push(`Tie it to their driver: ${deCap(strip(g))}.`));
-    // Why-Empower differentiators, surfaced only when the client's flags call for them
-    if(/self-?directed|no advisor|diy/.test(blob)) items.push('They’re self-directed — position the coordination + accountability they’re missing.');
-    if(/tax|rmd|roth/.test(blob)) items.push('Tax coordination is the edge — RMD sequencing and Roth windows most DIYers miss.');
-    if(/annuit/.test(blob)) items.push('Contrast a flexible managed allocation vs. the annuity lock-up and fees.');
-    if(/concentrat|single-stock|rsu|\bstock\b/.test(blob)) items.push('Address concentration risk — a tax-efficient plan to de-risk the single-stock exposure.');
-    if(/fee|cost|expense|1%/.test(blob)) items.push('Frame cost as value — what the planning + tax work returns, not just the fee.');
-    items.push('Differentiate on planning depth, tax coordination, and a dedicated team + CFP access — not just returns.');
-    if(i.closeAction) items.push(`Aim the call at: ${lc1(strip(i.closeAction))}.`);
-    return {title:`🎯 Pitch & Why Empower — ${fn}`, items};
-  }
-  if(type==='obj' && obj){
-    const items=[`Their hesitation: <b>${esc(strip(obj.objection))}</b>.`];
-    if(obj.response) items.push(`Reframe: ${strip(obj.response)}`);
-    const o=obj.objection.toLowerCase();
-    if(/spouse|wife|husband|partner|marea/.test(o)) items.push('Offer a quick 3-way call so both are looking at the same plan.');
-    else if(/fee|cost|pay/.test(o)) items.push('Move it from cost to value — what the planning + coordination actually delivers.');
-    else if(/tax|rmd|roth/.test(o)) items.push('Walk the tax-aware path that avoids a big hit; keep it concrete.');
-    else if(/advisor|\bfa\b|relationship|loyal|fisher|edward jones|baird|vanguard/.test(o)) items.push('You’re not replacing their advisor — you’re filling the planning/coordination gap.');
-    items.push('Then ask for the next step directly — don’t leave it open-ended.');
-    return {title:`🧯 Reframe ${fn}’s objection`, items};
+    // 1 · Make the case — recommendation → frame → their drivers → flag-tailored differentiators → depth
+    const caseItems=[];
+    if(prod) caseItems.push(`Lead with the recommendation: <b>${esc(prod)}</b>.`);
+    caseItems.push('Frame it as one coordinated plan across everything — simplifying, not a product sale.');
+    (i.goals||[]).slice(0,2).forEach(g=> caseItems.push(`Tie it to their driver: ${deCap(strip(g))}.`));
+    if(/self-?directed|no advisor|diy/.test(blob)) caseItems.push('They’re self-directed — position the coordination + accountability they’re missing.');
+    if(/tax|rmd|roth/.test(blob)) caseItems.push('Tax coordination is the edge — RMD sequencing and Roth windows most DIYers miss.');
+    if(/annuit/.test(blob)) caseItems.push('Contrast a flexible managed allocation vs. the annuity lock-up and fees.');
+    if(/concentrat|single-stock|rsu|\bstock\b/.test(blob)) caseItems.push('Address concentration risk — a tax-efficient plan to de-risk the single-stock exposure.');
+    if(/fee|cost|expense|1%/.test(blob)) caseItems.push('Frame cost as value — what the planning + tax work returns, not just the fee.');
+    caseItems.push('Differentiate on planning depth, tax coordination, and a dedicated team + CFP access — not just returns.');
+    // 2 · If they push back — the on-file objection + a tactical reframe (objection-derived only)
+    const objItems=[];
+    if(obj){
+      objItems.push(`Their hesitation: <b>${esc(strip(obj.objection))}</b>.`);
+      if(obj.response) objItems.push(`Reframe: ${strip(obj.response)}`);
+      const o=obj.objection.toLowerCase();
+      if(/relative|friend|family/.test(o)) objItems.push('Their advisor is a relative/friend — don’t bash them; position the planning gap.');
+      if(/spouse|wife|husband|partner|marea/.test(o)) objItems.push('Offer a quick 3-way call so both are looking at the same plan — don’t close without the spouse.');
+      else if(/fee|cost|pay/.test(o)) objItems.push('Move it from cost to value — what the planning + coordination actually delivers.');
+      else if(/tax|rmd|roth/.test(o)) objItems.push('Walk the tax-aware path that avoids a big hit; keep it concrete.');
+      else if(/advisor|\bfa\b|relationship|loyal|fisher|edward jones|baird|vanguard/.test(o)) objItems.push('You’re not replacing their advisor — you’re filling the planning/coordination gap.');
+    }
+    // 3 · Mind these — flag-derived cautions + the standing procedural guardrail
+    const watchItems=[];
+    (i.specialFlags||i.complications||[]).slice(0,3).forEach(f=> watchItems.push(`${strip(f)}.`));
+    if(/crypto/.test((i.specialFlags||i.complications||[]).join(' ').toLowerCase())) watchItems.push('Don’t over-pitch the crypto — plant the seed, keep today about the rollover.');
+    watchItems.push('Verify linked accounts before quoting any numbers.');
+    const grp=(h,items)=> items.length ? `<div class="askgrp"><div class="askh">${h}</div>
+      <ul class="coachlist">${items.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
+    const html = grp('🎯 Make the case', caseItems)
+      + grp('🧯 If they push back', objItems.slice(0,4))
+      + grp('🚩 Mind these', watchItems.slice(0,4));
+    return {title:`🎯 Pitch & Why Empower — ${fn}`, html};
   }
   // next-step play
   const ty = nextCallType(i);
