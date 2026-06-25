@@ -809,7 +809,7 @@
 <!-- BACKFILL WINS DIALOG -->
 <dialog id="backfillDlg">
   <h3 style="margin-bottom:4px">📊 Backfill monthly wins</h3>
-  <p class="note" style="margin-bottom:10px">Enter the <b>total assets won each month</b> — no client detail needed — so your history and the momentum chart show real numbers. Stored on this device only (just dollar totals). Accepts “4M” or “4000000”; leave blank for none.</p>
+  <p class="note" style="margin-bottom:10px">Enter the <b>total assets won each month</b> — no client detail needed — so your history and the momentum chart show real numbers. Saved to your <code>1Remarkable</code> Drive folder (just dollar totals) so they sync across your PC and phone. Accepts “4M” or “4000000”; leave blank for none.</p>
   <div id="backfillRows"></div>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
     <button class="ghost" onclick="backfillDlg.close()">Cancel</button>
@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r103';
+const BUILD = 'build 2026-06-25 · r104';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2010,7 +2010,7 @@ function renderOverview(){
     const v=prompt('Monthly assets-won goal (e.g. 4M or 4000000) — blank to reset to $4M default:', cur0?String(cur0):'4000000');
     if(v===null) return; const n=assetVal(v.trim());
     if(n>0) localStorage.setItem('wr_winGoalM', String(n)); else localStorage.removeItem('wr_winGoalM');
-    renderOverview(); };
+    pushSettings(); renderOverview(); };
   const bfBtn=$('#ovBackfill'); if(bfBtn) bfBtn.onclick=openBackfill;
   // Top toolbar — reuse the sidebar's existing handlers (sidebar is hidden on Overview).
   $('#ovbAdd').onclick   = ()=> $('#addBtn').click();
@@ -2844,6 +2844,7 @@ $('#importGo').onclick = ()=> runImport($('#importTxt').value);
    ============================================================ */
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 const DRIVE_FOLDER_NAME = '1Remarkable';
+const WR_SETTINGS_NAME = 'WarRoom Settings.json';   // device-crossing app settings (non-sensitive numbers)
 let driveToken = null;
 
 const driveClientId = ()=> { try{ return localStorage.getItem('warroom_gdrive_client')||''; }catch(e){ return ''; } };
@@ -3009,6 +3010,54 @@ async function driveFolderId(){
   const id=fr.files&&fr.files[0]&&fr.files[0].id;
   if(!id) throw new Error(`Couldn't find your '${DRIVE_FOLDER_NAME}' folder.`);
   return id;
+}
+// ---- device-crossing app settings (win goal + monthly backfill) — a tiny JSON file in the folder.
+// Just numbers (no client data), so it's stored plainly; localStorage is the fast local mirror.
+function gatherSettings(){
+  const g=parseFloat(localStorage.getItem('wr_winGoalM')||'')||0;
+  let h={}; try{ const o=JSON.parse(localStorage.getItem('wr_winHist')||'{}'); if(o&&typeof o==='object') h=o; }catch(e){}
+  return { winGoalM: g>0?g:0, winHist: h };
+}
+async function driveSettingsFile(folderId){
+  folderId = folderId || await driveFolderId();
+  const q=encodeURIComponent(`'${folderId}' in parents and name='${WR_SETTINGS_NAME}' and trashed=false`);
+  const r=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)&pageSize=10`);
+  const files=(r.files||[]).sort((a,b)=> a.modifiedTime>b.modifiedTime?-1:1);
+  return { folderId, id: files.length?files[0].id:null };
+}
+async function driveReadSettings(folderId){
+  const {id}=await driveSettingsFile(folderId);
+  if(!id) return {};
+  try{ const o=JSON.parse(await gapiText(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)); return (o&&typeof o==='object')?o:{}; }catch(e){ return {}; }
+}
+async function driveWriteSettings(folderId, obj){
+  const s=await driveSettingsFile(folderId); folderId=s.folderId;
+  const body=JSON.stringify(obj,null,2);
+  if(s.id){
+    const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${s.id}?uploadType=media&fields=id`,
+      {method:'PATCH', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'application/json'}, body});
+    if(!r.ok) throw new Error('Settings update '+r.status); return s.id;
+  }
+  const meta={ name:WR_SETTINGS_NAME, mimeType:'application/json', parents:[folderId] };
+  const b='wr'+Date.now();
+  const multipart=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${body}\r\n--${b}--`;
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+b}, body:multipart});
+  if(!r.ok) throw new Error('Settings write '+r.status); return (await r.json()).id;
+}
+// fire-and-forget push after the user edits the goal/backfill (offline-tolerant, like notes/tasks)
+function pushSettings(){ withDriveToken(async ()=>{ try{ await driveWriteSettings(null, gatherSettings()); }catch(e){} }); }
+// during a Drive sync: pull settings into localStorage; if Drive has none yet, seed it from this device
+async function syncSettings(folderId){
+  const remote=await driveReadSettings(folderId);
+  const hasRemote = remote && ((remote.winGoalM>0) || (remote.winHist && Object.keys(remote.winHist).length));
+  if(hasRemote){
+    if(remote.winGoalM>0) localStorage.setItem('wr_winGoalM', String(remote.winGoalM));
+    if(remote.winHist && typeof remote.winHist==='object') localStorage.setItem('wr_winHist', JSON.stringify(remote.winHist));
+  }else{
+    const local=gatherSettings();
+    if(local.winGoalM>0 || Object.keys(local.winHist).length) await driveWriteSettings(folderId, local);
+  }
 }
 // one canonical profile per client: read the LIVE newest file, apply editFn, write it back
 // in place, then delete every other copy. Returns the resulting markdown + file id.
@@ -3334,6 +3383,7 @@ async function syncFromDrive(){
     let removed=0;
     for(const id of losers){ try{ const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}`,
       {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); if(r.ok) removed++; }catch(e){} }
+    try{ await syncSettings(folderId); }catch(e){}   // cross-device win goal + monthly backfill
     driveToken = null;
     await loadClients(); renderDashboard();
     alert('Synced '+n+' client(s)'+(pruned?` · removed ${pruned} deleted elsewhere`:'')+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');
@@ -3700,6 +3750,7 @@ $('#backfillSave').onclick=()=>{
   document.querySelectorAll('#backfillRows .bfin').forEach(inp=>{ const k=inp.dataset.mk, n=assetVal((inp.value||'').trim());
     if(n>0) h[k]=n; else delete h[k]; });
   localStorage.setItem('wr_winHist', JSON.stringify(h));
+  pushSettings();
   $('#backfillDlg').close(); renderOverview();
 };
 
