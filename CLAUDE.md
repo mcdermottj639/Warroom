@@ -180,8 +180,10 @@ client's name or "new notes" never hurt, but aren't required.)
   localStorage `wr_focusCollapsed`, default open); folded, its header keeps a one-line count
   summary (📵 n · 📞 n · 📌 n, `!` = overdue present). Directly under the header a **⏱ "since your
   last visit" delta strip** (`sinceStrip`) calls out what changed since the previous session —
-  newly missed / cooling / pending clients + the pipeline $ move — diffed against the persisted
-  snapshot ledger (see below); it's hidden on the very first visit. Everything below is a
+  **🏆 new wins (count + $, good news leads)**, newly missed / cooling / pending clients + the
+  pipeline $ move — diffed against the persisted snapshot ledger (which now also carries
+  `wonQn`/`wonQval`; the win delta is guarded > 0 so a quarter rollover can't show a negative
+  win); it's hidden on the very first visit. Everything below is a
   **stats/analytics board**: five **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
   Cooling $ at risk · Pending decisions · **Won this quarter** — the last deep-links to 🏆 Wins
   and its ring shows % of the quarter goal) that **deep-link** into the matching Command
@@ -199,7 +201,9 @@ client's name or "new notes" never hurt, but aren't required.)
   state so a live count can't see them; `amount` (since r99) keeps $ won durable past the
   stripped/deleted records; accrues as deals are marked Won/Lost), **Stage Funnel + Win Rate**
   (bars by stage + won/lost rate), **Activity Trend** (8-wk SVG of calls logged/week from
-  `callHistory` dates — genuine history), **Discovery Depth** (avg "capture" gauge +
+  `callHistory` dates — genuine history; weeks a deal closed carry a **🏆 marker** (×N if
+  >1) pinned at the top + a "🏆 N closed" note in the subtitle, so the calls→close rhythm
+  reads off one chart), **Discovery Depth** (avg "capture" gauge +
   per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
   detectors `incomeSpendingBody`/`familyWhyBody`/`has(...)` for parity — **each coverage bar is
   click-to-expand**, revealing the clients missing that topic, each row deep-linking to the

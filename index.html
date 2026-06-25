@@ -294,6 +294,7 @@
   .velsub{font-size:10.5px;color:var(--ink-dim);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
   .velsvg{width:100%;height:auto;display:block;overflow:visible}
   .velsvg .velx{fill:#9fb0c9;font-size:8px;font-weight:700;letter-spacing:.2px}
+  .velsvg .actwin{font-size:9px;font-weight:800;fill:#6ee7b7}
   .gauges{display:flex;gap:14px;justify-content:space-around;align-items:flex-start;padding:8px 0 4px;flex-wrap:wrap}
   .gauge{position:relative;width:120px;text-align:center}
   .gauge .g-ring{position:relative;width:98px;height:98px;margin:0 auto}
@@ -807,7 +808,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r99';
+const BUILD = 'build 2026-06-25 · r100';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1812,10 +1813,14 @@ function renderOverview(){
   // --- 3. Activity Trend — calls logged per week over the last 8 weeks (real history from call logs) ---
   const AW=8;
   const wkStart=new Date(today0); wkStart.setDate(wkStart.getDate()-wkStart.getDay()); // Sunday of this week
-  const actB=Array.from({length:AW},(_,i)=>{ const ds=new Date(wkStart); ds.setDate(ds.getDate()-(AW-1-i)*7); return {ds,n:0}; });
+  const actB=Array.from({length:AW},(_,i)=>{ const ds=new Date(wkStart); ds.setDate(ds.getDate()-(AW-1-i)*7); return {ds,n:0,w:0}; });
   const winStart=actB[0].ds;
   S.clients.forEach(c=> (c.intel.callHistory||[]).forEach(h=>{ const d=parseLogDate(h.date||''); if(!d) return;
     if(d<winStart || d>today0) return; const wi=Math.floor((d-winStart)/(7*DAYMS)); if(wi>=0&&wi<AW) actB[wi].n++; }));
+  // 🏆 deals closed per week — same window — so the calls→close rhythm reads off one chart.
+  wins.forEach(c=>{ const d=parseLogDate(c.intel.wonDate||''); if(!d || d<winStart || d>today0) return;
+    const wi=Math.floor((d-winStart)/(7*DAYMS)); if(wi>=0&&wi<AW) actB[wi].w++; });
+  const actWins=actB.reduce((s,b)=>s+b.w,0);
   const actMax=Math.max(1,...actB.map(b=>b.n));
   const actTotal=actB.reduce((s,b)=>s+b.n,0);
   const AVW=340,AVH=130,abase=AVH-20,atop=14,abw=AVW/AW;
@@ -1824,12 +1829,15 @@ function renderOverview(){
     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3" fill="url(#actbar)" opacity="${b.n?0.92:0.25}"/>
       <text x="${(i*abw+abw/2).toFixed(1)}" y="${AVH-4}" text-anchor="middle" class="velx">${b.ds.toLocaleDateString(undefined,{month:'numeric',day:'numeric'})}</text>`; }).join('');
   const actPts=actB.map((b,i)=>`${(i*abw+abw/2).toFixed(1)},${ayOf(b.n).toFixed(1)}`).join(' ');
-  const actSvg=`<svg viewBox="0 0 ${AVW} ${AVH}" class="velsvg" role="img" aria-label="Calls logged per week">
+  // 🏆 markers — one per week a deal closed, pinned near the top so they never collide with the bars.
+  const actWinMarks=actB.map((b,i)=> b.w?`<text x="${(i*abw+abw/2).toFixed(1)}" y="11" text-anchor="middle" class="actwin">🏆${b.w>1?'×'+b.w:''}</text>`:'').join('');
+  const actSvg=`<svg viewBox="0 0 ${AVW} ${AVH}" class="velsvg" role="img" aria-label="Calls logged per week, with deals closed marked">
     <defs>
       <linearGradient id="actbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#3b82f6" stop-opacity=".55"/></linearGradient>
     </defs>
     ${actBars}
     <polyline points="${actPts}" fill="none" stroke="url(#velline)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#velglow)"/>
+    ${actWinMarks}
   </svg>`;
 
   // --- 4. Discovery Depth — shared DISCO_TOPICS detectors (same source the Questions pop-up probes from) ---
@@ -1878,13 +1886,17 @@ function renderOverview(){
     : `<div class="gauge"><div class="g-ring nogoal"><div class="g-num" style="font-size:16px">${fmtVal(wonQval)}</div></div><div class="g-lbl">${esc(qLbl)} won</div><div class="g-sub">set a quarter goal →</div></div>`;
 
   // ---- Snapshot ledger → "since your last visit" strip (#6) + hero week-over-week trend chips (#7) ----
-  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length, wonQn,
+  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length, wonQn, wonQval,
     missed:missed.map(c=>c.code), cooling:cooling.map(r=>r.c.code), pending:pend.map(c=>c.code) };
   const { prev, weekAgo } = recordOverviewSnap(cur);
   const sinceStrip=(()=>{ if(!prev) return '';
     const newOf=(a,p)=>{ const ps=new Set(p||[]); return (a||[]).filter(x=>!ps.has(x)).length; };
     const nMiss=newOf(cur.missed,prev.missed), nCool=newOf(cur.cooling,prev.cooling), nPend=newOf(cur.pending,prev.pending);
     const dPipe=weighted-(prev.weighted||0), bits=[];
+    // Good news leads: deals closed since the last visit (count + $). Guarded > 0 so a quarter
+    // rollover (wonQn resets) can't render a negative "win".
+    const dWon=wonQn-(prev.wonQn||0), dWonVal=wonQval-(prev.wonQval||0);
+    if(dWon>0) bits.push(`<b class="good">🏆 ${dWon} new win${dWon>1?'s':''}${dWonVal>0?` · ${fmtVal(dWonVal)}`:''}</b>`);
     if(nMiss) bits.push(`<b class="bad">📵 ${nMiss} new missed call${nMiss>1?'s':''}</b>`);
     if(nCool) bits.push(`<b class="bad">🧊 ${nCool} newly cooling</b>`);
     if(nPend) bits.push(`<b>🕓 ${nPend} new pending</b>`);
@@ -1943,7 +1955,7 @@ function renderOverview(){
         <div class="card"><div class="gauges">${gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')}${gauge(closeRate,'Close rate',(wonN+lostN)?`${wonN}W · ${lostN}L`:'as you mark deals','#f472b6')}</div></div></div>
 
       <div><div class="groupttl">📊 Activity Trend</div>
-        <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks</div>${actSvg}</div></div>
+        <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks${actWins?` · 🏆 ${actWins} closed`:''}</div>${actSvg}</div></div>
       <div><div class="groupttl">🪜 Stage Funnel + Win Rate</div>
         <div class="card"><div class="velsub">${active.length} active · ${closeRate}% win rate · ${wonN}W · ${lostN}L</div>${funnelRows}</div></div>
 
