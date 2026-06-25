@@ -105,9 +105,14 @@ client's name or "new notes" never hurt, but aren't required.)
   `## My Notes`, `## Call Log`, and a `Status:` line (won/lost).
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
   the manual next-call override, call-type override, `## My Notes`, `## Tasks`,
-  `## Prep Sheet`, and won/lost status. **Exception:** if a profile's Close Action
-  explicitly says **no call is booked** (see "No next call" below), that override is
-  **dropped** on sync — the profile wins.
+  `## Prep Sheet`, and won/lost status. **Exception — the next-call override (date +
+  type) only sticks when the profile is silent about the next call.** If a synced
+  profile's Close Action either **books a real `Next call:` date** *or* **explicitly
+  says no call is booked** (see "No next call" below), the **profile wins** and the
+  stale in-app override is dropped — otherwise an old date/type pins the client to a
+  call that already happened (e.g. still showing today's decision call after the notes
+  rebooked a follow-up). In-app reschedules write the date+type back to Drive
+  (`syncNextCallToDrive`), so a legit override survives the re-parse.
 - **No next call** — when a call ends with nothing rebooked (a pending decision the
   client will "get back to you" on), write it explicitly in `## Close Action / Next
   Step`: lead with **`No call scheduled`** (or use `Next call: none` / `TBD` /

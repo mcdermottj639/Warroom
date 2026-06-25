@@ -741,7 +741,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-24 · r88';
+const BUILD = 'build 2026-06-24 · r89';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2922,11 +2922,19 @@ async function syncFromDrive(){
       if(ex){
         if(ex.status && !intel.status){ intel.status=ex.status; intel.wonAmount=ex.wonAmount; intel.wonDate=ex.wonDate; } // profile status wins; else keep local
         if(ex.pendingDecision && !intel.pendingDecision) intel.pendingDecision=ex.pendingDecision;
-        // advisor's manual next-call override — preserved across sync, UNLESS the new profile explicitly
-        // says no call is booked (then the profile wins and the stale override is dropped, like missedCall)
-        if(intel.nextCallCleared) delete intel.nextCallSet;
-        else if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;
-        if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;   // advisor's manual call-type override
+        // advisor's manual next-call override (date + type) — preserved across sync ONLY when the new
+        // profile doesn't speak to the next call itself. If the profile explicitly clears it
+        // (nextCallCleared) or books a real parseable date, the profile is the fresher truth and the
+        // stale override is dropped — otherwise an old in-app date/type pins the client to a call that
+        // already happened. (In-app reschedules write the date+type back to the profile, so a legit
+        // override is reflected there and survives a re-parse.)
+        const profileBooksCall = !!(intel.nextCall && parseLogDate(intel.nextCall));
+        if(intel.nextCallCleared || profileBooksCall){
+          delete intel.nextCallSet; delete intel.nextCallTypeSet;
+        }else{
+          if(ex.nextCallSet!==undefined) intel.nextCallSet=ex.nextCallSet;
+          if(ex.nextCallTypeSet) intel.nextCallTypeSet=ex.nextCallTypeSet;
+        }
         // missedCall is NOT preserved here — it lives in the profile now, so a re-parse is authoritative
         // (preserving it would resurrect a marker that a reschedule/log already cleared in the markdown)
         if(ex.notes && ex.notes.length && !(intel.notes&&intel.notes.length)) intel.notes=ex.notes;  // keep offline notes if Drive has none yet
