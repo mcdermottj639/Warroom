@@ -158,28 +158,46 @@ client's name or "new notes" never hurt, but aren't required.)
 - **Overview** is the **landing page** the app opens to (🏠 nav button above Command
   Center). It's a neon-HUD "command deck" (glassmorphism, scoped to `.ovwrap` so it
   stays dark even in light theme). Top = the only **action** block: **🎯 Today's Focus**
-  (calls today + follow-ups owed — undated or due today/overdue). Everything below is a
+  (📵 missed calls to reschedule, surfaced FIRST as the most urgent action · calls today ·
+  follow-ups owed — undated or due today/overdue). Directly under the header a **⏱ "since your
+  last visit" delta strip** (`sinceStrip`) calls out what changed since the previous session —
+  newly missed / cooling / pending clients + the pipeline $ move — diffed against the persisted
+  snapshot ledger (see below); it's hidden on the very first visit. Everything below is a
   **stats/analytics board**: four **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
   Cooling $ at risk · Pending decisions) that **deep-link** into the matching Command
-  Center section, then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by
-  expected-close week, next 6 wks — forward projection), **Win Probability** (two conic
+  Center section and each carry a **week-over-week trend chip** (`trChip` — ▲/▼ vs the
+  ~7-day-old snapshot, green=good/red=bad per metric direction; absent until a baseline exists),
+  then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
+  next 6 wks — forward projection; the subtitle also shows EV **not yet booked** = `weighted −
+  bookedEV` so the chart reconciles with the Weighted-pipeline tile instead of silently
+  undercounting), **Win Probability** (two conic
   gauges: EV-weighted avg close prob + historical close rate from the durable de-named
   `S.outcomeLog` ledger — losses are deleted from state so a live count can't see them;
   accrues as deals are marked Won/Lost), **Stage Funnel + Win Rate**
   (bars by stage + won/lost rate), **Activity Trend** (8-wk SVG of calls logged/week from
   `callHistory` dates — genuine history), **Discovery Depth** (avg "capture" gauge +
   per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
-  detectors `incomeSpendingBody`/`familyWhyBody`/`has(...)` for parity), and **Objection
+  detectors `incomeSpendingBody`/`familyWhyBody`/`has(...)` for parity — **each coverage bar is
+  click-to-expand**, revealing the clients missing that topic, each row deep-linking to the
+  client), and **Objection
   Handling** (your **close rate by objection type** — every objection is bucketed via
   `objCategory()`, and a de-named won/lost **objection ledger** `S.objLog` (encrypted in
   IndexedDB meta, appended in `setStatus` via `logObjectionOutcome`) gives won-vs-lost per
-  category; bars show strongest→toughest, with current open objections by type. Rates
-  accrue going forward since past won/lost objections weren't retained). On Overview the
+  category; bars show strongest→toughest, **click-to-expand** to the open clients in that
+  category. Rates
+  accrue going forward since past won/lost objections weren't retained). The board **auto-refreshes
+  on a calendar-day rollover** (`ovDayCheck` on visibilitychange/focus + a 60 s interval) so a
+  left-open tab's Today's Focus / greeting / dates never go stale past midnight. On Overview the
   **whole left sidebar is hidden** (`#app.noside`, toggled in
   `renderList`) so it's a **full-screen** board; a **top toolbar** replaces it — brand +
   `+ Client` / `☁️ Drive` / `🌙 Theme` / `⚔️ Command Center` / `🔒 Lock` (these reuse the
   sidebar buttons' handlers via `.click()`). Client search/list lives in Command Center,
-  one click away. All values reuse existing computations (no new storage). `renderOverview()`.
+  one click away. Most values reuse existing computations; the only new storage is the
+  **`S.ovSnap` snapshot ledger** — a de-named (codes only), encrypted (`meta/ovsnap`, under
+  `MK_intel`) daily record of the headline KPIs + risk client-code sets, written once per
+  session by `recordOverviewSnap` and read back to power the trend chips (#7) and the
+  since-last-visit strip (#6). Baselines are **frozen once per session** (`S.ovSnapSession`) so
+  theme/midnight re-renders don't reset the deltas to zero. `renderOverview()`.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Top 10 → Pending Decisions → Follow-ups (tasks owed, next 2 weeks) → Cooling →
   Wins. Every client row shows a **note flag** (green pill + count when notes exist;

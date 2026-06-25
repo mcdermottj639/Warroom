@@ -317,6 +317,25 @@
   .objfill{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--bc) 50%,transparent),var(--bc));
     box-shadow:0 0 9px -1px var(--bc);transition:width .5s ease}
   .objval{font-size:10px;font-weight:700;color:var(--ink-dim);white-space:nowrap;min-width:78px;text-align:right}
+  /* missed-call emphasis in Today's Focus */
+  .ovrow .when.miss{color:#f87171;text-shadow:0 0 10px rgba(248,113,113,.5)}
+  .ovwrap .bodynote.miss{color:#f87171}
+  /* "since your last visit" delta strip */
+  .ovsince{margin:2px 0 10px;padding:9px 14px;border-radius:11px;font-size:12px;font-weight:600;color:var(--ink-dim);
+    background:linear-gradient(160deg,var(--glass),rgba(255,255,255,.01));border:1px solid var(--edge);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .ovsince b{font-weight:800;color:var(--ink)} .ovsince b.bad{color:#f87171} .ovsince b.good{color:#34d399}
+  /* hero week-over-week trend chips */
+  .ot-tr{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:800;letter-spacing:.2px;vertical-align:baseline}
+  .ot-tr.up{color:#34d399} .ot-tr.down{color:#f87171}
+  /* click-to-expand discovery/objection rows */
+  .covrow.xpand,.objrow.xpand{cursor:pointer;border-radius:8px;transition:background .12s}
+  .covrow.xpand:hover,.objrow.xpand:hover{background:rgba(96,165,250,.08)}
+  .xchev{display:inline-block;transition:transform .15s;color:var(--ink-dim)}
+  .xpand.open .xchev{transform:rotate(90deg);color:var(--c1)}
+  .ovexp{margin:2px 0 8px;padding:2px 0 2px 10px;border-left:2px solid rgba(96,165,250,.3)}
+  .ovexp .ovrow{padding:7px 4px}
+  .ovexp .ovrow .when{min-width:58px;color:var(--ink-dim);text-shadow:none;font-size:9.5px}
   .nextcall{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--gold);border-radius:11px;padding:12px 16px;margin-bottom:16px}
   .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;flex:none}
@@ -752,7 +771,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r95';
+const BUILD = 'build 2026-06-25 · r96';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1480,11 +1499,12 @@ const expectedValue = i => Math.round(moveableNum(i)*stageProb(i)*recencyFactor(
 
 /* ---- follow-up flag done-state + re-engagement touch log (encrypted) ---- */
 async function loadAux(){
-  S.flagsDone = new Set(); S.touchLog = {}; S.objLog = []; S.outcomeLog = [];
+  S.flagsDone = new Set(); S.touchLog = {}; S.objLog = []; S.outcomeLog = []; S.ovSnap = []; S.ovSnapSession = false;
   try{ const m = await idbGet('meta','flagsdone'); if(m) S.flagsDone = new Set(JSON.parse(await aesDecrypt(S.MK_intel, m.enc))); }catch(e){}
   try{ const m = await idbGet('meta','touchlog'); if(m) S.touchLog = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
   try{ const m = await idbGet('meta','objlog'); if(m) S.objLog = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
   try{ const m = await idbGet('meta','outcomelog'); if(m) S.outcomeLog = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
+  try{ const m = await idbGet('meta','ovsnap'); if(m) S.ovSnap = JSON.parse(await aesDecrypt(S.MK_intel, m.enc)); }catch(e){}
 }
 async function saveFlagsDone(){
   await idbPut('meta', { id:'flagsdone', enc: await aesEncrypt(S.MK_intel, JSON.stringify([...S.flagsDone])) });
@@ -1502,6 +1522,30 @@ async function saveObjLog(){
 }
 async function saveOutcomeLog(){
   await idbPut('meta', { id:'outcomelog', enc: await aesEncrypt(S.MK_intel, JSON.stringify(S.outcomeLog||[])) });
+}
+// Overview snapshot ledger (encrypted under MK_intel, de-named — codes only): one record per
+// calendar day of the headline KPIs + the risk client-code sets. Powers the Overview's "since your
+// last visit" delta strip and the week-over-week trend chips on the hero tiles. No fabricated figures.
+async function saveOvSnap(){
+  await idbPut('meta', { id:'ovsnap', enc: await aesEncrypt(S.MK_intel, JSON.stringify(S.ovSnap||[])) });
+}
+// Freeze this session's comparison baselines ONCE (so theme/midnight re-renders don't reset the
+// deltas to zero), then record today's snapshot. Returns {prev, weekAgo} baselines (or null).
+function recordOverviewSnap(cur){
+  S.ovSnap = S.ovSnap || [];
+  if(S.ovSnapSession) return { prev:S.ovPrev||null, weekAgo:S.ovWeekAgo||null };
+  const prior = S.ovSnap.slice();                                 // everything saved before this session
+  S.ovPrev = prior.length ? prior[prior.length-1] : null;         // most recent prior visit → "since last visit"
+  S.ovWeekAgo = null;                                             // latest snap on/before 7 days ago → trend baseline
+  for(const s of prior){ if(s.date <= cur.weekAgoDate) S.ovWeekAgo = s; }
+  if(!S.ovWeekAgo && prior.length) S.ovWeekAgo = prior[0];
+  // collapse same-day: one record per calendar day
+  if(prior.length && prior[prior.length-1].date===cur.date) S.ovSnap[S.ovSnap.length-1]=cur;
+  else S.ovSnap.push(cur);
+  if(S.ovSnap.length>120) S.ovSnap = S.ovSnap.slice(-120);
+  S.ovSnapSession = true;
+  saveOvSnap().catch(()=>{});
+  return { prev:S.ovPrev, weekAgo:S.ovWeekAgo };
 }
 async function logDealOutcome(client, outcome){
   const date=new Date().toISOString().slice(0,10);
@@ -1545,6 +1589,9 @@ function renderOverview(){
   const atRisk = cooling.reduce((s,r)=>s+r.ev, 0);
 
   const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=today0); };
+  // Missed calls with nothing rebooked — the single most urgent action; surfaced at the top of Today's Focus.
+  const missed = active.filter(c => !!c.intel.missedCall && !hasFutureCall(c))
+    .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
   const pend = active.filter(c => !hasFutureCall(c) && (
       !!c.intel.missedCall ||
       (['proposal','decision'].includes((c.intel.stage||'').toLowerCase()) && !isCooling(c))));
@@ -1553,7 +1600,9 @@ function renderOverview(){
 
   // Follow-ups owed now — undated (owed, no date) or due today/earlier (overdue). Not future-dated.
   const _pad=n=>String(n).padStart(2,'0');
-  const todayISO = today0.getFullYear()+'-'+_pad(today0.getMonth()+1)+'-'+_pad(today0.getDate());
+  const isoOf=d=>d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate());
+  const todayISO = isoOf(today0); S.ovRenderDay = todayISO;   // stamp the painted day for the midnight-rollover check
+  const _wa=new Date(today0); _wa.setDate(_wa.getDate()-7); const weekAgoDate=isoOf(_wa);  // trend baseline cutoff
   const dueTasks=[];
   S.clients.forEach(c=> (c.intel.tasks||[]).forEach((t,idx)=>{ if(t.done) return;
     if(t.due && t.due>todayISO) return; dueTasks.push({c,t,idx}); }));
@@ -1569,9 +1618,15 @@ function renderOverview(){
   const taskRow = ({c,t})=>`<div class="ovrow" data-code="${c.code}">
       <span class="when">${t.due?esc(dueLabel(t.due)):'—'}</span>
       <div class="nm">${esc(c.name)}<div class="sub ellip">${esc(t.t)}</div></div></div>`;
-  const focusInner = (todays.length||dueTasks.length)
-    ? (todays.length?`<div class="bodynote">📞 Calls today (${todays.length})</div>${todays.map(callRow).join('')}`:'')
-      + (dueTasks.length?`<div class="bodynote" style="padding-top:${todays.length?'12px':'0'}">📌 Follow-ups owed${overdueCount?` · ${overdueCount} overdue`:''} (${dueTasks.length})</div>${dueTasks.slice(0,6).map(taskRow).join('')}`
+  const missRow = c=>{ const md=new Date(c.intel.missedCall+'T00:00:00');
+    return `<div class="ovrow" data-code="${c.code}">
+      <span class="when miss">📵 ${md.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span>
+      <div class="nm">${esc(c.name)} <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'')}</span>
+        <div class="sub">Missed call — reschedule</div></div></div>`; };
+  const focusInner = (missed.length||todays.length||dueTasks.length)
+    ? (missed.length?`<div class="bodynote miss">📵 Missed — reschedule now (${missed.length})</div>${missed.map(missRow).join('')}`:'')
+      + (todays.length?`<div class="bodynote" style="padding-top:${missed.length?'12px':'0'}">📞 Calls today (${todays.length})</div>${todays.map(callRow).join('')}`:'')
+      + (dueTasks.length?`<div class="bodynote" style="padding-top:${(missed.length||todays.length)?'12px':'0'}">📌 Follow-ups owed${overdueCount?` · ${overdueCount} overdue`:''} (${dueTasks.length})</div>${dueTasks.slice(0,6).map(taskRow).join('')}`
         + (dueTasks.length>6?`<div class="bodynote" style="padding-top:8px">+ ${dueTasks.length-6} more — see Command Center</div>`:''):'')
     : '<div class="bodynote" style="padding:4px 0">Nothing due today and no calls on the books. 👌</div>';
 
@@ -1617,6 +1672,11 @@ function renderOverview(){
     ${velDots}
   </svg>`;
   const velTotal = buckets.reduce((s,b)=>s+b.ev,0);
+  // The chart is scheduled-call EV in the next 6 wks; the rest of the book (calls booked further out,
+  // plus open deals with NO call on the books) isn't in it. Surface that gap so the total reconciles
+  // with the hero "Weighted pipeline" tile instead of silently undercounting.
+  const bookedEV = upcoming.reduce((s,x)=>s+expectedValue(x.c.intel),0);   // every future-dated call, any week
+  const unbookedEV = Math.max(0, weighted - bookedEV);                     // open EV with no next call booked
 
   // hero gauge-ring ratios (real, current-state)
   const rUp = active.length?Math.round(upcoming.length/active.length*100):0;
@@ -1639,19 +1699,27 @@ function renderOverview(){
 
   // --- 2. Objection Handling — group objections by type; close rate accrues from the won/lost ledger ---
   const OBJ={};   // cat -> {won, lost, open}
+  const openByCat={};   // cat -> [{c, q}] open objections still on the books, for the click-to-expand list
   (S.objLog||[]).forEach(e=>{ const k=e.cat||'Other'; (OBJ[k]=OBJ[k]||{won:0,lost:0,open:0}); if(e.outcome==='won')OBJ[k].won++; else if(e.outcome==='lost')OBJ[k].lost++; });
-  active.forEach(c=>{ [...new Set((c.intel.objections||[]).map(o=>objCategory(o.objection)))].forEach(k=>{ (OBJ[k]=OBJ[k]||{won:0,lost:0,open:0}); OBJ[k].open++; }); });
+  active.forEach(c=>{ const seen=new Set();
+    (c.intel.objections||[]).forEach(o=>{ const k=objCategory(o.objection);
+      (openByCat[k]=openByCat[k]||[]).push({c, q:o.objection}); if(seen.has(k))return; seen.add(k);
+      (OBJ[k]=OBJ[k]||{won:0,lost:0,open:0}); OBJ[k].open++; }); });
   const objCats=Object.entries(OBJ).map(([cat,v])=>({cat, won:v.won, lost:v.lost, open:v.open, decided:v.won+v.lost,
       rate:(v.won+v.lost)?Math.round(v.won/(v.won+v.lost)*100):null}))
     .filter(x=>x.decided||x.open).sort((a,b)=> b.decided-a.decided || b.open-a.open);
   const objMaxOpen=Math.max(1,...objCats.map(x=>x.open));
-  const objRows = objCats.length ? objCats.map(x=>{
+  const objRows = objCats.length ? objCats.map((x,oi)=>{
       const pct = x.rate!=null ? x.rate : Math.round(x.open/objMaxOpen*100);
       const col = x.rate==null ? 'rgba(180,200,230,.28)' : x.rate>=66?'#34d399':x.rate>=33?'#fbbf24':'#f472b6';
       const right = x.rate!=null ? `${x.rate}% · ${x.won}-${x.lost}${x.open?` · ${x.open} open`:''}` : `${x.open} open`;
-      return `<div class="objrow"><span class="objlbl">${esc(x.cat)}</span>
+      const opens=openByCat[x.cat]||[];
+      const exp=opens.length?opens.slice(0,12).map(o=>`<div class="ovrow" data-code="${o.c.code}"><span class="when">open</span><div class="nm">${esc(o.c.name)}<div class="sub ellip">${esc(strip(o.q||''))}</div></div></div>`).join('')
+        + (opens.length>12?`<div class="bodynote" style="padding-top:6px">+ ${opens.length-12} more</div>`:''):'';
+      return `<div class="objrow${opens.length?' xpand':''}"${opens.length?` data-exp="obj-${oi}"`:''}><span class="objlbl">${esc(x.cat)}</span>
         <span class="objbar"><span class="objfill" style="width:${pct}%;--bc:${col}"></span></span>
-        <span class="objval">${esc(right)}</span></div>`;
+        <span class="objval">${esc(right)}${opens.length?` <span class="xchev">›</span>`:''}</span></div>
+        ${opens.length?`<div class="ovexp" id="obj-${oi}" hidden>${exp}</div>`:''}`;
     }).join('') : '<div class="bodynote" style="padding:4px 0">No objections logged in any profile yet.</div>';
   const objDecided=objCats.filter(x=>x.rate!=null).sort((a,b)=> b.rate-a.rate || b.decided-a.decided);
   const objHead = objDecided.length>=2 ? `Strongest: ${objDecided[0].cat} (${objDecided[0].rate}%) · Toughest: ${objDecided[objDecided.length-1].cat} (${objDecided[objDecided.length-1].rate}%)`
@@ -1685,12 +1753,38 @@ function renderOverview(){
   const DEPTH=DISCO_TOPICS;
   const depthScores=active.map(c=>({c, n:DEPTH.reduce((a,d)=>a+(d.has(c.intel)?1:0),0)}));
   const avgDepth=active.length?Math.round(depthScores.reduce((a,x)=>a+x.n,0)/(active.length*DEPTH.length)*100):0;
-  const covRows=DEPTH.map(d=>{ const pct=active.length?Math.round(active.filter(c=>d.has(c.intel)).length/active.length*100):0;
-    return `<div class="covrow"><span class="covlbl">${d.k}</span><span class="covbar"><span class="covfill" style="width:${pct}%"></span></span><span class="covpct">${pct}%</span></div>`; }).join('');
+  const covRows=DEPTH.map((d,di)=>{ const missC=active.filter(c=>!d.has(c.intel));
+    const pct=active.length?Math.round((active.length-missC.length)/active.length*100):0;
+    const exp=missC.length
+      ? missC.slice(0,12).map(c=>`<div class="ovrow" data-code="${c.code}"><span class="when">missing</span><div class="nm">${esc(c.name)}</div></div>`).join('')
+        + (missC.length>12?`<div class="bodynote" style="padding-top:6px">+ ${missC.length-12} more — probe on the next call</div>`:'')
+      : '<div class="bodynote" style="padding:4px 0">Every active profile covers this. 👌</div>';
+    return `<div class="covrow${missC.length?' xpand':''}"${missC.length?` data-exp="cov-${di}"`:''}><span class="covlbl">${d.k}</span><span class="covbar"><span class="covfill" style="width:${pct}%"></span></span><span class="covpct">${pct}%${missC.length?` <span class="xchev">›</span>`:''}</span></div>
+      <div class="ovexp" id="cov-${di}" hidden>${exp}</div>`; }).join('');
   const thin=depthScores.filter(x=>x.n<DEPTH.length).sort((a,b)=>a.n-b.n).slice(0,4);
   const thinList=thin.length?`<div class="bodynote" style="padding-top:10px">Thinnest profiles — fill the gaps</div>`
       + thin.map(x=>{ const miss=DEPTH.filter(d=>!d.has(x.c.intel)).map(d=>d.k).slice(0,3).join(', ');
         return `<div class="ovrow" data-code="${x.c.code}"><span class="when">${x.n}/${DEPTH.length}</span><div class="nm">${esc(x.c.name)}<div class="sub ellip">missing: ${esc(miss)}</div></div></div>`; }).join(''):'';
+
+  // ---- Snapshot ledger → "since your last visit" strip (#6) + hero week-over-week trend chips (#7) ----
+  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length,
+    missed:missed.map(c=>c.code), cooling:cooling.map(r=>r.c.code), pending:pend.map(c=>c.code) };
+  const { prev, weekAgo } = recordOverviewSnap(cur);
+  const trChip=(now,was,goodUp,money,base)=>{ if(was==null) return '';
+    const d=now-was; if(!d) return '';
+    const v=money?fmtVal(Math.abs(d)):Math.abs(d);
+    return `<span class="ot-tr ${(d>0)===goodUp?'up':'down'}" title="vs ${base?esc(base):'last week'}">${d>0?'▲':'▼'} ${v}</span>`; };
+  const sinceStrip=(()=>{ if(!prev) return '';
+    const newOf=(a,p)=>{ const ps=new Set(p||[]); return (a||[]).filter(x=>!ps.has(x)).length; };
+    const nMiss=newOf(cur.missed,prev.missed), nCool=newOf(cur.cooling,prev.cooling), nPend=newOf(cur.pending,prev.pending);
+    const dPipe=weighted-(prev.weighted||0), bits=[];
+    if(nMiss) bits.push(`<b class="bad">📵 ${nMiss} new missed call${nMiss>1?'s':''}</b>`);
+    if(nCool) bits.push(`<b class="bad">🧊 ${nCool} newly cooling</b>`);
+    if(nPend) bits.push(`<b>🕓 ${nPend} new pending</b>`);
+    if(Math.abs(dPipe)>=1000) bits.push(`pipeline ${dPipe>0?'<b class="good">▲':'<b class="bad">▼'} ${fmtVal(Math.abs(dPipe))}</b>`);
+    const when=new Date(prev.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    return `<div class="ovsince">⏱ Since your last visit (${esc(when)}): ${bits.length?bits.join(' · '):'no new risks — steady 👌'}</div>`; })();
+  const waLbl = weekAgo ? new Date(weekAgo.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
 
   const themeIcon = document.documentElement.dataset.theme==='light' ? '☀️' : '🌙';
   $('#main').innerHTML = `<div class="ovwrap"><div class="ovinner">
@@ -1706,24 +1800,25 @@ function renderOverview(){
     </div>
     <div class="ovhead"><h2>🏠 Overview</h2>
       <div class="meta">${hi} · ${dateStr} · ${active.length} active · weighted pipeline ${fmtVal(weighted)}</div></div>
+    ${sinceStrip}
 
     <div class="groupttl">🎯 Today's Focus</div>
     <div class="card ovfocus">${focusInner}</div>
 
     <div class="ovhero">
       <button class="ovtile t-cyan" data-jump="sec-top"><span class="cnrs"></span><span class="ot-ring" style="--p:${avgProb}" title="${avgProb}% EV-weighted close probability"></span><span class="ot-go">›</span>
-        <div class="ot-l">Weighted pipeline</div><div class="ot-v">${fmtVal(weighted)}</div><div class="ot-n">EV across ${active.length} clients</div></button>
+        <div class="ot-l">Weighted pipeline</div><div class="ot-v">${fmtVal(weighted)}</div><div class="ot-n">EV across ${active.length} clients ${trChip(weighted, weekAgo&&weekAgo.weighted, true, true, waLbl)}</div></button>
       <button class="ovtile t-blue" data-jump="sec-upcoming"><span class="cnrs"></span><span class="ot-ring" style="--p:${rUp}" title="${upcoming.length} of ${active.length} have a call booked"></span><span class="ot-go">›</span>
-        <div class="ot-l">Upcoming calls</div><div class="ot-v">${upcoming.length}</div><div class="ot-n">${upWeek.length} this week</div></button>
+        <div class="ot-l">Upcoming calls</div><div class="ot-v">${upcoming.length}</div><div class="ot-n">${upWeek.length} this week ${trChip(upcoming.length, weekAgo&&weekAgo.upN, true, false, waLbl)}</div></button>
       <button class="ovtile t-pink" data-jump="sec-cooling"><span class="cnrs"></span><span class="ot-ring" style="--p:${rCool}" title="${rCool}% of weighted pipeline at risk"></span><span class="ot-go">›</span>
-        <div class="ot-l">Cooling $ at risk</div><div class="ot-v">${fmtVal(atRisk)}</div><div class="ot-n">${cooling.length} fading</div></button>
+        <div class="ot-l">Cooling $ at risk</div><div class="ot-v">${fmtVal(atRisk)}</div><div class="ot-n">${cooling.length} fading ${trChip(atRisk, weekAgo&&weekAgo.atRisk, false, true, waLbl)}</div></button>
       <button class="ovtile t-purple" data-jump="sec-pending"><span class="cnrs"></span><span class="ot-ring" style="--p:${rPend}" title="${rPend}% of the book awaiting a decision"></span><span class="ot-go">›</span>
-        <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">no next call booked</div></button>
+        <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">no next call booked ${trChip(pend.length, weekAgo&&weekAgo.pendN, false, false, waLbl)}</div></button>
     </div>
 
     <div class="ovcharts">
       <div><div class="groupttl">📈 Pipeline Velocity</div>
-        <div class="card velcard"><div class="velsub">Expected value by close week · next 6 weeks · ${fmtVal(velTotal)} in flight</div>${velSvg}</div></div>
+        <div class="card velcard"><div class="velsub">EV by next-call week · next 6 wks ${fmtVal(velTotal)}${unbookedEV?` · ${fmtVal(unbookedEV)} not yet booked`:''}</div>${velSvg}</div></div>
       <div><div class="groupttl">🎯 Win Probability</div>
         <div class="card"><div class="gauges">${gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')}${gauge(closeRate,'Close rate',(wonN+lostN)?`${wonN}W · ${lostN}L`:'as you mark deals','#f472b6')}</div></div></div>
 
@@ -1743,6 +1838,11 @@ function renderOverview(){
   document.querySelectorAll('.ovrow[data-code]').forEach(el=> el.onclick = ()=>{
     const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
   });
+  // Discovery / Objection rows expand to show the clients behind the bar (click to toggle).
+  document.querySelectorAll('[data-exp]').forEach(el=> el.onclick = ()=>{
+    const box=document.getElementById(el.dataset.exp); if(!box) return;
+    const open=box.hasAttribute('hidden'); if(open) box.removeAttribute('hidden'); else box.setAttribute('hidden','');
+    el.classList.toggle('open', open); });
   // Top toolbar — reuse the sidebar's existing handlers (sidebar is hidden on Overview).
   $('#ovbAdd').onclick   = ()=> $('#addBtn').click();
   $('#ovbDrive').onclick = ()=> $('#driveBtn').click();
@@ -2511,6 +2611,16 @@ $('#themeBtn').onclick = ()=>{
 };
 applyThemeBtn();
 $('#ovBtn').onclick = ()=> renderOverview();
+// Keep the Overview honest across a midnight rollover or a long-backgrounded tab: if the calendar day
+// changed since it was last painted, re-render so Today's Focus / greeting / dates don't go stale.
+function ovDayCheck(){
+  if(S.active!=='__overview__' || !S.MK_intel) return;
+  const d=new Date(), iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  if(S.ovRenderDay && S.ovRenderDay!==iso) renderOverview();
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) ovDayCheck(); });
+window.addEventListener('focus', ovDayCheck);
+setInterval(ovDayCheck, 60000);
 $('#dashBtn').onclick = ()=> renderDashboard();
 $('#clientSearch').oninput = e=>{ S.query = e.target.value.trim().toLowerCase(); renderList(); };
 $('#addBtn').onclick = ()=>{ S.active=null; renderList(); renderEditor(null); };
