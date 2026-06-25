@@ -233,7 +233,7 @@
   .ovtile:hover::after{opacity:.3}
   .ovtile:focus-visible{outline:2px solid var(--neon);outline-offset:3px}
   .ovtile.t-cyan{--neon:var(--c1)} .ovtile.t-blue{--neon:#60a5fa}
-  .ovtile.t-pink{--neon:var(--c3)} .ovtile.t-purple{--neon:var(--c4)}
+  .ovtile.t-pink{--neon:var(--c3)} .ovtile.t-purple{--neon:var(--c4)} .ovtile.t-green{--neon:#34d399}
   .ot-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink-dim);font-weight:800}
   .ot-v{font-size:38px;font-weight:800;margin-top:8px;line-height:1;color:#fff;
     text-shadow:0 0 22px color-mix(in srgb,var(--neon) 80%,transparent)}
@@ -308,6 +308,22 @@
   .gauge .g-num span{font-size:12px;color:var(--ink-dim);margin-left:1px}
   .gauge .g-lbl{font-size:11px;color:var(--ink);font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-top:10px}
   .gauge .g-sub{font-size:10.5px;color:var(--ink-dim);font-weight:600;margin-top:2px}
+  /* 🏆 Wins & Momentum — full-width results row (goal ring + monthly $-won bars) */
+  .ovwins{display:flex;gap:22px;align-items:center;flex-wrap:wrap;padding:14px 16px}
+  .ovwins-goal{display:flex;align-items:center;gap:10px;flex-shrink:0}
+  .ovwins-chart{flex:1;min-width:220px}
+  .ovgoalset{border:1px solid var(--edge);background:rgba(255,255,255,.04);color:var(--ink-dim);
+    font-size:10.5px;font-weight:700;letter-spacing:.3px;border-radius:8px;padding:5px 9px;cursor:pointer;transition:color .15s,border-color .15s}
+  .ovgoalset:hover{color:#34d399;border-color:#34d399}
+  .gauge .g-ring.nogoal::before{content:'';position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(rgba(52,211,153,.30) 100%,transparent 0);
+    -webkit-mask:radial-gradient(closest-side,transparent 67%,#000 69%);mask:radial-gradient(closest-side,transparent 67%,#000 69%)}
+  .velsvg .winn{fill:#6ee7b7;font-size:8.5px;font-weight:800}
+  /* collapsible Today's Focus header */
+  .ovfocus-hd{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;gap:12px}
+  .ovfocus-hd:hover .ovfocus-caret{color:var(--c1)}
+  .ovfocus-sum{font-size:11px;font-weight:700;color:var(--ink-dim);letter-spacing:.4px;margin-left:8px;text-transform:none}
+  .ovfocus-caret{color:var(--ink-dim);font-size:13px;transition:color .15s}
   /* stage funnel bars */
   .ovwrap .ovfocus{margin-bottom:4px}
   .frrow{display:flex;align-items:center;gap:10px;padding:7px 2px;cursor:pointer;border-radius:8px;transition:background .12s}
@@ -791,7 +807,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r98';
+const BUILD = 'build 2026-06-25 · r99';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1573,9 +1589,12 @@ function recordOverviewSnap(cur){
   saveOvSnap().catch(()=>{});
   return { prev:S.ovPrev, weekAgo:S.ovWeekAgo };
 }
-async function logDealOutcome(client, outcome){
+async function logDealOutcome(client, outcome, amount){
   const date=new Date().toISOString().slice(0,10);
-  S.outcomeLog = (S.outcomeLog||[]).concat([{outcome, date}]);                 // every decided deal → close rate
+  // amount = the deal's de-named $ figure (won amount, or value-at-risk on a loss). Stamped here so
+  // "$ won over time" survives even after the won record is stripped and the lost record deleted.
+  const amt = assetVal(normMoney(amount||client.intel.wonAmount||client.intel.moveable||''))||0;
+  S.outcomeLog = (S.outcomeLog||[]).concat([{outcome, date, amount:amt}]);     // every decided deal → close rate
   const cats=[...new Set((client.intel.objections||[]).map(o=>objCategory(o.objection)))];
   if(cats.length) S.objLog = (S.objLog||[]).concat(cats.map(cat=>({cat, outcome, date})));   // + per objection type
   try{ await saveOutcomeLog(); await saveObjLog(); }catch(e){}
@@ -1686,6 +1705,13 @@ function renderOverview(){
       + (dueTasks.length?`<div class="bodynote" style="padding-top:${(missed.length||todays.length)?'12px':'0'}">📌 Follow-ups owed${overdueCount?` · ${overdueCount} overdue`:''} (${dueTasks.length})</div>${dueTasks.slice(0,6).map(taskRow).join('')}`
         + (dueTasks.length>6?`<div class="bodynote" style="padding-top:8px">+ ${dueTasks.length-6} more — see Command Center</div>`:''):'')
     : '<div class="bodynote" style="padding:4px 0">Nothing due today and no calls on the books. 👌</div>';
+
+  // Today's Focus is a collapsible card (state persisted; default open). When folded, the header
+  // still carries a one-line count summary so it stays useful.
+  const focusCollapsed = localStorage.getItem('wr_focusCollapsed')==='1';
+  const focusSummary = (()=>{ const b=[]; if(missed.length)b.push(`📵 ${missed.length}`);
+    if(todays.length)b.push(`📞 ${todays.length}`); if(dueTasks.length)b.push(`📌 ${dueTasks.length}${overdueCount?'!':''}`);
+    return b.length?b.join(' · '):'all clear 👌'; })();
 
   const hi = (()=>{ const h=new Date().getHours(); return h<12?'Good morning':h<17?'Good afternoon':'Good evening'; })();
   const dateStr = today0.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
@@ -1823,8 +1849,36 @@ function renderOverview(){
       + thin.map(x=>{ const miss=DEPTH.filter(d=>!d.has(x.c.intel)).map(d=>d.k).slice(0,3).join(', ');
         return `<div class="ovrow" data-code="${x.c.code}"><span class="when">${x.n}/${DEPTH.length}</span><div class="nm">${esc(x.c.name)}<div class="sub ellip">missing: ${esc(miss)}</div></div></div>`; }).join(''):'';
 
+  // ---- 🏆 Wins & Momentum (results, not forecast) — won records retain wonAmount/wonDate ----
+  const _nowW2=new Date(); const qNum=Math.floor(_nowW2.getMonth()/3)+1;
+  const qStartW=new Date(_nowW2.getFullYear(), (qNum-1)*3, 1);
+  const qLbl=`Q${qNum} ${_nowW2.getFullYear()}`;
+  const wonAmtOf = c => assetVal(normMoney(c.intel.wonAmount||c.intel.moveable||''));
+  const winsQ = wins.filter(c=>{ const d=parseLogDate(c.intel.wonDate||''); return d && d>=qStartW; });
+  const wonQval = winsQ.reduce((s,c)=>s+wonAmtOf(c),0), wonQn = winsQ.length;
+  const winGoal = (()=>{ const g=parseFloat(localStorage.getItem('wr_winGoalQ')||''); return g>0?g:0; })();
+  const goalPct = winGoal ? Math.min(100, Math.round(wonQval/winGoal*100)) : 0;
+  // 6-month $-won momentum bars (count labelled on each bar)
+  const MW=6, mb=Array.from({length:MW},(_,i)=>({ ds:new Date(_nowW2.getFullYear(), _nowW2.getMonth()-(MW-1-i), 1), v:0, n:0 }));
+  const mStart0=mb[0].ds;
+  wins.forEach(c=>{ const d=parseLogDate(c.intel.wonDate||''); if(!d||d<mStart0) return;
+    const mi=(d.getFullYear()-mStart0.getFullYear())*12+(d.getMonth()-mStart0.getMonth());
+    if(mi>=0&&mi<MW){ mb[mi].v+=wonAmtOf(c); mb[mi].n++; } });
+  const winMax=Math.max(1,...mb.map(b=>b.v)), win6$=mb.reduce((s,b)=>s+b.v,0), win6n=mb.reduce((s,b)=>s+b.n,0);
+  const WVW=340,WVH=130,wbase=WVH-20,wtop=14,wbw=WVW/MW, wyOf=v=>wbase-(v/winMax)*(wbase-wtop);
+  const winBars=mb.map((b,i)=>{ const x=i*wbw+wbw*0.20,w=wbw*0.60,y=wyOf(b.v),h=wbase-y;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3.5" fill="url(#winbar)" opacity="${b.v?0.95:0.22}"/>
+      ${b.n?`<text x="${(i*wbw+wbw/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" class="winn">${b.n}</text>`:''}
+      <text x="${(i*wbw+wbw/2).toFixed(1)}" y="${WVH-4}" text-anchor="middle" class="velx">${b.ds.toLocaleDateString(undefined,{month:'short'})}</text>`; }).join('');
+  const winSvg=`<svg viewBox="0 0 ${WVW} ${WVH}" class="velsvg" role="img" aria-label="Assets won per month">
+    <defs><linearGradient id="winbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ee7b7"/><stop offset="1" stop-color="#10b981" stop-opacity=".55"/></linearGradient></defs>
+    ${winBars}</svg>`;
+  const goalBlock = winGoal
+    ? gauge(goalPct,`${qLbl} goal`,`${fmtVal(wonQval)} of ${fmtVal(winGoal)}`,'#34d399')
+    : `<div class="gauge"><div class="g-ring nogoal"><div class="g-num" style="font-size:16px">${fmtVal(wonQval)}</div></div><div class="g-lbl">${esc(qLbl)} won</div><div class="g-sub">set a quarter goal →</div></div>`;
+
   // ---- Snapshot ledger → "since your last visit" strip (#6) + hero week-over-week trend chips (#7) ----
-  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length,
+  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length, wonQn,
     missed:missed.map(c=>c.code), cooling:cooling.map(r=>r.c.code), pending:pend.map(c=>c.code) };
   const { prev, weekAgo } = recordOverviewSnap(cur);
   const sinceStrip=(()=>{ if(!prev) return '';
@@ -1855,8 +1909,10 @@ function renderOverview(){
       <div class="meta">${hi} · ${dateStr} · ${active.length} active · weighted pipeline ${fmtVal(weighted)}</div></div>
     ${sinceStrip}
 
-    <div class="groupttl">🎯 Today's Focus</div>
-    <div class="card ovfocus">${focusInner}</div>
+    <div class="groupttl ovfocus-hd" id="ovFocusHd" role="button" tabindex="0" aria-expanded="${!focusCollapsed}">
+      <span>🎯 Today's Focus<span class="ovfocus-sum">${esc(focusSummary)}</span></span>
+      <span class="ovfocus-caret">${focusCollapsed?'▸':'▾'}</span></div>
+    <div class="card ovfocus"${focusCollapsed?' hidden':''}>${focusInner}</div>
 
     <div class="ovhero">
       <button class="ovtile t-cyan" data-jump="sec-top"><span class="cnrs"></span><span class="ot-ring" style="--p:${avgProb}" title="${avgProb}% EV-weighted close probability"></span><span class="ot-go">›</span>
@@ -1867,6 +1923,17 @@ function renderOverview(){
         <div class="ot-l">Cooling $ at risk</div><div class="ot-v">${fmtVal(atRisk)}</div><div class="ot-n">${cooling.length} fading ${trChip(atRisk, weekAgo&&weekAgo.atRisk, false, true, waLbl)}</div></button>
       <button class="ovtile t-purple" data-jump="sec-pending"><span class="cnrs"></span><span class="ot-ring" style="--p:${rPend}" title="${rPend}% of the book awaiting a decision"></span><span class="ot-go">›</span>
         <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">no next call booked ${trChip(pend.length, weekAgo&&weekAgo.pendN, false, false, waLbl)}</div></button>
+      <button class="ovtile t-green" data-jump="sec-wins"><span class="cnrs"></span><span class="ot-ring" style="--p:${goalPct}" title="${winGoal?goalPct+'% of '+qLbl+' goal':'no quarter goal set'}"></span><span class="ot-go">›</span>
+        <div class="ot-l">Won this quarter</div><div class="ot-v">${fmtVal(wonQval)}</div><div class="ot-n">${wonQn} deal${wonQn===1?'':'s'} ${trChip(wonQn, weekAgo&&weekAgo.wonQn, true, false, waLbl)}</div></button>
+    </div>
+
+    <div class="groupttl">🏆 Wins & Momentum</div>
+    <div class="card ovwins">
+      <div class="ovwins-goal">${goalBlock}<button class="ovgoalset" id="ovGoalSet">${winGoal?'✎ goal':'🎯 set goal'}</button></div>
+      <div class="ovwins-chart">
+        <div class="velsub">${win6n} win${win6n===1?'':'s'} · ${fmtVal(win6$)} · last ${MW} months${wonQn?` · ${esc(qLbl)}: ${fmtVal(wonQval)}`:''}</div>
+        ${winSvg}
+      </div>
     </div>
 
     <div class="ovcharts">
@@ -1896,6 +1963,18 @@ function renderOverview(){
     const box=document.getElementById(el.dataset.exp); if(!box) return;
     const open=box.hasAttribute('hidden'); if(open) box.removeAttribute('hidden'); else box.setAttribute('hidden','');
     el.classList.toggle('open', open); });
+  // Today's Focus — collapsible (state persisted in localStorage; click or Enter/Space toggles).
+  const fhd=$('#ovFocusHd');
+  if(fhd){ const toggle=()=>{ const now=localStorage.getItem('wr_focusCollapsed')==='1';
+      localStorage.setItem('wr_focusCollapsed', now?'0':'1'); renderOverview(); };
+    fhd.onclick=toggle; fhd.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }; }
+  // Quarter wins goal — a plain $ target (not sensitive), stored locally; accepts "2M"/"2000000".
+  const gset=$('#ovGoalSet');
+  if(gset) gset.onclick=()=>{ const cur0=parseFloat(localStorage.getItem('wr_winGoalQ')||'')||0;
+    const v=prompt('Quarterly assets-won goal (e.g. 2M or 2000000) — blank to clear:', cur0?String(cur0):'');
+    if(v===null) return; const n=assetVal(v.trim());
+    if(n>0) localStorage.setItem('wr_winGoalQ', String(n)); else localStorage.removeItem('wr_winGoalQ');
+    renderOverview(); };
   // Top toolbar — reuse the sidebar's existing handlers (sidebar is hidden on Overview).
   $('#ovbAdd').onclick   = ()=> $('#addBtn').click();
   $('#ovbDrive').onclick = ()=> $('#driveBtn').click();
@@ -2426,7 +2505,7 @@ function renderDetail(c){
   document.querySelectorAll('[data-coach]').forEach(b=> b.onclick = ()=> openCoach(c.code, b.dataset.coach));
   document.querySelectorAll('[data-widget]').forEach(b=> b.onclick = ()=> openWidget(c.code, b.dataset.widget));
   const setStatus = async (status, amount)=>{
-    if(status==='won'||status==='lost') await logDealOutcome(c, status);  // record outcome (+objection types) before erasing
+    if(status==='won'||status==='lost') await logDealOutcome(c, status, status==='won'?(amount||c.intel.moveable):c.intel.moveable);  // record outcome (+objection types +$) before erasing
     if(status==='won'){
       // keep only a minimal record — name + amount moved; erase the rest from Drive
       const wonAmount = normMoney(amount||c.intel.moveable||'');

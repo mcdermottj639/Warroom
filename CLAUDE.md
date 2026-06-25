@@ -176,21 +176,28 @@ client's name or "new notes" never hurt, but aren't required.)
   Center). It's a neon-HUD "command deck" (glassmorphism, scoped to `.ovwrap` so it
   stays dark even in light theme). Top = the only **action** block: **🎯 Today's Focus**
   (📵 missed calls to reschedule, surfaced FIRST as the most urgent action · calls today ·
-  follow-ups owed — undated or due today/overdue). Directly under the header a **⏱ "since your
+  follow-ups owed — undated or due today/overdue). It's a **collapsible card** (state in
+  localStorage `wr_focusCollapsed`, default open); folded, its header keeps a one-line count
+  summary (📵 n · 📞 n · 📌 n, `!` = overdue present). Directly under the header a **⏱ "since your
   last visit" delta strip** (`sinceStrip`) calls out what changed since the previous session —
   newly missed / cooling / pending clients + the pipeline $ move — diffed against the persisted
   snapshot ledger (see below); it's hidden on the very first visit. Everything below is a
-  **stats/analytics board**: four **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
-  Cooling $ at risk · Pending decisions) that **deep-link** into the matching Command
+  **stats/analytics board**: five **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
+  Cooling $ at risk · Pending decisions · **Won this quarter** — the last deep-links to 🏆 Wins
+  and its ring shows % of the quarter goal) that **deep-link** into the matching Command
   Center section and each carry a **week-over-week trend chip** (`trChip` — ▲/▼ vs the
   ~7-day-old snapshot, green=good/red=bad per metric direction; absent until a baseline exists),
-  then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
+  then a full-width **🏆 Wins & Momentum** row (a quarterly **assets-won goal ring** — target set
+  via prompt, stored in localStorage `wr_winGoalQ`, accepts "2M"/"2000000" — beside a 6-month
+  SVG bar chart of **$ won per month** with each bar labelled by win count; source is the durable
+  won-client records `wonAmount`/`wonDate`), then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
   next 6 wks — forward projection; the subtitle also shows EV **not yet booked** = `weighted −
   bookedEV` so the chart reconciles with the Weighted-pipeline tile instead of silently
   undercounting), **Win Probability** (two conic
   gauges: EV-weighted avg close prob + historical close rate from the durable de-named
-  `S.outcomeLog` ledger — losses are deleted from state so a live count can't see them;
-  accrues as deals are marked Won/Lost), **Stage Funnel + Win Rate**
+  `S.outcomeLog` ledger — `{outcome,date,amount}` per decided deal; losses are deleted from
+  state so a live count can't see them; `amount` (since r99) keeps $ won durable past the
+  stripped/deleted records; accrues as deals are marked Won/Lost), **Stage Funnel + Win Rate**
   (bars by stage + won/lost rate), **Activity Trend** (8-wk SVG of calls logged/week from
   `callHistory` dates — genuine history), **Discovery Depth** (avg "capture" gauge +
   per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
