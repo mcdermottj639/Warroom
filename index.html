@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r104';
+const BUILD = 'build 2026-06-25 · r105';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2420,8 +2420,8 @@ function renderDetail(c){
   const prepCards = i.prep || [];
   const prepGroup = prepCards.map((card,idx)=>
     panel(prepIcon(card.type)+' '+esc(card.title||''), '', prepCardBody(card), 'prepbody', idx===0)).join('');
-  // On-Call Helper section removed — the top coach buttons (Opening / Questions / How to
-  // pitch / Why Empower / Reframe objection / Watch-outs) cover on-call boosts better.
+  // On-Call Helper section removed — the top coach buttons (Opening / Questions / Pitch &
+  // Why Empower / Reframe objection / Watch-outs) cover on-call boosts better.
   const helper = '';
 
   // My notes — advisor's own running log (lives in the top-bar 🗒️ Notes dialog).
@@ -2475,8 +2475,7 @@ function renderDetail(c){
     <div class="coachrow">
       <button data-coach="open">🎬 Opening</button>
       <button data-coach="ask">❓ Questions</button>
-      <button data-coach="pitch">🎯 How to pitch</button>
-      <button data-coach="why">💎 Why Empower</button>
+      <button data-coach="pitch">🎯 Pitch &amp; Why Empower</button>
       ${(i.objections&&i.objections.length)?'<button data-coach="obj">🧯 Reframe objection</button>':''}
       <button data-coach="next">🤝 Next-step play</button>
       <button data-coach="watch">🚩 Watch-outs</button>
@@ -3540,17 +3539,6 @@ function coachContent(c, type){
       +`<p class="recap-note">Open with the personal question and let them answer · name the specifics so they feel remembered.</p>`;
     return {title:`🎬 ${label} for ${fn}`, html};
   }
-  if(type==='why'){
-    const blob=((i.specialFlags||i.complications||[]).join(' ')+' '+(i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o.objection).join(' ')).toLowerCase();
-    const items=['Lead value: one coordinated plan across everything — not scattered accounts.'];
-    if(/self-?directed|no advisor|diy/.test(blob)) items.push('They’re self-directed — position the coordination + accountability they’re missing.');
-    if(/tax|rmd|roth/.test(blob)) items.push('Tax coordination is the edge — RMD sequencing and Roth windows most DIYers miss.');
-    if(/annuit/.test(blob)) items.push('Contrast a flexible managed allocation vs. the annuity lock-up and fees.');
-    if(/concentrat|single-stock|rsu|\bstock\b/.test(blob)) items.push('Address concentration risk — a tax-efficient plan to de-risk the single-stock exposure.');
-    if(/fee|cost|expense|1%/.test(blob)) items.push('Frame cost as value — what the planning + tax work returns, not just the fee.');
-    items.push('Dedicated team + CFP access — depth beyond chasing returns.');
-    return {title:`💎 Why Empower for ${fn}`, items:items.slice(0,5)};
-  }
   if(type==='watch'){
     const items=[];
     (i.specialFlags||i.complications||[]).slice(0,3).forEach(f=> items.push(`Watch: ${strip(f)}.`));
@@ -3562,13 +3550,23 @@ function coachContent(c, type){
     return {title:`🚩 Watch-outs for ${fn}`, items:items.slice(0,5)};
   }
   if(type==='pitch'){
+    // Merged "How to pitch" + "Why Empower": how to frame the recommendation AND the
+    // tailored Empower value points, in one flow — recommendation → frame → their drivers →
+    // differentiators (only those this client's flags trigger) → core depth → close aim.
+    const blob=((i.specialFlags||i.complications||[]).join(' ')+' '+(i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o.objection).join(' ')).toLowerCase();
     const items=[];
     if(prod) items.push(`Lead with the recommendation: <b>${esc(prod)}</b>.`);
-    items.push('Frame it as simplifying + coordinating everything in one place — not a product sale.');
+    items.push('Frame it as one coordinated plan across everything — simplifying, not a product sale.');
     (i.goals||[]).slice(0,2).forEach(g=> items.push(`Tie it to their driver: ${deCap(strip(g))}.`));
-    items.push('Differentiate on planning depth, tax coordination, and a dedicated team — not just returns.');
+    // Why-Empower differentiators, surfaced only when the client's flags call for them
+    if(/self-?directed|no advisor|diy/.test(blob)) items.push('They’re self-directed — position the coordination + accountability they’re missing.');
+    if(/tax|rmd|roth/.test(blob)) items.push('Tax coordination is the edge — RMD sequencing and Roth windows most DIYers miss.');
+    if(/annuit/.test(blob)) items.push('Contrast a flexible managed allocation vs. the annuity lock-up and fees.');
+    if(/concentrat|single-stock|rsu|\bstock\b/.test(blob)) items.push('Address concentration risk — a tax-efficient plan to de-risk the single-stock exposure.');
+    if(/fee|cost|expense|1%/.test(blob)) items.push('Frame cost as value — what the planning + tax work returns, not just the fee.');
+    items.push('Differentiate on planning depth, tax coordination, and a dedicated team + CFP access — not just returns.');
     if(i.closeAction) items.push(`Aim the call at: ${lc1(strip(i.closeAction))}.`);
-    return {title:`🎯 How to pitch ${fn}`, items};
+    return {title:`🎯 Pitch & Why Empower — ${fn}`, items};
   }
   if(type==='obj' && obj){
     const items=[`Their hesitation: <b>${esc(strip(obj.objection))}</b>.`];

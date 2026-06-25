@@ -117,7 +117,7 @@ client's name or "new notes" never hurt, but aren't required.)
   Objection-Handling analytics. List multiple `- Objection:` / `- Response:` pairs freely.
 - **`specialFlags` = explicit `Watch:` clauses + a whole-profile signal scan** (since r98):
   crypto / single-stock / annuity / contractor / rental / RMD / LTC / estate keywords found
-  anywhere in the profile become flags, so the 💎 Why-Empower and 🚩 Watch-outs coaching
+  anywhere in the profile become flags, so the 🎯 Pitch & Why-Empower and 🚩 Watch-outs coaching
   fire even when those signals aren't crammed into a `Watch:` line. An **Empower-held
   account counts as an anchor** even when its tag is blank.
 - **Sticky fields** (preserved across sync even if a re-parsed profile lacks them):
@@ -270,7 +270,7 @@ client's name or "new notes" never hurt, but aren't required.)
   (≤560px)** the data tables drop the low-signal probability column (`.col-opt`) and
   tighten spacing instead of scrolling sideways.
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching:
-  Opening, Questions, How to pitch, Why Empower, Reframe objection, Next-step play,
+  Opening, Questions, Pitch & Why Empower, Reframe objection, Next-step play,
   Watch-outs) and **📊 Client data** pop-up widgets (📋 TL;DR, Assets, Streams, Income &
   Spending, Family & Why, Fee, Goals, Pending, 📞 Call history) — each opens in the shared
   pop-up via `dataWidget(c,key)`. Below the widgets sits only the **🧾 Prep Sheet** group
