@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r108';
+const BUILD = 'build 2026-06-26 · r109';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2114,17 +2114,12 @@ function renderDashboard(jumpTo){
   const winsAll = S.clients.filter(c=>c.intel.status==='won');
   const winIn = (c,fr)=>{ if(fr==='all') return true; const d=parseLogDate(c.intel.wonDate||''); if(!d) return false; return d>=_wfBounds[fr]; };
   const winCount = fr => winsAll.filter(c=>winIn(c,fr)).length;
-  const wins = winsAll.filter(c=>winIn(c,winFrame));
-  const winTotal = wins.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
+  // The Wins header total + rows are painted by repaintWins() (in-place, so the timeframe toggle
+  // doesn't reset scroll). winRate/wonQ/wonQval below still feed the KPI strip chip.
   const wonN=(S.outcomeLog||[]).filter(o=>o.outcome==='won').length, lostN=(S.outcomeLog||[]).filter(o=>o.outcome==='lost').length;
   const winRate = (wonN+lostN) ? Math.round(wonN/(wonN+lostN)*100) : null;
   const wonQ = winsAll.filter(c=>winIn(c,'quarter'));
   const wonQval = wonQ.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
-  const winRows = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 ${noteFlag(c)} <b>${esc(c.name)}</b></div>
-    <div class="r">${esc(normMoney(c.intel.wonAmount||c.intel.moveable)||'—')}</div>
-    <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
-    <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('')
-    : `<div class="bodynote" style="padding-top:0">${winsAll.length?'No wins in this window — try a wider range.':'No wins logged yet — mark a client ✓ Won and they’ll be tracked here.'}</div>`;
 
   // Follow-ups — open tasks across all clients; only show the next 2 weeks (+ overdue / undated)
   const _ft=new Date(); _ft.setHours(0,0,0,0); _ft.setDate(_ft.getDate()+14);
@@ -2191,7 +2186,7 @@ function renderDashboard(jumpTo){
     <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
     <div class="card">${coolRows}</div>
 
-    <div class="groupttl" id="sec-wins">🏆 Wins${wins.length?` · ${fmtVal(winTotal)}`:''}${winRate!=null?` · ${winRate}% win rate (${wonN}/${wonN+lostN})`:''}</div>
+    <div class="groupttl" id="sec-wins">🏆 Wins</div>
     <div class="card">
       <div class="tabs" id="winTabs">
         <button class="tab${winFrame==='week'?' active':''}" data-wf="week">This week (${winCount('week')})</button>
@@ -2200,7 +2195,7 @@ function renderDashboard(jumpTo){
         <button class="tab${winFrame==='ytd'?' active':''}" data-wf="ytd">YTD (${winCount('ytd')})</button>
         <button class="tab${winFrame==='all'?' active':''}" data-wf="all">All (${winsAll.length})</button>
       </div>
-      ${winRows}
+      <div id="winBody"></div>
     </div>
     <div class="fabgroup">
       <button class="fab fab-icon" id="searchFab" aria-label="Search clients">🔍</button>
@@ -2239,12 +2234,11 @@ function renderDashboard(jumpTo){
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
   document.querySelectorAll('.fchip').forEach(b=> b.onclick = ()=>{ S.ccFilter=b.dataset.filt; renderDashboard(); });
-  document.querySelectorAll('#winTabs .tab').forEach(b=> b.onclick = ()=>{
-    S.winFrame=b.dataset.wf;
-    const m=$('#main'); const y=m?m.scrollTop:0;   // hold the scroll so changing timeframe stays inside Wins
-    renderDashboard();
-    const m2=$('#main'); if(m2) m2.scrollTop=y;     // renderDashboard resets to top; put it back
-  });
+  // Timeframe toggle repaints ONLY the Wins card in place — a full renderDashboard() would reset
+  // the scroll (the scroll container is #main on desktop but the body on phones, so restoring
+  // #main.scrollTop didn't help mobile). In-place update touches nothing around it, so no jump.
+  document.querySelectorAll('#winTabs .tab').forEach(b=> b.onclick = ()=>{ S.winFrame=b.dataset.wf; repaintWins(); });
+  repaintWins();   // initial paint of the Wins header + rows for the current frame
   $('#topFab').onclick = ()=> scrollMainTop();
   $('#searchFab').onclick = ()=>{ const inp=$('#clientSearch'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center'}); } };
   $('#ccBack').onclick = ()=> renderOverview();
@@ -2252,6 +2246,36 @@ function renderDashboard(jumpTo){
   const jt = jumpTo && document.getElementById(jumpTo);
   if(jt){ scrollMainTop(); jt.scrollIntoView({behavior:'smooth', block:'start'}); }
   else scrollMainTop();
+}
+
+// Repaint just the Wins card (header total + rows + active tab) for the current S.winFrame, in
+// place — no full re-render, so switching timeframe never moves the scroll. Bounds: week =
+// Sunday-start, month/quarter/ytd = calendar starts; 'all' = lifetime. Mirrors the markup that
+// renderDashboard's Wins section uses (keep the two in sync).
+function repaintWins(){
+  const body=document.getElementById('winBody'); if(!body) return;   // only when the dashboard is mounted
+  const frame=['week','month','quarter','ytd','all'].includes(S.winFrame)?S.winFrame:'all';
+  const n=new Date();
+  const B={ week:new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()),
+    month:new Date(n.getFullYear(),n.getMonth(),1),
+    quarter:new Date(n.getFullYear(),Math.floor(n.getMonth()/3)*3,1),
+    ytd:new Date(n.getFullYear(),0,1) };
+  const inFr=(c,f)=>{ if(f==='all')return true; const d=parseLogDate(c.intel.wonDate||''); if(!d)return false; return d>=B[f]; };
+  const winsAll=S.clients.filter(c=>c.intel.status==='won');
+  const wins=winsAll.filter(c=>inFr(c,frame));
+  const winTotal=wins.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
+  const wonN=(S.outcomeLog||[]).filter(o=>o.outcome==='won').length, lostN=(S.outcomeLog||[]).filter(o=>o.outcome==='lost').length;
+  const winRate=(wonN+lostN)?Math.round(wonN/(wonN+lostN)*100):null;
+  const nf=c=>{ const m=(c.intel.notes||[]).length; return `<button class="noteflag${m?' has':''}" data-notecode="${c.code}" tabindex="-1" title="${m?m+' note'+(m>1?'s':'')+' — click to read':'Add a note'}" aria-label="${m?'View notes':'Add a note'}">🗒️${m?`<span class="nfn">${m}</span>`:''}</button>`; };
+  body.innerHTML = wins.length ? wins.map(c=>`<div class="winrow"><div style="flex:1">🏆 ${nf(c)} <b>${esc(c.name)}</b></div>
+    <div class="r">${esc(normMoney(c.intel.wonAmount||c.intel.moveable)||'—')}</div>
+    <div style="flex:1;color:var(--muted);font-size:12px">${esc(c.intel.product||'')}</div>
+    <div class="fc">${esc(c.intel.wonDate||'')}</div></div>`).join('')
+    : `<div class="bodynote" style="padding-top:0">${winsAll.length?'No wins in this window — try a wider range.':'No wins logged yet — mark a client ✓ Won and they’ll be tracked here.'}</div>`;
+  const hdr=document.getElementById('sec-wins');
+  if(hdr) hdr.innerHTML=`🏆 Wins${wins.length?` · ${fmtVal(winTotal)}`:''}${winRate!=null?` · ${winRate}% win rate (${wonN}/${wonN+lostN})`:''}`;
+  document.querySelectorAll('#winTabs .tab').forEach(t=>t.classList.toggle('active', t.dataset.wf===frame));
+  body.querySelectorAll('[data-notecode]').forEach(btn=> btn.onclick=(e)=>{ e.stopPropagation(); openNotes(btn.dataset.notecode); });
 }
 
 function renderList(){

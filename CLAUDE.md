@@ -268,8 +268,11 @@ client's name or "new notes" never hurt, but aren't required.)
   **Cooling** keeps its ✉️ re-engage. **Wins** has a This-week / This-month / This-quarter
   / YTD / All **time-frame toggle** (`S.winFrame`, filtered by `parseLogDate(wonDate)` against
   `_wfBounds`; week = Sunday-start) and shows a lifetime **win rate** (from `S.outcomeLog`) in
-  its header. Changing the timeframe **preserves the scroll position** (the handler holds
-  `#main.scrollTop` across the re-render) so the view stays inside Wins. On **narrow phones
+  its header. Changing the timeframe **repaints only the Wins card in place** via `repaintWins()`
+  (no full `renderDashboard()`), so the scroll never jumps — a full re-render reset it, and
+  restoring `#main.scrollTop` didn't help on phones where the **body** (not `#main`) is the scroll
+  container. `repaintWins()` is also called once on dashboard mount to do the initial Wins paint.
+  On **narrow phones
   (≤560px)** the data tables drop the low-signal probability column (`.col-opt`) and
   tighten spacing instead of scrolling sideways.
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching, four
