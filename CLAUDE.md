@@ -342,6 +342,24 @@ The file is large; these are the load-bearing pieces a new session will likely t
   Intro/Discovery/Proposal/Decision/Enrollment from the notes (rule of thumb: advance one
   stage past the call just held). These drive **Upcoming Calls** + the next-call banner.
   `nextCallMinutes(i)` extracts the call's clock time so same-day Upcoming rows sort earliest-first.
+- **Date parsing — THREE paths, each must range-check & honor "no call" (r115–r116 fix).** A
+  number that merely *looks* like `MM/DD` (an **age** like "retire at 57/58", a **rate** like "3/6",
+  a **kid's age**) must never become a phantom next-call date. The banner showed a bogus "57/58
+  DISCOVERY" call because these weren't guarded. The three places that turn text into a date — keep
+  them in sync:
+  1. **`parseLogDate(s)`** — its `MM/DD` regex range-checks month 1–12 / day 1–31; an out-of-range
+     match **falls through** to the month-name patterns (it does NOT return a junk `Date`).
+  2. **`extractNextCall(text)`** — has its **own** date regex (used by `mapImport` to populate
+     `intel.nextCall`, which the banner can print **literally**). Same range restriction baked into
+     the regex (`(0?[1-9]|1[0-2])/(0?[1-9]|[12]\d|3[01])`).
+  3. **`nextExpectedDate(i)` + `mapImport`** — both treat `intel.nextCallCleared` (the profile's
+     explicit "No call scheduled", see Data-model "No next call") as **authoritative**, exactly like
+     `missedCall`: `nextExpectedDate` returns null, and `mapImport` forces `nextCall=''` rather than
+     scraping the close/summary text. So a "No call scheduled" client lands in **Pending Decisions**,
+     not Upcoming.
+  Rule of thumb: if you add/edit any code that reads a date out of free text, **range-check it and
+  short-circuit on `nextCallCleared`/`missedCall`** — and remember stored `intel.nextCall` only
+  refreshes on a ☁️ Drive **re-sync** (re-runs `parseProfile`→`mapImport`), not a plain reload.
 - **Log call** — `openLog` → `driveLogCall(name, editFn)` with `profileEdit` appends a
   Call Log entry, updates Stage/next-step, and writes back to Drive in place.
 - **iPhone widget feed** (since r112) — `gatherWidgetFeed()` builds a compact digest
