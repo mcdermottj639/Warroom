@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r112';
+const BUILD = 'build 2026-06-26 · r113';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -3167,6 +3167,26 @@ async function driveWriteWidget(folderId, obj){
     {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+b}, body:multipart});
   if(!r.ok) throw new Error('Widget write '+r.status); return (await r.json()).id;
 }
+// Share the widget feed file "anyone with the link → reader" so the iPhone Scriptable widget can
+// fetch it with no OAuth (it holds only today's call digest — same private trust as a long unguessable
+// Drive link). Idempotent: only POSTs the permission once per file id (cached in localStorage).
+async function driveShareWidget(id){
+  if(!id) return;
+  try{ localStorage.setItem('wr_widgetFileId', id); }catch(e){}
+  if(localStorage.getItem('wr_widgetShared')===id) return;
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}/permissions?fields=id`,
+    {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'application/json'},
+     body:JSON.stringify({role:'reader', type:'anyone'})});
+  if(r.ok) try{ localStorage.setItem('wr_widgetShared', id); }catch(e){}
+}
+// One-time: hand the user the File ID to paste into their Scriptable widget (copyable prompt).
+function maybeShowWidgetLink(id){
+  if(!id || localStorage.getItem('wr_widgetLinkShown')===id) return;
+  try{ localStorage.setItem('wr_widgetLinkShown', id); }catch(e){}
+  setTimeout(()=>{ try{ prompt('📱 iPhone widget — copy this File ID into your Scriptable “Warroom” widget (one-time, replace PASTE_FILE_ID_HERE):', id); }catch(e){} }, 500);
+}
+// Re-show the File ID on demand (call showWidgetId() from the console if you miss the prompt).
+function showWidgetId(){ const id=localStorage.getItem('wr_widgetFileId')||''; if(id) prompt('📱 Your widget File ID:', id); else alert('No widget file yet — tap ☁️ Drive once.'); }
 // fire-and-forget widget refresh after an in-app edit (only when a Drive session is already live, so
 // it never forces a sign-in just to repaint a widget; skips the write when nothing changed).
 let _lastWidgetSig='';
@@ -3174,7 +3194,7 @@ function pushWidgetFeed(){ if(!driveToken) return;
   (async ()=>{ try{ const feed=gatherWidgetFeed();
     const sig=JSON.stringify({t:feed.today,w:feed.week,m:feed.missed,f:feed.followups,o:feed.overdue});
     if(sig===_lastWidgetSig) return; _lastWidgetSig=sig;
-    await driveWriteWidget(null, feed);
+    const id=await driveWriteWidget(null, feed); await driveShareWidget(id);
   }catch(e){} })(); }
 // one canonical profile per client: read the LIVE newest file, apply editFn, write it back
 // in place, then delete every other copy. Returns the resulting markdown + file id.
@@ -3501,7 +3521,7 @@ async function syncFromDrive(){
     for(const id of losers){ try{ const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}`,
       {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); if(r.ok) removed++; }catch(e){} }
     try{ await syncSettings(folderId); }catch(e){}   // cross-device win goal + monthly backfill
-    try{ await driveWriteWidget(folderId, gatherWidgetFeed()); }catch(e){}   // refresh the iPhone widget feed
+    try{ const _wid=await driveWriteWidget(folderId, gatherWidgetFeed()); await driveShareWidget(_wid); maybeShowWidgetLink(_wid); }catch(e){}   // refresh + share the iPhone widget feed
     driveToken = null;
     await loadClients(); renderDashboard();
     alert('Synced '+n+' client(s)'+(pruned?` · removed ${pruned} deleted elsewhere`:'')+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');
