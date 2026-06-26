@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r113';
+const BUILD = 'build 2026-06-26 · r114';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -3135,15 +3135,23 @@ function gatherWidgetFeed(){
     const day=upcoming.filter(x=> x.d.getTime()===d.getTime());
     week.push({ iso:isoOf(d), dow:d.toLocaleDateString(undefined,{weekday:'short'}),
       count:day.length, val:day.reduce((s,x)=>s+assetVal(x.c.intel.moveable), 0) }); }
+  // the next scheduled calls AFTER today (with names) — fills the large widget on quiet days
+  const upNext = upcoming.filter(x=> x.d.getTime()!==today0.getTime()).slice(0,8).map(x=>{
+    const i=x.c.intel; const mins=nextCallMinutes(i);
+    return { name:x.c.name, dow:x.d.toLocaleDateString(undefined,{weekday:'short'}),
+      md:x.d.toLocaleDateString(undefined,{month:'short',day:'numeric'}),
+      type:nextCallType(i)||i.callType||'', time:fmtClock(mins), val:assetVal(i.moveable) }; });
   // urgency counts: missed calls (nothing rebooked) + follow-ups owed now (undated or due ≤ today)
   const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=today0); };
-  const missed = active.filter(c => !!c.intel.missedCall && !hasFutureCall(c)).length;
+  const missedCs = active.filter(c => !!c.intel.missedCall && !hasFutureCall(c))
+    .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
+  const missedNames = missedCs.slice(0,6).map(c=>c.name);
   let owed=0, overdue=0;
   S.clients.forEach(c=> (c.intel.tasks||[]).forEach(t=>{ if(t.done) return;
     if(t.due && t.due>todayISO) return; owed++; if(t.due && t.due<todayISO) overdue++; }));
   return { v:1, generatedAt:new Date().toISOString(), date:todayISO,
     today:{ count:todays.length, transferable:todayVal, calls:todays },
-    week, missed, followups:owed, overdue };
+    upcoming:upNext, week, missed:missedCs.length, missedNames, followups:owed, overdue };
 }
 async function driveWidgetFile(folderId){
   folderId = folderId || await driveFolderId();
