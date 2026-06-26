@@ -272,9 +272,18 @@ client's name or "new notes" never hurt, but aren't required.)
   tighten spacing instead of scrolling sideways.
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching, four
   buttons mapped to the call arc: Opening → Questions → Pitch & Why Empower → Next-step
-  play) and **📊 Client data** pop-up widgets (📋 TL;DR, Assets, Streams, Income &
-  Spending, Family & Why, Fee, Goals, Pending, 📞 Call history) — each opens in the shared
-  pop-up via `dataWidget(c,key)`. Below the widgets sits only the **🧾 Prep Sheet** group
+  play) and **📊 Client data** pop-up widgets — **consolidated 9→5 in r107** to five
+  sectioned pop-ups: **📋 TL;DR** (the close summary, now also carrying the **Decision
+  pending** row — the old standalone Pending widget was folded in; its risk badge just
+  duplicated the header priority badge), **🏦 Assets & Fee** (account breakdown +
+  transferable/fee/retirement-goal roll-up — old Assets + Fee merged), **💵 Income**
+  (income/asset streams + spending, with SS/pension shown once — old Streams + Income &
+  Spending merged; SS/pension feeds `incomeStreams`, so its bullets render only when no
+  structured streams exist), **❤️ Why** (family + life/retirement + goals — old Family &
+  Why + Goals merged), and **📞 Call history**. Each opens in the shared pop-up via
+  `dataWidget(c,key)`; the merged bodies stack `incomeSpendingBody`/`familyWhyBody`/
+  `tldrBody` plus per-section `.fin-grp`/`.fin-lbl` sub-headers (a legacy free-text income
+  profile still falls back to `incomeSpendingBody`'s regex path). Below the widgets sits only the **🧾 Prep Sheet** group
   (the deeper Claude-authored cards). There's no inline "History & Notes" section: TL;DR
   and Call history are widgets above, and **notes** live in the top-bar **🗒️ Notes** dialog.
   The **❓ Questions** pop-up always **leads with the discovery topics this client's

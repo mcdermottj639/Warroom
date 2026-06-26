@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-25 · r106';
+const BUILD = 'build 2026-06-26 · r107';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2365,6 +2365,7 @@ function tldrBody(c){
     row('Why move',whyMove),
     row('Why Empower / Solution',solution),
     row('Why not Empower',whyNot),
+    row('Decision pending',i.pendingDecision),
     row('Confidence',i.confidence?i.confidence+'/100':''),
     row('Timing cue',timing),
     row('Next step',i.closeAction)
@@ -2398,21 +2399,15 @@ function renderDetail(c){
     <div class="ahead"><span class="ttl">${ttl}</span><span class="ameta">${esc(meta||'')}</span><span class="chev">▸</span></div>
     <div class="abody ${cls}">${body}</div></div>`;
 
-  // Pending decision shows only when specific to this client (explicit, or at a decision point)
-  const stLow = (i.stage||'').toLowerCase();
-  const hasPending = !!i.pendingDecision || ['proposal','decision'].includes(stLow);
-
-  // Client-data widgets — top pop-up buttons (the parsed facts). "Follow-up flags" is intentionally
-  // omitted here: the Watch-outs coaching button already surfaces those same flags (deduped per request).
+  // Client-data widgets — top pop-up buttons (the parsed facts). Consolidated 9→5 (r107):
+  // Assets+Fee, Streams+Income&Spending, and Family+Goals each merged into one sectioned pop-up;
+  // Pending folded into TL;DR (its risk badge duplicated the header priority badge). "Follow-up
+  // flags" stays omitted — the Pitch & Why Empower coaching surfaces those same flags.
   const dataDefs = [
-    ['tldr','📋 TL;DR', i.solutionOffered||i.closeAction||has(i.goals)||has(i.objections)],
-    ['assets','🏦 Assets', has(i.accounts)],
-    ['streams','📈 Streams', has(i.incomeStreams)],
-    ['income','💵 Income & Spending', !!incomeSpendingBody(i)],
-    ['family','❤️ Family & Why', !!familyWhyBody(i)],
-    ['fee','💸 Fee', feeRows.length],
-    ['goals','🎯 Goals', has(i.goals)],
-    ['pending','⏳ Pending', hasPending],
+    ['tldr','📋 TL;DR', i.solutionOffered||i.closeAction||has(i.goals)||has(i.objections)||i.pendingDecision],
+    ['assets','🏦 Assets & Fee', has(i.accounts)||feeRows.length],
+    ['income','💵 Income', has(i.incomeStreams)||!!incomeSpendingBody(i)],
+    ['why','❤️ Why', !!familyWhyBody(i)||has(i.goals)],
     ['callhist','📞 Call history', has(i.callHistory)]
   ];
   const dataRow = dataDefs.filter(d=>d[2]).map(d=>`<button data-widget="${d[0]}">${esc(d[1])}</button>`).join('');
@@ -3604,43 +3599,48 @@ function dataWidget(c, key){
   const i=c.intel;
   const has=a=>Array.isArray(a)&&a.length;
   const none='<div class="bodynote" style="padding-top:0">— nothing recorded —</div>';
+  // section wrapper (gold sub-header + body) used to stack the merged pop-ups
+  const sec=(lbl,inner)=> inner ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${inner}</div>` : '';
+  const kvRows=arr=>arr.map(r=>`<div class="kv"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join('');
   if(key==='assets'){
-    return {title:'🏦 Asset Landscape', html: has(i.accounts)
-      ? i.accounts.map(a=>`<div class="kv ${a.anchor?'anchor':''}">
+    // accounts breakdown + the transferable/fee roll-up (was 🏦 Assets + 💸 Fee)
+    const accHtml = has(i.accounts) ? i.accounts.map(a=>`<div class="kv ${a.anchor?'anchor':''}">
           <span class="k">${esc(a.custodian)}<br><span class="tag">${esc(a.tag)}</span></span>
-          <span class="v">${esc(a.value)}</span></div>`).join('') : none};
-  }
-  if(key==='streams'){
-    return {title:'📈 Income & Asset Streams', html: has(i.incomeStreams)
-      ? i.incomeStreams.map(s=>`<div class="kv"><span class="k">${esc(s.label)}</span>
-          <span class="v">${esc(s.amount)}</span></div>`).join('') : none};
-  }
-  if(key==='income'){
-    return {title:'💵 Income & Spending', html: incomeSpendingBody(i) || none};
-  }
-  if(key==='family'){
-    return {title:'❤️ Family & Why', html: familyWhyBody(i) || none};
-  }
-  if(key==='fee'){
+          <span class="v">${esc(a.value)}</span></div>`).join('') : '';
     const feeRows=[ i.moveable&&['Transferable',moneyShort(i.moveable)],
       i.fee&&i.fee.from&&['Fee — from',i.fee.from], i.fee&&i.fee.to&&['Fee — to',i.fee.to],
       i.fee&&i.fee.savings&&['Est. savings',i.fee.savings],
       i.household&&i.household.retirementGoal&&['Retirement goal',i.household.retirementGoal] ].filter(Boolean);
-    return {title:'💸 Transferable & Fee', html: feeRows.length
-      ? feeRows.map(r=>`<div class="kv"><span class="k">${esc(r[0])}</span><span class="v">${esc(r[1])}</span></div>`).join('') : none};
+    const body = `<div style="padding-top:13px">${sec('Accounts',accHtml)}${sec('Transferable &amp; fee', feeRows.length?kvRows(feeRows):'')}</div>`;
+    return {title:'🏦 Assets & Fee', html: (accHtml||feeRows.length)? body : none};
   }
-  if(key==='goals'){
-    return {title:'🎯 Goals / why consolidate', html: has(i.goals)
-      ? '<div style="padding-top:4px">'+i.goals.map(x=>`<span class="pill">${esc(x)}</span>`).join('')+'</div>' : none};
+  if(key==='income'){
+    // income/asset streams + spending + SS/pension, de-duped (was 📈 Streams + 💵 Income & Spending).
+    // SS/pension is the same source that feeds incomeStreams, so show its bullets only when there
+    // are no structured streams to avoid double-listing it.
+    const streamRows = has(i.incomeStreams) ? i.incomeStreams.map(s=>[s.label,s.amount]) : [];
+    const spend = i.spending ? i.spending.split(/[;\n]/).map(s=>strip(s)).filter(Boolean) : [];
+    if(streamRows.length || spend.length){
+      const items=a=>a.map(x=>`<div class="fin-item">${esc(x)}</div>`).join('');
+      let ssHtml='';
+      if(!streamRows.length && i.ssPension){
+        const ben=i.ssPension.split(/[;\n]/).map(s=>strip(s)).filter(Boolean);
+        ssHtml=sec('Social Security &amp; pension', items(ben));
+      }
+      const body=`<div style="padding-top:13px">${sec('Income streams', streamRows.length?kvRows(streamRows):'')}${ssHtml}${sec('Spending &amp; income', items(spend))}</div>`;
+      return {title:'💵 Income & Spending', html: body};
+    }
+    // legacy free-text profiles — let incomeSpendingBody's regex fallback handle it
+    return {title:'💵 Income & Spending', html: incomeSpendingBody(i) || none};
   }
-  if(key==='pending'){
-    const issue=i.pendingDecision||(i.complications||i.specialFlags||[])[0]
-      ||(i.objections&&i.objections[0]&&i.objections[0].objection)||'Decision pending';
-    const risk=i.priority==='CRITICAL'?'CRITICAL':i.priority==='HOT'?'HIGH':'MEDIUM';
-    return {title:'⏳ Pending decision', html:`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:4px">
-      <span class="riskbadge risk-${risk}">${risk}</span>
-      <span style="font-weight:700">${esc(issue)}</span></div>
-      <div class="note" style="margin-top:8px">The on-call ask lives in 🤝 Next-step play.</div>`};
+  if(key==='why'){
+    // family + life/retirement + goals — the emotional why (was ❤️ Family & Why + 🎯 Goals)
+    const fw = familyWhyBody(i) || '';
+    const goalsHtml = has(i.goals)
+      ? sec('Goals / why consolidate', '<div style="padding-top:2px">'+i.goals.map(x=>`<span class="pill">${esc(x)}</span>`).join('')+'</div>')
+      : '';
+    const body = goalsHtml ? `${fw}<div style="padding-top:${fw?'0':'13px'}">${goalsHtml}</div>` : fw;
+    return {title:'❤️ Family & Why', html: body || none};
   }
   if(key==='tldr'){
     return {title:'📋 TL;DR — the close', html: tldrBody(c) || none};
