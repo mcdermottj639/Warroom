@@ -205,9 +205,13 @@ client's name or "new notes" never hurt, but aren't required.)
   show their real number; backfill carries no win count, so those bars show $ with no count label)).
   **Both the goal and the backfill sync across devices via Drive** (not just localStorage): they're
   written to a tiny non-sensitive JSON file `WarRoom Settings.json` in the `1Remarkable` folder
-  (`{winGoalM, winHist}`). `pushSettings()` (fire-and-forget through `withDriveToken`) writes on every
-  goal/backfill save; `syncFromDrive` calls `syncSettings(folderId)` to **pull** them into localStorage
-  (remote wins; if Drive has none yet, the local values **seed** it). `driveReadSettings`/`driveWriteSettings`
+  (`{winGoalM, winHist, outcomeLog, objLog}` — the last two added r110, de-named close-stat ledgers).
+  `pushSettings()` (fire-and-forget through `withDriveToken`) writes on every goal/backfill save **and
+  after every decided deal**; it routes through `writeSettingsMerged`, which **unions** the local
+  ledgers with Drive's (by row `id`) before writing so neither device's outcomes are lost or doubled.
+  `syncFromDrive` calls `syncSettings(folderId)` to **pull** goal/backfill into localStorage
+  (remote wins; if Drive has none yet, the local values **seed** it) and union the ledgers both ways.
+  `driveReadSettings`/`driveWriteSettings`
   mirror the profile read/PATCH-or-create pattern; the file name has no "Profile" so the client sync
   ignores it. localStorage stays the fast local mirror that the render reads,
   then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
@@ -231,7 +235,16 @@ client's name or "new notes" never hurt, but aren't required.)
   IndexedDB meta, appended in `setStatus` via `logObjectionOutcome`) gives won-vs-lost per
   category; bars show strongest→toughest, **click-to-expand** to the open clients in that
   category. Rates
-  accrue going forward since past won/lost objections weren't retained). The board **auto-refreshes
+  accrue going forward since past won/lost objections weren't retained). **Both close-stat
+  ledgers (`S.outcomeLog` + `S.objLog`) now also sync across devices via Drive** (since r110):
+  each row carries a stable `id`, and they ride along in `WarRoom Settings.json` next to the win
+  goal/backfill. `logDealOutcome` stamps the id, appends locally, and fires `pushSettings()`;
+  `writeSettingsMerged` **unions** this device's ledger with Drive's (by id; legacy rows by value)
+  so losses — which are deleted from client state — survive and never double-count. This is why
+  the **Win-Probability "Close rate" gauge** and the **Stage-Funnel "% win rate · W·L"** were
+  previously stuck at 0 on a second device / fresh load: the ledger was IndexedDB-local and
+  forward-only. (The funnel **bars** still show only the *open* pipeline — a won deal graduates
+  out of its stage by design; the **"Avg close prob"** gauge is live current-state EV-weighting.) The board **auto-refreshes
   on a calendar-day rollover** (`ovDayCheck` on visibilitychange/focus + a 60 s interval) so a
   left-open tab's Today's Focus / greeting / dates never go stale past midnight. On Overview the
   **whole left sidebar is hidden** (`#app.noside`, toggled in

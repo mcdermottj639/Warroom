@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r109';
+const BUILD = 'build 2026-06-26 · r110';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1609,13 +1609,15 @@ function recordOverviewSnap(cur){
 }
 async function logDealOutcome(client, outcome, amount){
   const date=new Date().toISOString().slice(0,10);
+  const uid=()=> Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7);  // stable id → cross-device union without double-counting
   // amount = the deal's de-named $ figure (won amount, or value-at-risk on a loss). Stamped here so
   // "$ won over time" survives even after the won record is stripped and the lost record deleted.
   const amt = assetVal(normMoney(amount||client.intel.wonAmount||client.intel.moveable||''))||0;
-  S.outcomeLog = (S.outcomeLog||[]).concat([{outcome, date, amount:amt}]);     // every decided deal → close rate
+  S.outcomeLog = (S.outcomeLog||[]).concat([{id:uid(), outcome, date, amount:amt}]);     // every decided deal → close rate
   const cats=[...new Set((client.intel.objections||[]).map(o=>objCategory(o.objection)))];
-  if(cats.length) S.objLog = (S.objLog||[]).concat(cats.map(cat=>({cat, outcome, date})));   // + per objection type
+  if(cats.length) S.objLog = (S.objLog||[]).concat(cats.map(cat=>({id:uid(), cat, outcome, date})));   // + per objection type
   try{ await saveOutcomeLog(); await saveObjLog(); }catch(e){}
+  pushSettings();   // mirror the de-named ledger to Drive so close-rate + funnel win-rate cross devices
 }
 
 // Bucket a free-text objection into a category, so the Overview can show "how I close" by type.
@@ -3043,7 +3045,7 @@ async function driveFolderId(){
 function gatherSettings(){
   const g=parseFloat(localStorage.getItem('wr_winGoalM')||'')||0;
   let h={}; try{ const o=JSON.parse(localStorage.getItem('wr_winHist')||'{}'); if(o&&typeof o==='object') h=o; }catch(e){}
-  return { winGoalM: g>0?g:0, winHist: h };
+  return { winGoalM: g>0?g:0, winHist: h, outcomeLog: S.outcomeLog||[], objLog: S.objLog||[] };
 }
 async function driveSettingsFile(folderId){
   folderId = folderId || await driveFolderId();
@@ -3072,19 +3074,38 @@ async function driveWriteSettings(folderId, obj){
     {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+b}, body:multipart});
   if(!r.ok) throw new Error('Settings write '+r.status); return (await r.json()).id;
 }
-// fire-and-forget push after the user edits the goal/backfill (offline-tolerant, like notes/tasks)
-function pushSettings(){ withDriveToken(async ()=>{ try{ await driveWriteSettings(null, gatherSettings()); }catch(e){} }); }
-// during a Drive sync: pull settings into localStorage; if Drive has none yet, seed it from this device
+// The de-named close-stat ledgers (outcomeLog/objLog) ride along in the settings file so the
+// Overview close-rate + Stage-Funnel win-rate persist and cross devices. Union by id (legacy rows:
+// by value) → a device's losses (which are deleted from client state) survive and never double-count.
+const _OKEY=o=>'o|'+o.outcome+'|'+o.date+'|'+o.amount;
+const _JKEY=j=>'j|'+j.cat+'|'+j.outcome+'|'+j.date;
+function mergeLedger(a,b,keyFn){
+  const out=[],seen=new Set();
+  for(const e of [...(a||[]),...(b||[])]){ if(!e)continue; const k=e.id?('id|'+e.id):keyFn(e); if(seen.has(k))continue; seen.add(k); out.push(e); }
+  return out;
+}
+// Merge this device's ledgers with whatever's on Drive, adopt the union locally, and write it back
+// (only when something actually changed) — so a blind overwrite can't clobber the other device's deals.
+async function writeSettingsMerged(folderId, remote){
+  if(remote===undefined) remote=await driveReadSettings(folderId);
+  const oLog=mergeLedger(remote.outcomeLog, S.outcomeLog, _OKEY);
+  const jLog=mergeLedger(remote.objLog, S.objLog, _JKEY);
+  S.outcomeLog=oLog; S.objLog=jLog;
+  try{ await saveOutcomeLog(); await saveObjLog(); }catch(e){}
+  const local=gatherSettings();
+  const gChanged=(remote.winGoalM||0)!==local.winGoalM || JSON.stringify(remote.winHist||{})!==JSON.stringify(local.winHist||{});
+  const lChanged=oLog.length!==(remote.outcomeLog||[]).length || jLog.length!==(remote.objLog||[]).length;
+  if(gChanged || lChanged || !remote || !Object.keys(remote).length)
+    await driveWriteSettings(folderId, { winGoalM:local.winGoalM, winHist:local.winHist, outcomeLog:oLog, objLog:jLog });
+}
+// fire-and-forget push after an edit (goal/backfill) or a decided deal (offline-tolerant, like notes/tasks)
+function pushSettings(){ withDriveToken(async ()=>{ try{ await writeSettingsMerged(null); }catch(e){} }); }
+// during a Drive sync: pull goal/backfill into localStorage (remote wins) + union the ledgers both ways
 async function syncSettings(folderId){
   const remote=await driveReadSettings(folderId);
-  const hasRemote = remote && ((remote.winGoalM>0) || (remote.winHist && Object.keys(remote.winHist).length));
-  if(hasRemote){
-    if(remote.winGoalM>0) localStorage.setItem('wr_winGoalM', String(remote.winGoalM));
-    if(remote.winHist && typeof remote.winHist==='object') localStorage.setItem('wr_winHist', JSON.stringify(remote.winHist));
-  }else{
-    const local=gatherSettings();
-    if(local.winGoalM>0 || Object.keys(local.winHist).length) await driveWriteSettings(folderId, local);
-  }
+  if(remote.winGoalM>0) localStorage.setItem('wr_winGoalM', String(remote.winGoalM));
+  if(remote.winHist && typeof remote.winHist==='object') localStorage.setItem('wr_winHist', JSON.stringify(remote.winHist));
+  await writeSettingsMerged(folderId, remote);
 }
 // one canonical profile per client: read the LIVE newest file, apply editFn, write it back
 // in place, then delete every other copy. Returns the resulting markdown + file id.
