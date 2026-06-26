@@ -351,15 +351,23 @@ The file is large; these are the load-bearing pieces a new session will likely t
   read/PATCH-or-create pattern, writing **`WarRoom Widget.json`** into the same private `1Remarkable`
   folder as the profiles (name has no "Profile" so the client sync ignores it; the filename also
   isn't `WarRoom Settings.json` so the settings sync ignores it). It's refreshed on **every ☁️ Drive
-  sync** (`syncFromDrive`, inline `await driveWriteWidget`) and after in-app **reschedules**
-  (`syncNextCallToDrive` → `pushWidgetFeed()`, which is fire-and-forget, no-ops without a live token,
-  and skips the write when nothing changed). **Consumed by two Scriptable widgets** (code lives
-  outside the repo, pasted into the user's Scriptable app): a **lock-screen** widget showing today's
-  call count + total transferable $, and a **large home-screen** widget showing today's calls
-  (name · type/time · $) + a 7-day overview strip + missed/follow-up counts. The widgets read the one
-  JSON via a Google Drive OAuth token (device-flow refresh token stored in Scriptable Keychain), so
-  client names never leave the private Drive. **No client data is ever published to the public repo
-  or a public URL** — the widget feed is private-Drive-only, same trust boundary as the profiles.
+  sync** (`syncFromDrive`, inline `await driveWriteWidget` → `driveShareWidget` → `maybeShowWidgetLink`)
+  and after in-app **reschedules** (`syncNextCallToDrive` → `pushWidgetFeed()`, fire-and-forget, no-ops
+  without a live token, skips the write when nothing changed; it shares too). **Consumed by ONE
+  Scriptable widget script** (code lives outside the repo, pasted into the user's Scriptable app —
+  named "Warroom") that renders both a **lock-screen** view (today's call count + total transferable $)
+  and a **large home-screen** view (today's calls `name · type/time · $` + a 7-day overview strip +
+  missed/follow-up counts), branching on `config.widgetFamily`.
+  **Transport = share-by-link, NOT OAuth** (Google's device-flow OAuth rejects Drive scopes —
+  `invalid_scope` — so a Scriptable widget can't sign in to Drive that way). Instead `driveShareWidget`
+  sets the feed file to **anyone-with-link → reader** (idempotent, cached via localStorage
+  `wr_widgetShared`), and `maybeShowWidgetLink` hands the user the **File ID** once via a copyable
+  `prompt` (re-show anytime with `showWidgetId()` in the console; id cached in `wr_widgetFileId`). The
+  widget fetches `https://drive.google.com/uc?export=download&id=<FILE_ID>` with a plain request — no
+  credentials. **Tradeoff (user-accepted):** that one tiny digest file is readable by anyone holding
+  the ~40-char unguessable link; it's never listed/searchable. The full profiles stay fully private
+  (only the digest is shared). **Still nothing client-related in the public repo** — the shared file
+  lives in the user's Drive, not the repo.
 - **Re-engage email** — `openReengage` drafts a re-engagement email; `driveSaveEmail` saves it
   as a Google Doc in the `1Remarkable` folder (offered for cooling/proposal clients).
 - **In-app profile editor** — `renderEditor(c)` edits fields and writes back via `driveLogCall`.
