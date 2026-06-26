@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r111';
+const BUILD = 'build 2026-06-26 · r112';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2891,6 +2891,7 @@ function syncNextCallToDrive(c){
   withDriveToken(async ()=>{ try{
     const r=await driveLogCall(c.name, baseMd=> profileSetNextCall(baseMd||i._md||'', dateStr, typeStr));
     await saveClient(c.code, c.name, {...c.intel, _md:r.md, _driveFileId:r.id});
+    pushWidgetFeed();                          // today's lineup may have changed — refresh the widget feed
   }catch(e){ /* best-effort — the local override still holds */ } });
 }
 function withDriveToken(cb){
@@ -3107,6 +3108,74 @@ async function syncSettings(folderId){
   if(remote.winHist && typeof remote.winHist==='object') localStorage.setItem('wr_winHist', JSON.stringify(remote.winHist));
   await writeSettingsMerged(folderId, remote);
 }
+// ---- iPhone widget feed: a compact digest of today's calls + the week ahead, written as a tiny
+// JSON file in the SAME private 1Remarkable folder as the profiles, so the Scriptable lock-screen /
+// home-screen widgets can read one small file instead of every profile. Client names live only in
+// the private Drive folder (never a public URL), same trust boundary as the profiles themselves.
+const WR_WIDGET_NAME = 'WarRoom Widget.json';
+function fmtClock(mins){ if(mins==null||mins>=9999) return ''; const h=Math.floor(mins/60), m=mins%60;
+  const ap=h<12?'AM':'PM'; let hh=h%12; if(hh===0) hh=12; return hh+(m?':'+String(m).padStart(2,'0'):'')+ap; }
+function gatherWidgetFeed(){
+  const active = S.clients.filter(c => !['won','lost'].includes(c.intel.status));
+  const today0=new Date(); today0.setHours(0,0,0,0);
+  const _pad=n=>String(n).padStart(2,'0');
+  const isoOf=d=>d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate());
+  const todayISO=isoOf(today0);
+  // every active client with a concrete upcoming call, earliest first (same logic as Upcoming Calls)
+  const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0)
+    .sort((a,b)=> (a.d-b.d) || (nextCallMinutes(a.c.intel)-nextCallMinutes(b.c.intel)));
+  const callOf = x=>{ const i=x.c.intel; const mins=nextCallMinutes(i);
+    return { name:x.c.name, type:nextCallType(i)||i.callType||'', time:fmtClock(mins),
+      mins, priority:i.priority||'', moveable:moneyShort(i.moveable), val:assetVal(i.moveable) }; };
+  const todays = upcoming.filter(x=> x.d.getTime()===today0.getTime()).map(callOf);
+  const todayVal = todays.reduce((s,r)=>s+(r.val||0), 0);
+  // week strip — today .. +6 days, with a call count + transferable $ per day
+  const week=[];
+  for(let k=0;k<7;k++){ const d=new Date(today0); d.setDate(d.getDate()+k);
+    const day=upcoming.filter(x=> x.d.getTime()===d.getTime());
+    week.push({ iso:isoOf(d), dow:d.toLocaleDateString(undefined,{weekday:'short'}),
+      count:day.length, val:day.reduce((s,x)=>s+assetVal(x.c.intel.moveable), 0) }); }
+  // urgency counts: missed calls (nothing rebooked) + follow-ups owed now (undated or due ≤ today)
+  const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=today0); };
+  const missed = active.filter(c => !!c.intel.missedCall && !hasFutureCall(c)).length;
+  let owed=0, overdue=0;
+  S.clients.forEach(c=> (c.intel.tasks||[]).forEach(t=>{ if(t.done) return;
+    if(t.due && t.due>todayISO) return; owed++; if(t.due && t.due<todayISO) overdue++; }));
+  return { v:1, generatedAt:new Date().toISOString(), date:todayISO,
+    today:{ count:todays.length, transferable:todayVal, calls:todays },
+    week, missed, followups:owed, overdue };
+}
+async function driveWidgetFile(folderId){
+  folderId = folderId || await driveFolderId();
+  const q=encodeURIComponent(`'${folderId}' in parents and name='${WR_WIDGET_NAME}' and trashed=false`);
+  const r=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)&pageSize=10`);
+  const files=(r.files||[]).sort((a,b)=> a.modifiedTime>b.modifiedTime?-1:1);
+  return { folderId, id: files.length?files[0].id:null };
+}
+async function driveWriteWidget(folderId, obj){
+  const s=await driveWidgetFile(folderId); folderId=s.folderId;
+  const body=JSON.stringify(obj);
+  if(s.id){
+    const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${s.id}?uploadType=media&fields=id`,
+      {method:'PATCH', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'application/json'}, body});
+    if(!r.ok) throw new Error('Widget update '+r.status); return s.id;
+  }
+  const meta={ name:WR_WIDGET_NAME, mimeType:'application/json', parents:[folderId] };
+  const b='wr'+Date.now();
+  const multipart=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${body}\r\n--${b}--`;
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {method:'POST', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'multipart/related; boundary='+b}, body:multipart});
+  if(!r.ok) throw new Error('Widget write '+r.status); return (await r.json()).id;
+}
+// fire-and-forget widget refresh after an in-app edit (only when a Drive session is already live, so
+// it never forces a sign-in just to repaint a widget; skips the write when nothing changed).
+let _lastWidgetSig='';
+function pushWidgetFeed(){ if(!driveToken) return;
+  (async ()=>{ try{ const feed=gatherWidgetFeed();
+    const sig=JSON.stringify({t:feed.today,w:feed.week,m:feed.missed,f:feed.followups,o:feed.overdue});
+    if(sig===_lastWidgetSig) return; _lastWidgetSig=sig;
+    await driveWriteWidget(null, feed);
+  }catch(e){} })(); }
 // one canonical profile per client: read the LIVE newest file, apply editFn, write it back
 // in place, then delete every other copy. Returns the resulting markdown + file id.
 async function driveLogCall(name, editFn){
@@ -3432,6 +3501,7 @@ async function syncFromDrive(){
     for(const id of losers){ try{ const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}`,
       {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); if(r.ok) removed++; }catch(e){} }
     try{ await syncSettings(folderId); }catch(e){}   // cross-device win goal + monthly backfill
+    try{ await driveWriteWidget(folderId, gatherWidgetFeed()); }catch(e){}   // refresh the iPhone widget feed
     driveToken = null;
     await loadClients(); renderDashboard();
     alert('Synced '+n+' client(s)'+(pruned?` · removed ${pruned} deleted elsewhere`:'')+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');

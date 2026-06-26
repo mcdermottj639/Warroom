@@ -342,6 +342,22 @@ The file is large; these are the load-bearing pieces a new session will likely t
   `nextCallMinutes(i)` extracts the call's clock time so same-day Upcoming rows sort earliest-first.
 - **Log call** — `openLog` → `driveLogCall(name, editFn)` with `profileEdit` appends a
   Call Log entry, updates Stage/next-step, and writes back to Drive in place.
+- **iPhone widget feed** (since r112) — `gatherWidgetFeed()` builds a compact digest
+  `{today:{count,transferable,calls[]}, week[7], missed, followups, overdue}` (today's calls =
+  name/type/clock-time/priority/moveable, transferable $ summed via `assetVal`; the `week` strip is
+  today..+6 with per-day count+$). `driveWriteWidget`/`driveWidgetFile` mirror the settings
+  read/PATCH-or-create pattern, writing **`WarRoom Widget.json`** into the same private `1Remarkable`
+  folder as the profiles (name has no "Profile" so the client sync ignores it; the filename also
+  isn't `WarRoom Settings.json` so the settings sync ignores it). It's refreshed on **every ☁️ Drive
+  sync** (`syncFromDrive`, inline `await driveWriteWidget`) and after in-app **reschedules**
+  (`syncNextCallToDrive` → `pushWidgetFeed()`, which is fire-and-forget, no-ops without a live token,
+  and skips the write when nothing changed). **Consumed by two Scriptable widgets** (code lives
+  outside the repo, pasted into the user's Scriptable app): a **lock-screen** widget showing today's
+  call count + total transferable $, and a **large home-screen** widget showing today's calls
+  (name · type/time · $) + a 7-day overview strip + missed/follow-up counts. The widgets read the one
+  JSON via a Google Drive OAuth token (device-flow refresh token stored in Scriptable Keychain), so
+  client names never leave the private Drive. **No client data is ever published to the public repo
+  or a public URL** — the widget feed is private-Drive-only, same trust boundary as the profiles.
 - **Re-engage email** — `openReengage` drafts a re-engagement email; `driveSaveEmail` saves it
   as a Google Doc in the `1Remarkable` folder (offered for cooling/proposal clients).
 - **In-app profile editor** — `renderEditor(c)` edits fields and writes back via `driveLogCall`.
