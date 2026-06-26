@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r115';
+const BUILD = 'build 2026-06-26 · r116';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1326,7 +1326,9 @@ const priorityFromStage = st => ({Decision:'CRITICAL',Proposal:'HOT',Discovery:'
 // Pull a "next call" date/time out of the close-action / next-step text.
 function extractNextCall(text){
   if(!text) return '';
-  const dateRe = /\b(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b|\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?)\b/i;
+  // MM/DD must be a real calendar month (1-12) + day (1-31) so non-dates like "57/58" (ages) or
+  // "3/6" (mortgage rates) in the summary text don't get scraped as a phantom next-call date.
+  const dateRe = /\b((?:0?[1-9]|1[0-2])\/(?:0?[1-9]|[12]\d|3[01])(?:\/\d{2,4})?)\b|\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?)\b/i;
   const m = text.match(dateRe);
   if(!m) return '';
   const date = (m[1]||m[2]).trim();
@@ -1508,7 +1510,9 @@ function mapImport(s){
     productMatch: s.productMatch || (s.product?[{product:s.product,fit:'PRIMARY',rationale:s.solutionOffered||''}]:[]),
     solutionOffered: s.solutionOffered || s.script || '',
     closeAction: s.closeAction || '',
-    nextCall: s.nextCall || extractNextCall(s.closeAction||'') || extractNextCall(s.lastCall||''),
+    // an explicit "No call scheduled" in the profile is authoritative — never scrape a date out of
+    // the close/summary text (a stray "57/58" age etc. would otherwise become a phantom next call).
+    nextCall: s.nextCallCleared ? '' : (s.nextCall || extractNextCall(s.closeAction||'') || extractNextCall(s.lastCall||'')),
     lastTouch: s.lastTouch || '',
     introScript: s.introScript || '',
     whatToAsk: s.whatToAsk || [],
