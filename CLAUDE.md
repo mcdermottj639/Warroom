@@ -265,9 +265,11 @@ client's name or "new notes" never hurt, but aren't required.)
   actions: **Upcoming** rows have a 📞 **Log** button (`openLog`) + a `TODAY` tag on
   same-day calls; **Pending Decisions** rows have a 📅 **Reschedule** button
   (`quickReschedule` — prompts, saves, clears any missed marker, syncs to Drive);
-  **Cooling** keeps its ✉️ re-engage. **Wins** has a This-month / This-quarter / All
-  **time-frame toggle** (`S.winFrame`, filtered by `parseLogDate(wonDate)`) and shows a
-  lifetime **win rate** (from `S.outcomeLog`) in its header. On **narrow phones
+  **Cooling** keeps its ✉️ re-engage. **Wins** has a This-week / This-month / This-quarter
+  / YTD / All **time-frame toggle** (`S.winFrame`, filtered by `parseLogDate(wonDate)` against
+  `_wfBounds`; week = Sunday-start) and shows a lifetime **win rate** (from `S.outcomeLog`) in
+  its header. Changing the timeframe **preserves the scroll position** (the handler holds
+  `#main.scrollTop` across the re-render) so the view stays inside Wins. On **narrow phones
   (≤560px)** the data tables drop the low-signal probability column (`.col-opt`) and
   tighten spacing instead of scrolling sideways.
 - **Client intel** top bar = two widget rows: **🎤 On the call** (coaching, four

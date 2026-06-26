@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r107';
+const BUILD = 'build 2026-06-26 · r108';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2103,12 +2103,16 @@ function renderDashboard(jumpTo){
   const upRowsWeek = upWeek.length ? upWeek.map(upRowOf).join('') : '<tr><td colspan="5" style="color:var(--muted)">No calls scheduled this week.</td></tr>';
   const upRowsFuture = upFuture.length ? upFuture.map(upRowOf).join('') : '<tr><td colspan="5" style="color:var(--muted)">Nothing scheduled beyond this week yet.</td></tr>';
 
-  // Wins — time-framed (this month / quarter / all) + a lifetime close rate from the de-named outcome ledger
-  const winFrame = ['month','quarter','all'].includes(S.winFrame) ? S.winFrame : 'all';
-  const _nowW=new Date(); const _mStart=new Date(_nowW.getFullYear(),_nowW.getMonth(),1);
+  // Wins — time-framed (week / month / quarter / YTD / all) + a lifetime close rate from the de-named outcome ledger
+  const winFrame = ['week','month','quarter','ytd','all'].includes(S.winFrame) ? S.winFrame : 'all';
+  const _nowW=new Date();
+  const _wStart=new Date(_nowW.getFullYear(),_nowW.getMonth(),_nowW.getDate()-_nowW.getDay()); // Sunday start of this week
+  const _mStart=new Date(_nowW.getFullYear(),_nowW.getMonth(),1);
   const _qStart=new Date(_nowW.getFullYear(),Math.floor(_nowW.getMonth()/3)*3,1);
+  const _yStart=new Date(_nowW.getFullYear(),0,1);
+  const _wfBounds={week:_wStart,month:_mStart,quarter:_qStart,ytd:_yStart};
   const winsAll = S.clients.filter(c=>c.intel.status==='won');
-  const winIn = (c,fr)=>{ if(fr==='all') return true; const d=parseLogDate(c.intel.wonDate||''); if(!d) return false; return fr==='month'? d>=_mStart : d>=_qStart; };
+  const winIn = (c,fr)=>{ if(fr==='all') return true; const d=parseLogDate(c.intel.wonDate||''); if(!d) return false; return d>=_wfBounds[fr]; };
   const winCount = fr => winsAll.filter(c=>winIn(c,fr)).length;
   const wins = winsAll.filter(c=>winIn(c,winFrame));
   const winTotal = wins.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
@@ -2190,8 +2194,10 @@ function renderDashboard(jumpTo){
     <div class="groupttl" id="sec-wins">🏆 Wins${wins.length?` · ${fmtVal(winTotal)}`:''}${winRate!=null?` · ${winRate}% win rate (${wonN}/${wonN+lostN})`:''}</div>
     <div class="card">
       <div class="tabs" id="winTabs">
+        <button class="tab${winFrame==='week'?' active':''}" data-wf="week">This week (${winCount('week')})</button>
         <button class="tab${winFrame==='month'?' active':''}" data-wf="month">This month (${winCount('month')})</button>
         <button class="tab${winFrame==='quarter'?' active':''}" data-wf="quarter">This quarter (${winCount('quarter')})</button>
+        <button class="tab${winFrame==='ytd'?' active':''}" data-wf="ytd">YTD (${winCount('ytd')})</button>
         <button class="tab${winFrame==='all'?' active':''}" data-wf="all">All (${winsAll.length})</button>
       </div>
       ${winRows}
@@ -2233,7 +2239,12 @@ function renderDashboard(jumpTo){
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
   });
   document.querySelectorAll('.fchip').forEach(b=> b.onclick = ()=>{ S.ccFilter=b.dataset.filt; renderDashboard(); });
-  document.querySelectorAll('#winTabs .tab').forEach(b=> b.onclick = ()=>{ S.winFrame=b.dataset.wf; renderDashboard(); });
+  document.querySelectorAll('#winTabs .tab').forEach(b=> b.onclick = ()=>{
+    S.winFrame=b.dataset.wf;
+    const m=$('#main'); const y=m?m.scrollTop:0;   // hold the scroll so changing timeframe stays inside Wins
+    renderDashboard();
+    const m2=$('#main'); if(m2) m2.scrollTop=y;     // renderDashboard resets to top; put it back
+  });
   $('#topFab').onclick = ()=> scrollMainTop();
   $('#searchFab').onclick = ()=>{ const inp=$('#clientSearch'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center'}); } };
   $('#ccBack').onclick = ()=> renderOverview();
