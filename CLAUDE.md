@@ -47,8 +47,10 @@ client's name or "new notes" never hurt, but aren't required.)
   an unverified fee saving.
 - **Model identity** must not appear in commits, PR bodies, code, or any pushed
   artifact — chat only.
-- **Branches:** push every change to **`main`** AND to
-  **`claude/1remarkable-drive-access-twhos4`** (keep them in lockstep).
+- **Branches:** `main` is the live branch (GitHub Pages serves it) — commit and push
+  every change straight to **`main`**. No lockstep/backup branch is maintained; rely on
+  `main`'s history. (Per-task `claude/*` branches may be created for in-flight work, but
+  delete them once merged so they don't accumulate.)
 - **Commit footer** (every commit):
   ```
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
