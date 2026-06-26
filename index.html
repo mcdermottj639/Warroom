@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r110';
+const BUILD = 'build 2026-06-26 · r111';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1983,7 +1983,7 @@ function renderOverview(){
       <div><div class="groupttl">📊 Activity Trend</div>
         <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks${actWins?` · 🏆 ${actWins} closed`:''}</div>${actSvg}</div></div>
       <div><div class="groupttl">🪜 Stage Funnel + Win Rate</div>
-        <div class="card"><div class="velsub">${active.length} active · ${closeRate}% win rate · ${wonN}W · ${lostN}L</div>${funnelRows}</div></div>
+        <div class="card"><div class="velsub">${active.length} active · ${(wonN+lostN)?`${closeRate}% win rate · ${wonN}W · ${lostN}L`:'win rate builds as you mark deals Won/Lost'}</div>${funnelRows}</div></div>
 
       <div><div class="groupttl">🔎 Discovery Depth</div>
         <div class="card"><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${gauge(avgDepth,'Avg capture','of 6 topics','#a78bfa')}<div style="flex:1;min-width:170px">${covRows}</div></div>${thinList}</div></div>
