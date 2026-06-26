@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r114';
+const BUILD = 'build 2026-06-26 · r115';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1206,7 +1206,9 @@ function parseLogDate(s){
   let m=s.match(/(\d{4})-(\d{2})-(\d{2})/);                // ISO YYYY-MM-DD
   if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); return isNaN(d)?null:d; }
   m=s.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);       // MM/DD or MM/DD/YY (year optional)
-  if(m){ let y=m[3]?+m[3]:2026; if(y<100) y+=2000; const d=new Date(y,+m[1]-1,+m[2]); return isNaN(d)?null:d; }
+  // range-check so non-dates like "57/58" (ages) or "1/2" rates don't parse as a calendar date;
+  // an out-of-range match falls through to the month-name patterns below instead of returning.
+  if(m){ const mo=+m[1], dy=+m[2]; if(mo>=1&&mo<=12&&dy>=1&&dy<=31){ let y=m[3]?+m[3]:2026; if(y<100) y+=2000; const d=new Date(y,mo-1,dy); if(!isNaN(d)) return d; } }
   // whole-word months only, so names like "May"/"June"/"Marea" aren't misread as months
   const MO='(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
   m=s.match(new RegExp('(early|mid|late)[\\s-]+'+MO+'\\b','i'));
@@ -1228,6 +1230,9 @@ function nextExpectedDate(i){
   // a missed-call marker means there's no booked call (until rescheduled, which clears it) —
   // unless the advisor has since set an explicit override
   if(i.missedCall && !(i.nextCallSet!==undefined && i.nextCallSet!==null && i.nextCallSet!=='')) return null;
+  // an explicit "No call scheduled" in the profile is authoritative (like missedCall): no booked
+  // call, so don't scan free text for a date — unless the advisor has set an explicit override.
+  if(i.nextCallCleared && !(i.nextCallSet!==undefined && i.nextCallSet!==null && i.nextCallSet!=='')) return null;
   // advisor's manual override wins (empty string = explicitly cleared → no scheduled call)
   if(i.nextCallSet!==undefined && i.nextCallSet!==null) return i.nextCallSet ? parseLogDate(i.nextCallSet) : null;
   if(i.nextCall){ const d=parseLogDate(i.nextCall); if(d) return d; }
