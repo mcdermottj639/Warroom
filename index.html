@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-26 · r116';
+const BUILD = 'build 2026-06-29 · r117';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -3117,6 +3117,82 @@ async function syncSettings(folderId){
   if(remote.winHist && typeof remote.winHist==='object') localStorage.setItem('wr_winHist', JSON.stringify(remote.winHist));
   await writeSettingsMerged(folderId, remote);
 }
+// ---- Weekly schedule ingest -------------------------------------------------------------
+// The advisor can drop a plain "WEEKLY SCHEDULE …" file/Doc into the 1Remarkable folder listing the
+// week's calls (a day header like "Tuesday, June 30" then rows like "9:30 AM  Chad Kessler — Follow Up").
+// On every ☁️ Drive sync we parse it and book a next call for any LISTED client who has NONE on the
+// books — purely ADDITIVE: a client who already has an upcoming call is never touched, and past-dated
+// rows are skipped. Idempotent (re-syncing the same file re-skips everyone already booked). The file
+// name has no "Profile" so the client sync ignores it as a profile.
+// rows -> [{name, date(Date at 00:00), type, time("9:30 AM")}]
+function parseWeeklySchedule(text){
+  if(!text) return [];
+  const year=+((text.match(/\b(20\d{2})\b/)||[])[1]) || 2026;     // year from the title; else assume 2026
+  const DOW='(?:mon|tues?|wed(?:nes)?|thur?s?|fri|sat|sun)[a-z]*';
+  const dayRe=new RegExp('^\\s*'+DOW+'\\s*,?\\s+([A-Za-z]+)\\s+(\\d{1,2})\\b','i');   // "Tuesday, June 30"
+  const entryRe=/^\s*(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\s+(.+?)\s*[—–-]\s*(.+?)\s*$/i;  // "9:30 AM  Name — Type"
+  const out=[]; let cur=null;
+  for(const raw of text.split(/\r?\n/)){
+    const dh=raw.match(dayRe);
+    if(dh){ const mo=MONTHS[dh[1].slice(0,3).toLowerCase()];
+      if(mo!==undefined){ const d=new Date(year,mo,+dh[2]); if(!isNaN(d)){ d.setHours(0,0,0,0); cur=d; } }
+      continue; }
+    const em=raw.match(entryRe);
+    if(em && cur){
+      let h=+em[1]; const min=em[2]?+em[2]:0; const ap=em[3].toLowerCase();
+      if(ap==='p'&&h<12) h+=12; else if(ap==='a'&&h===12) h=0;
+      const hh=(h%12)||12, time=hh+':'+String(min).padStart(2,'0')+' '+(h<12?'AM':'PM');
+      out.push({ name:em[4].trim(), date:new Date(cur), type:em[5].trim(), time });
+    }
+  }
+  return out;
+}
+async function driveReadSchedule(folderId){
+  const q=encodeURIComponent(`'${folderId}' in parents and name contains 'SCHEDULE' and not name contains 'Profile' and trashed=false`);
+  const r=await gapiJSON(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,modifiedTime)&pageSize=20`);
+  const files=(r.files||[]).sort((a,b)=> a.modifiedTime>b.modifiedTime?-1:1);   // newest schedule wins
+  if(!files.length) return '';
+  const f=files[0];
+  const url = f.mimeType==='application/vnd.google-apps.document'
+    ? `https://www.googleapis.com/drive/v3/files/${f.id}/export?mimeType=text/plain`   // Google Doc → export text
+    : `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`;                   // plain text/markdown
+  try{ return await gapiText(url); }catch(e){ return ''; }
+}
+// Additively book calls from the weekly-schedule file. Returns {added, skipped}. Must run AFTER
+// loadClients() so S.clients carries the freshly-synced intel (_md / _driveFileId / current nextCall).
+async function applyWeeklySchedule(folderId){
+  let added=0, skipped=0;
+  let text=''; try{ text=await driveReadSchedule(folderId); }catch(e){ return {added,skipped}; }
+  const rows=parseWeeklySchedule(text);
+  if(!rows.length) return {added,skipped};
+  const today=new Date(); today.setHours(0,0,0,0);
+  const byLc={}; S.clients.forEach(c=>{ byLc[c.name.trim().toLowerCase()]=c; });
+  for(const row of rows){
+    if(row.date<today) continue;                          // never book a call in the past
+    const c=byLc[row.name.toLowerCase()];
+    if(!c){ skipped++; continue; }                        // not a known client — leave it
+    const i=c.intel;
+    if(['won','lost'].includes(i.status)){ skipped++; continue; }
+    const ex=nextExpectedDate(i);
+    if(ex && ex>=today){ skipped++; continue; }           // already has an upcoming call — NEVER overwrite
+    const dateStr=row.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+row.time; // "Jun 30, 9:30 AM"
+    try{
+      const newMd=profileSetNextCall(i._md||'', dateStr, row.type);
+      if(i._driveFileId){
+        const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${i._driveFileId}?uploadType=media&fields=id`,
+          {method:'PATCH', headers:{Authorization:'Bearer '+driveToken,'Content-Type':'text/markdown'}, body:newMd});
+        if(!r.ok) throw new Error('schedule write '+r.status);
+      }else{
+        const rr=await driveLogCall(c.name, base=> profileSetNextCall(base||'', dateStr, row.type)); i._driveFileId=rr.id;
+      }
+      const intel={...i, _md:newMd, nextCallSet:dateStr, nextCallTypeSet:row.type};
+      delete intel.missedCall; delete intel.nextCallCleared;   // a fresh booking supersedes these
+      await saveClient(c.code, c.name, intel);
+      added++;
+    }catch(e){ /* best-effort per row — a failed row just isn't booked */ }
+  }
+  return {added,skipped};
+}
 // ---- iPhone widget feed: a compact digest of today's calls + the week ahead, written as a tiny
 // JSON file in the SAME private 1Remarkable folder as the profiles, so the Scriptable lock-screen /
 // home-screen widgets can read one small file instead of every profile. Client names live only in
@@ -3537,11 +3613,14 @@ async function syncFromDrive(){
     let removed=0;
     for(const id of losers){ try{ const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}`,
       {method:'DELETE', headers:{Authorization:'Bearer '+driveToken}}); if(r.ok) removed++; }catch(e){} }
+    await loadClients();                             // refresh in-memory clients with the synced intel
+    let booked=0;                                     // additive weekly-schedule bookings (never overwrite)
+    try{ const sc=await applyWeeklySchedule(folderId); booked=sc.added; if(booked) await loadClients(); }catch(e){}
     try{ await syncSettings(folderId); }catch(e){}   // cross-device win goal + monthly backfill
     try{ const _wid=await driveWriteWidget(folderId, gatherWidgetFeed()); await driveShareWidget(_wid); maybeShowWidgetLink(_wid); }catch(e){}   // refresh + share the iPhone widget feed
     driveToken = null;
-    await loadClients(); renderDashboard();
-    alert('Synced '+n+' client(s)'+(pruned?` · removed ${pruned} deleted elsewhere`:'')+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');
+    renderDashboard();
+    alert('Synced '+n+' client(s)'+(booked?` · booked ${booked} call${booked>1?'s':''} from schedule`:'')+(pruned?` · removed ${pruned} deleted elsewhere`:'')+(removed?` · cleaned up ${removed} duplicate file${removed>1?'s':''}`:'')+'.');
   }catch(e){
     alert('Drive sync failed: '+e.message);
   }finally{ setDriveBtn('☁️ Drive'); }

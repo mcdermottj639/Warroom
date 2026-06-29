@@ -360,6 +360,23 @@ The file is large; these are the load-bearing pieces a new session will likely t
   Rule of thumb: if you add/edit any code that reads a date out of free text, **range-check it and
   short-circuit on `nextCallCleared`/`missedCall`** — and remember stored `intel.nextCall` only
   refreshes on a ☁️ Drive **re-sync** (re-runs `parseProfile`→`mapImport`), not a plain reload.
+- **Weekly schedule ingest** (since r117) — drop a plain **`WEEKLY SCHEDULE …`** file or Google Doc
+  into the `1Remarkable` folder (day header like `Tuesday, June 30`, then rows `9:30 AM  Client Name —
+  Type`) and every ☁️ Drive sync **books the listed calls**. It's purely **ADDITIVE**: a client who
+  already has an upcoming call is **never overwritten**, past-dated rows are skipped, and unknown names
+  are ignored (counted as skipped). `syncFromDrive` calls `applyWeeklySchedule(folderId)` **after**
+  `loadClients()` (so it sees the freshly-synced `_md`/`_driveFileId`/`nextCall`): `driveReadSchedule`
+  finds the newest file whose name contains "SCHEDULE" but not "Profile" (Google Docs are `export`ed to
+  text/plain, plain files read via `alt=media`); `parseWeeklySchedule(text)` returns
+  `[{name,date,type,time}]` (year from the title, else 2026; em/en/hyphen separators; "(No calls)" /
+  "HOLIDAY" lines naturally don't match). For each eligible client (`nextExpectedDate` null or past, not
+  won/lost) it writes `profileSetNextCall` into the profile (PATCH to the known `_driveFileId`, or
+  `driveLogCall` create as a fallback) and sets the in-app `nextCallSet`/`nextCallTypeSet` so it shows
+  immediately; the booking clears any `missedCall`/`nextCallCleared`. Because the booking lands in the
+  profile, the next sync's override-preservation drops the temp override in favor of the profile-derived
+  `nextCall` — so it's durable and crosses devices. Idempotent (re-syncing the same file re-skips
+  everyone already booked). The sync alert reports `· booked N call(s) from schedule`. The schedule file
+  is **not** parsed as a client (no "Profile" in the name).
 - **Log call** — `openLog` → `driveLogCall(name, editFn)` with `profileEdit` appends a
   Call Log entry, updates Stage/next-step, and writes back to Drive in place.
 - **iPhone widget feed** (since r112) — `gatherWidgetFeed()` builds a compact digest
