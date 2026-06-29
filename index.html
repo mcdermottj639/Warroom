@@ -825,7 +825,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-29 · r117';
+const BUILD = 'build 2026-06-29 · r118';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1224,6 +1224,19 @@ function cadenceStep(days){ if(days==null) return ''; if(days<=7) return 'Day 3 
 function effTouch(c){ const t=(S.touchLog||{})[c.code]||''; const a=c.intel.lastTouch||''; return (t>a)?t:(a||t); }
 function coolDays(c){ return daysSince(effTouch(c)); }
 const isProposalStage = c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase());
+// End-of-"this week" boundary for the Upcoming "This Week" tab = the coming Sunday (23:59). From
+// **Saturday noon onward (and all day Sunday)** we roll the window forward a full week, so the
+// weekend is spent prepping the next working week: "This Week" then shows the upcoming week's calls
+// instead of the 1–2 days left in the week that's ending. `weekBucket()` is a token that flips at
+// the same pivot, so a left-open Overview tab re-renders when the rollover happens.
+function thisWeekEnd(today0){
+  const we=new Date(today0); we.setDate(we.getDate()+((7-we.getDay())%7)); we.setHours(23,59,59,999); // coming Sunday
+  const now=new Date(), dow=now.getDay();
+  if(dow===0 || (dow===6 && now.getHours()>=12)) we.setDate(we.getDate()+7);   // Sat 12:00 → roll to next week
+  return we;
+}
+function weekBucket(){ const t=new Date(); t.setHours(0,0,0,0); const we=thisWeekEnd(t);
+  return we.getFullYear()+'-'+(we.getMonth()+1)+'-'+we.getDate(); }
 
 // The client's own words drive timing: a stated/scheduled next contact date.
 function nextExpectedDate(i){
@@ -1685,7 +1698,7 @@ function renderOverview(){
   const weighted = active.reduce((s,c)=>s+expectedValue(c.intel), 0);
 
   const today0=new Date(); today0.setHours(0,0,0,0);
-  const weekEnd=new Date(today0); weekEnd.setDate(weekEnd.getDate()+((7-weekEnd.getDay())%7)); weekEnd.setHours(23,59,59,999);
+  const weekEnd=thisWeekEnd(today0);   // coming Sunday, rolled forward from Saturday noon
   const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=> (a.d-b.d) || (nextCallMinutes(a.c.intel)-nextCallMinutes(b.c.intel)));
   const upWeek = upcoming.filter(x=>x.d<=weekEnd);
   const todays = upcoming.filter(x=> x.d.getTime()===today0.getTime());
@@ -1706,7 +1719,7 @@ function renderOverview(){
   // Follow-ups owed now — undated (owed, no date) or due today/earlier (overdue). Not future-dated.
   const _pad=n=>String(n).padStart(2,'0');
   const isoOf=d=>d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate());
-  const todayISO = isoOf(today0); S.ovRenderDay = todayISO;   // stamp the painted day for the midnight-rollover check
+  const todayISO = isoOf(today0); S.ovRenderDay = todayISO; S.ovRenderWeek = weekBucket();   // stamp painted day + week-bucket for the rollover checks
   const _wa=new Date(today0); _wa.setDate(_wa.getDate()-7); const weekAgoDate=isoOf(_wa);  // trend baseline cutoff
   const dueTasks=[];
   S.clients.forEach(c=> (c.intel.tasks||[]).forEach((t,idx)=>{ if(t.done) return;
@@ -2096,9 +2109,9 @@ function renderDashboard(jumpTo){
       <button class="sm iconbtn" data-reeng="${r.c.code}" aria-label="Re-engage ${esc(r.c.name)}">✉️</button></div>`;
   }).join('') : '<div class="bodynote" style="padding-top:0">No proposals going cold — you’re on top of it. 👌</div>';
 
-  // Upcoming calls — split into This Week vs. Future (beyond this Sunday)
+  // Upcoming calls — split into This Week vs. Future (beyond this Sunday; rolls forward at Sat noon)
   const today0=new Date(); today0.setHours(0,0,0,0);
-  const weekEnd=new Date(today0); weekEnd.setDate(weekEnd.getDate()+((7-weekEnd.getDay())%7)); weekEnd.setHours(23,59,59,999); // coming Sunday
+  const weekEnd=thisWeekEnd(today0);   // coming Sunday, rolled forward from Saturday noon
   const upcoming = active.map(c=>({c, d:nextExpectedDate(c.intel)})).filter(x=>x.d && x.d>=today0).sort((a,b)=> (a.d-b.d) || (nextCallMinutes(a.c.intel)-nextCallMinutes(b.c.intel)));
   const upWeek = upcoming.filter(x=>x.d<=weekEnd);
   const upFuture = upcoming.filter(x=>x.d>weekEnd);
@@ -2853,7 +2866,7 @@ $('#ovBtn').onclick = ()=> renderOverview();
 function ovDayCheck(){
   if(S.active!=='__overview__' || !S.MK_intel) return;
   const d=new Date(), iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  if(S.ovRenderDay && S.ovRenderDay!==iso) renderOverview();
+  if((S.ovRenderDay && S.ovRenderDay!==iso) || (S.ovRenderWeek && S.ovRenderWeek!==weekBucket())) renderOverview();
 }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) ovDayCheck(); });
 window.addEventListener('focus', ovDayCheck);

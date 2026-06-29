@@ -259,6 +259,14 @@ client's name or "new notes" never hurt, but aren't required.)
   session by `recordOverviewSnap` and read back to power the trend chips (#7) and the
   since-last-visit strip (#6). Baselines are **frozen once per session** (`S.ovSnapSession`) so
   theme/midnight re-renders don't reset the deltas to zero. `renderOverview()`.
+- **"This Week" window** (`thisWeekEnd(today0)`, since r118) — the Upcoming "This Week" tab (Command
+  Center) and the Overview "N this week" KPI both bound on the **coming Sunday (23:59)**, but **from
+  Saturday noon onward (and all day Sunday) the window rolls forward a full week**, so the weekend is
+  spent prepping the next working week — "This Week" then shows the upcoming week's calls, not the 1–2
+  days left in the week that's ending. Both render sites call `thisWeekEnd`; `weekBucket()` is a token
+  that flips at the same pivot, so `ovDayCheck` (the 60 s / focus / visibilitychange auto-refresh)
+  re-renders a left-open Overview tab when the rollover fires (it stamps `S.ovRenderWeek` alongside
+  `S.ovRenderDay`). If you add another "this week" boundary, reuse `thisWeekEnd` so they stay in sync.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → Top 10 → Pending Decisions → Follow-ups (tasks owed, next 2 weeks) → Cooling →
   Wins. Every client row shows a **note flag** (green pill + count when notes exist;
