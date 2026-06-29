@@ -287,7 +287,7 @@ client's name or "new notes" never hurt, but aren't required.)
   `renderDetail`.) Inline row
   actions: **Upcoming** rows have a 📞 **Log** button (`openLog`) + a `TODAY` tag on
   same-day calls; **Pending Decisions** rows have a 📅 **Reschedule** button
-  (`quickReschedule` — prompts, saves, clears any missed marker, syncs to Drive);
+  (`quickReschedule` — opens the **schedule picker**, saves, clears any missed marker, syncs to Drive);
   **Cooling** keeps its ✉️ re-engage. **Wins** has a This-week / This-month / This-quarter
   / YTD / All **time-frame toggle** (`S.winFrame`, filtered by `parseLogDate(wonDate)` against
   `_wfBounds`; week = Sunday-start) and shows a lifetime **win rate** (from `S.outcomeLog`) in
@@ -385,6 +385,19 @@ The file is large; these are the load-bearing pieces a new session will likely t
   `nextCall` — so it's durable and crosses devices. Idempotent (re-syncing the same file re-skips
   everyone already booked). The sync alert reports `· booked N call(s) from schedule`. The schedule file
   is **not** parsed as a client (no "Profile" in the name).
+- **Schedule picker** (since r119) — every "set/change a next-call date" surface is a
+  **month/day/time dropdown dialog** (`#schedDlg`), never a free-text prompt. `openSched(opts)`
+  returns a Promise → `{date,type}` | `{cleared:true}` | `{auto:true}` | `null` (cancel). It
+  populates a rolling 14-month month list, a weekday-labelled day list (past days excluded), a
+  **8:00 AM–7:00 PM ET / 15-min** time list (+ "No specific time"), and a call-type select.
+  `schedFmt(y,mo,day,time)` builds the stored string so the **existing parsers** read it
+  unchanged — 2026 (the working year) renders readable `"Jul 13 2:00 PM"` (parsed by
+  `parseLogDate`'s month-name path, which defaults to 2026); other years use `"M/D/YY 2:00 PM"`
+  so the year survives. The time always lands where `nextCallMinutes` can read it. Three callers:
+  `quickReschedule`, the client-page `#setNcBtn` (Set/Change), and the **Log-call dialog's
+  `#logNext`** field (now read-only, driven by a 📅 **Pick** button → `"<Type> call: <date>"`).
+  `{auto}` deletes the override (revert to notes), `{cleared}` sets `nextCallSet=''` (no call).
+  If you add another date-entry surface, route it through `openSched`, don't add a `prompt()`.
 - **Log call** — `openLog` → `driveLogCall(name, editFn)` with `profileEdit` appends a
   Call Log entry, updates Stage/next-step, and writes back to Drive in place.
 - **iPhone widget feed** (since r112) — `gatherWidgetFeed()` builds a compact digest

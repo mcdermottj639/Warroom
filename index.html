@@ -766,7 +766,11 @@
   <div class="field"><label>Where you left off / next step</label>
     <textarea id="logLeft" style="min-height:70px" placeholder="opening Premier IRA, transfers team handles paperwork"></textarea></div>
   <div class="grid">
-    <div class="field"><label>Next call (type + date + time)</label><input id="logNext" placeholder="Enrollment call: Premier — 6/26 12:00 PM ET"></div>
+    <div class="field"><label>Next call</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="logNext" placeholder="none — tap Pick" readonly style="flex:1;cursor:default">
+        <button type="button" class="ghost sm" id="logNextPick">📅 Pick</button>
+      </div></div>
     <div class="field"><label>Stage</label>
       <select id="logStage">
         <option value="">— leave as is —</option>
@@ -777,6 +781,32 @@
   <div style="display:flex;gap:10px;justify-content:flex-end">
     <button class="ghost" onclick="logDlg.close()">Cancel</button>
     <button id="logGo">Save &amp; write to Drive</button>
+  </div>
+</dialog>
+
+<!-- SCHEDULE PICKER — month/day/time dropdowns instead of typing a date -->
+<dialog id="schedDlg">
+  <h3 style="margin-bottom:4px">📅 <span id="schedTitle">Schedule call</span></h3>
+  <p class="note" id="schedSub" style="margin-bottom:12px">Pick a month, day and time — no typing.</p>
+  <div class="grid">
+    <div class="field"><label>Month</label><select id="schedMonth"></select></div>
+    <div class="field"><label>Day</label><select id="schedDay"></select></div>
+  </div>
+  <div class="grid">
+    <div class="field"><label>Time (ET)</label><select id="schedTime"></select></div>
+    <div class="field"><label>Call type</label>
+      <select id="schedType">
+        <option value="">↺ Auto (from notes)</option>
+        <option>Intro</option><option>Discovery</option><option>Proposal</option>
+        <option>Decision</option><option>Enrollment</option><option>Follow-Up</option>
+      </select></div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
+    <button class="ghost sm" id="schedClear">🚫 No call scheduled</button>
+    <button class="ghost sm" id="schedAuto">↺ Auto from notes</button>
+    <span style="flex:1"></span>
+    <button class="ghost" id="schedCancel">Cancel</button>
+    <button id="schedSave">Save</button>
   </div>
 </dialog>
 
@@ -825,7 +855,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-29 · r118';
+const BUILD = 'build 2026-06-29 · r119';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1672,15 +1702,16 @@ function trChip(now, was, goodUp, money, base){
 // re-render whichever view is showing.
 async function quickReschedule(code){
   const c=S.clients.find(x=>x.code===code); if(!c) return;
-  const i=c.intel; const t0=new Date(); t0.setHours(0,0,0,0); const nc=nextExpectedDate(i);
+  const i=c.intel;
   const ovr=(i.nextCallSet!==undefined && i.nextCallSet!==null);
-  const cur = ovr ? (i.nextCallSet||'') : (i.nextCall || (nc&&nc>=t0 ? nc.toLocaleDateString(undefined,{month:'short',day:'numeric'}) : ''));
-  const v=prompt('Set next call — a date like "Jun 30", "7/13", or "Jul 13 at 2pm".\nLeave blank to clear it. Type "auto" to read it from the notes.', cur);
-  if(v===null) return;
-  const live=v.trim() && v.trim().toLowerCase()!=='auto';
+  const cur = ovr ? (i.nextCallSet||'') : (i.nextCall || '');
+  const res=await openSched({title:'Reschedule — '+c.name, date:cur, type:i.nextCallTypeSet||'', allowAuto:ovr});
+  if(!res) return;
+  const live = !res.auto && !res.cleared;
   const intel={...i};
-  if(v.trim().toLowerCase()==='auto') delete intel.nextCallSet;
-  else intel.nextCallSet=v.trim();
+  if(res.auto){ delete intel.nextCallSet; delete intel.nextCallTypeSet; }
+  else if(res.cleared){ intel.nextCallSet=''; }
+  else { intel.nextCallSet=res.date; if(res.type) intel.nextCallTypeSet=res.type; }
   if(live){ delete intel.missedCall; if((intel.pendingDecision||'').startsWith('Missed call')) delete intel.pendingDecision; }
   await saveClient(c.code, c.name, intel);
   await loadClients();
@@ -1688,6 +1719,83 @@ async function quickReschedule(code){
   if(live) syncNextCallToDrive(c2);
   if(S.active==='__dash__') renderDashboard(); else if(S.active==='__overview__') renderOverview(); else if(c2) renderDetail(c2);
 }
+
+/* ---- Schedule picker: month/day/time dropdowns so you never type a date.
+   Resolves to {date,type} | {cleared:true} | {auto:true} | null(cancel). The `date`
+   string is built to feed the existing parsers — parseLogDate reads the day, nextCallMinutes
+   the time. 2026 (the app's working year) renders readable "Jul 13"; other years use
+   "M/D/YY" so the year survives parseLogDate's 2026 default. ---- */
+const SCHED_MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const SCHED_WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function schedTimeList(){            // 8:00 AM → 7:00 PM ET, every 15 min ('' = no specific time)
+  const out=[''];
+  for(let h=8; h<=19; h++) for(let q=0;q<4;q++){
+    if(h===19 && q>0) break;         // stop at 7:00 PM sharp
+    const h12=((h+11)%12)+1, ap=h<12?'AM':'PM';
+    out.push(h12+':'+String(q*15).padStart(2,'0')+' '+ap);
+  }
+  return out;
+}
+function schedFmt(y,mo,day,time){
+  const base = y===2026 ? (SCHED_MO[mo]+' '+day) : ((mo+1)+'/'+day+'/'+String(y).slice(2));
+  return time ? base+' '+time : base;
+}
+function schedNormTime(s){           // any "2:00pm" → the option value "2:00 PM"
+  const m=(s||'').match(/(\d{1,2}):(\d{2})\s*([ap])\.?m/i);
+  return m ? (+m[1])+':'+m[2]+' '+m[3].toUpperCase()+'M' : '';
+}
+function schedFillDays(want){
+  const [y,mo]=$('#schedMonth').value.split('-').map(Number);
+  const dim=new Date(y,mo+1,0).getDate();
+  const today=new Date(); today.setHours(0,0,0,0);
+  const dSel=$('#schedDay'); dSel.innerHTML=''; let first=null;
+  for(let d=1; d<=dim; d++){ const dt=new Date(y,mo,d);
+    if(dt<today) continue;                       // never offer a past day
+    if(first===null) first=d;
+    const o=document.createElement('option'); o.value=d;
+    o.textContent=SCHED_WD[dt.getDay()]+' '+SCHED_MO[mo]+' '+d; dSel.appendChild(o); }
+  dSel.value = (want && want>=first) ? want : (first||1);
+}
+let _schedResolve=null;
+function openSched(opts){
+  opts=opts||{};
+  return new Promise(resolve=>{
+    _schedResolve=resolve;
+    $('#schedTitle').textContent=opts.title||'Schedule call';
+    const now=new Date(); now.setHours(0,0,0,0);
+    const mSel=$('#schedMonth'); mSel.innerHTML='';
+    for(let k=0;k<14;k++){ const d=new Date(now.getFullYear(), now.getMonth()+k, 1);
+      const o=document.createElement('option'); o.value=d.getFullYear()+'-'+d.getMonth();
+      o.textContent=SCHED_MO[d.getMonth()]+' '+d.getFullYear(); mSel.appendChild(o); }
+    const tSel=$('#schedTime'); tSel.innerHTML='';
+    schedTimeList().forEach(t=>{ const o=document.createElement('option'); o.value=t;
+      o.textContent=t||'No specific time'; tSel.appendChild(o); });
+    const seed = opts.date ? parseLogDate(opts.date) : null;
+    if(seed && seed>=now) mSel.value=seed.getFullYear()+'-'+seed.getMonth();
+    schedFillDays(seed?seed.getDate():null);
+    tSel.value = schedNormTime(opts.date||'');
+    $('#schedType').value = opts.type||'';
+    $('#schedAuto').style.display = opts.allowAuto===false?'none':'';
+    $('#schedClear').style.display = opts.allowClear===false?'none':'';
+    mSel.onchange=()=>schedFillDays(null);
+    $('#schedDlg').showModal();
+  });
+}
+function schedDone(val){ $('#schedDlg').close(); const r=_schedResolve; _schedResolve=null; if(r) r(val); }
+$('#schedSave').onclick=()=>{
+  const [y,mo]=$('#schedMonth').value.split('-').map(Number);
+  schedDone({date:schedFmt(y,mo,+$('#schedDay').value,$('#schedTime').value), type:$('#schedType').value||null});
+};
+$('#schedClear').onclick=()=>schedDone({cleared:true});
+$('#schedAuto').onclick=()=>schedDone({auto:true});
+$('#schedCancel').onclick=()=>schedDone(null);
+$('#schedDlg').addEventListener('cancel', e=>{ e.preventDefault(); schedDone(null); });   // Esc
+// Log-call dialog's "Next call" field uses the same picker (type is embedded in the text)
+$('#logNextPick').onclick=async ()=>{
+  const res=await openSched({title:'Next call', date:$('#logNext').value.trim(), allowAuto:false});
+  if(!res) return;
+  $('#logNext').value = res.cleared ? '' : (res.type ? (res.type+' call: '+res.date) : res.date);
+};
 
 // Overview — the landing page. A 5-second "where do I stand / what's today" board built
 // entirely from values the Command Center already computes; each hero tile deep-links into
@@ -2557,12 +2665,15 @@ function renderDetail(c){
   if($('#todoBar')) $('#todoBar').onclick = ()=>openTasks(c.code);
   if($('#setNcBtn')) $('#setNcBtn').onclick = async ()=>{
     const cur = _ncOvr ? (i.nextCallSet||'') : (ncLabel||'');
-    const v = prompt('Set next call — a date like "Jun 30", "7/13", or "Jul 13 at 2pm".\nLeave blank to clear it. Type "auto" to go back to reading it from the notes.', cur);
-    if(v===null) return;                                  // cancelled
+    const res = await openSched({title:(ncLabel?'Change next call — ':'Set next call — ')+c.name,
+      date:cur, type:i.nextCallTypeSet||'', allowAuto:_ncOvr});
+    if(!res) return;                                      // cancelled
+    const live = !res.auto && !res.cleared;
     const intel = {...c.intel};
-    if(v.trim().toLowerCase()==='auto') delete intel.nextCallSet;   // revert to notes-derived
-    else intel.nextCallSet = v.trim();                    // explicit value ('' = cleared)
-    if(v.trim() && v.trim().toLowerCase()!=='auto'){      // rescheduling clears a "missed call" marker
+    if(res.auto){ delete intel.nextCallSet; delete intel.nextCallTypeSet; }  // revert to notes-derived
+    else if(res.cleared){ intel.nextCallSet=''; }         // explicit clear → no scheduled call
+    else { intel.nextCallSet=res.date; if(res.type) intel.nextCallTypeSet=res.type; }
+    if(live){                                             // rescheduling clears a "missed call" marker
       delete intel.missedCall;
       if((intel.pendingDecision||'').startsWith('Missed call')) delete intel.pendingDecision;
     }
@@ -2570,7 +2681,7 @@ function renderDetail(c){
     await loadClients();
     const c2=S.clients.find(x=>x.code===c.code);
     renderDetail(c2);
-    if(v.trim() && v.trim().toLowerCase()!=='auto') syncNextCallToDrive(c2);   // reflect the new date in Drive
+    if(live) syncNextCallToDrive(c2);                     // reflect the new date in Drive
   };
   if($('#missedBtn')) $('#missedBtn').onclick = ()=> markMissedCall(c.code);
   if($('#ncTypeSel')) $('#ncTypeSel').onchange = async (e)=>{
