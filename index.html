@@ -855,7 +855,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-29 · r119';
+const BUILD = 'build 2026-06-30 · r120';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -3297,6 +3297,7 @@ async function applyWeeklySchedule(folderId){
     if(!c){ skipped++; continue; }                        // not a known client — leave it
     const i=c.intel;
     if(['won','lost'].includes(i.status)){ skipped++; continue; }
+    if(i.missedCall || i.nextCallCleared){ skipped++; continue; } // marked 📵 missed / "No call scheduled" in-app — that wins; don't re-add the call the schedule still lists
     const ex=nextExpectedDate(i);
     if(ex && ex>=today){ skipped++; continue; }           // already has an upcoming call — NEVER overwrite
     const dateStr=row.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})+', '+row.time; // "Jun 30, 9:30 AM"

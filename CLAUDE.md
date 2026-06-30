@@ -372,7 +372,13 @@ The file is large; these are the load-bearing pieces a new session will likely t
   into the `1Remarkable` folder (day header like `Tuesday, June 30`, then rows `9:30 AM  Client Name —
   Type`) and every ☁️ Drive sync **books the listed calls**. It's purely **ADDITIVE**: a client who
   already has an upcoming call is **never overwritten**, past-dated rows are skipped, and unknown names
-  are ignored (counted as skipped). `syncFromDrive` calls `applyWeeklySchedule(folderId)` **after**
+  are ignored (counted as skipped). **In-app state wins (r120):** a client marked **📵 missed**
+  (`intel.missedCall`) or **"No call scheduled"** (`intel.nextCallCleared`) is **skipped** — without this
+  guard the schedule re-added the very call you just dismissed on every sync (their `nextExpectedDate` is
+  null, so the "already has a call" check didn't catch them; a same-day missed row also slips past the
+  past-date skip). The marker clears the normal way (in-app reschedule / log-call / a profile that books a
+  real `Next call:`), and only then does the schedule book again. `syncFromDrive` calls
+  `applyWeeklySchedule(folderId)` **after**
   `loadClients()` (so it sees the freshly-synced `_md`/`_driveFileId`/`nextCall`): `driveReadSchedule`
   finds the newest file whose name contains "SCHEDULE" but not "Profile" (Google Docs are `export`ed to
   text/plain, plain files read via `alt=media`); `parseWeeklySchedule(text)` returns
