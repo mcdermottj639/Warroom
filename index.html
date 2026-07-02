@@ -855,7 +855,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-06-30 · r120';
+const BUILD = 'build 2026-07-02 · r121';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1270,29 +1270,42 @@ function weekBucket(){ const t=new Date(); t.setHours(0,0,0,0); const we=thisWee
 
 // The client's own words drive timing: a stated/scheduled next contact date.
 function nextExpectedDate(i){
+  const today0=new Date(); today0.setHours(0,0,0,0);
+  // A resolved date that's already in the past means the booked call HAPPENED (or lapsed) and nothing
+  // was rebooked — so there's no upcoming call. Treat it exactly like missed/cleared: return null so the
+  // client drops into Pending Decisions instead of clinging to a stale Drive-scheduled date (e.g. a
+  // profile whose "Next call:" line still points at the call we just held). Today still counts as upcoming.
+  const fresh = d => (d && !isNaN(d) && d>=today0) ? d : null;
   // a missed-call marker means there's no booked call (until rescheduled, which clears it) —
   // unless the advisor has since set an explicit override
   if(i.missedCall && !(i.nextCallSet!==undefined && i.nextCallSet!==null && i.nextCallSet!=='')) return null;
   // an explicit "No call scheduled" in the profile is authoritative (like missedCall): no booked
   // call, so don't scan free text for a date — unless the advisor has set an explicit override.
   if(i.nextCallCleared && !(i.nextCallSet!==undefined && i.nextCallSet!==null && i.nextCallSet!=='')) return null;
-  // advisor's manual override wins (empty string = explicitly cleared → no scheduled call)
-  if(i.nextCallSet!==undefined && i.nextCallSet!==null) return i.nextCallSet ? parseLogDate(i.nextCallSet) : null;
-  if(i.nextCall){ const d=parseLogDate(i.nextCall); if(d) return d; }
+  // advisor's manual override wins (empty string = explicitly cleared → no scheduled call); a past
+  // override is stale too, so it also drops to null.
+  if(i.nextCallSet!==undefined && i.nextCallSet!==null) return i.nextCallSet ? fresh(parseLogDate(i.nextCallSet)) : null;
+  // i.nextCall is the authoritative booking parsed from the profile's "Next call:" line. If it parses
+  // to a date, decide HERE — future wins, past → null. Never fall through to the free-text/"the 30th"
+  // heuristics on a past booking, or "talked on the 30th" would roll forward into a phantom next-month call.
+  if(i.nextCall){ const d=parseLogDate(i.nextCall); if(d) return d>=today0 ? d : null; }
   const text=(i.closeAction||'')+' '+(i.lastCall||'');
-  let d=parseLogDate(text); if(d) return d;                       // explicit / early-mid-late / month+day
+  // decisive like the nextCall branch: an explicit date in the close/summary text settles it — future
+  // wins, past → null (a lapsed booking). Only vague forward phrasing ("the 30th", "back in August")
+  // with no explicit date falls through to the heuristics below.
+  let d=parseLogDate(text); if(d) return d>=today0 ? d : null;
   // a specific stated day ("Tuesday the 30th") is the most precise — check before vague month phrases
   let m=text.match(/\bthe\s+(\d{1,2})(?:st|nd|rd|th)\b/i);
   if(m){ const day=+m[1]; if(day>=1&&day<=31){ const t=new Date(); t.setHours(0,0,0,0);
     let dt=new Date(t.getFullYear(),t.getMonth(),day);
     if(dt<t) dt=new Date(t.getFullYear(),t.getMonth()+1,day);
-    return isNaN(dt)?null:dt; } }
+    return fresh(dt); } }
   // whole-word month match only — so a name like "Marea" is never read as "March"
   const MO='(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
   m=text.match(new RegExp('end of\\s+'+MO+'\\b','i'));
-  if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 28);
+  if(m) return fresh(new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 28));
   m=text.match(new RegExp('\\b(?:back\\b|reconnect|reach out|circle back|follow up|touch base)[^.]*?\\b'+MO+'\\b','i'));
-  if(m) return new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 15);  // "back in August" => mid-month
+  if(m) return fresh(new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 15));  // "back in August" => mid-month
   return null;
 }
 // minutes-past-midnight of the booked call's time (for ordering same-day calls). Pulls a clock
@@ -1369,15 +1382,26 @@ const priorityFromStage = st => ({Decision:'CRITICAL',Proposal:'HOT',Discovery:'
 // Pull a "next call" date/time out of the close-action / next-step text.
 function extractNextCall(text){
   if(!text) return '';
+  // The explicit "Next call:" line is authoritative: scan it FIRST (just that clause) so an earlier
+  // date in the narrative — e.g. "6/30 touch-base held" opening the Close Action — never masks the
+  // real booked date on the Next call: line ("Next call: Decision call — Aug 5 10:00 AM"). Only when
+  // there's no Next call: line at all do we scan the whole blob (back-compat for older profiles).
+  const nc = text.match(/next call:\s*([^\n]*)/i);
+  const scan = nc ? nc[1] : text;
   // MM/DD must be a real calendar month (1-12) + day (1-31) so non-dates like "57/58" (ages) or
   // "3/6" (mortgage rates) in the summary text don't get scraped as a phantom next-call date.
   const dateRe = /\b((?:0?[1-9]|1[0-2])\/(?:0?[1-9]|[12]\d|3[01])(?:\/\d{2,4})?)\b|\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?)\b/i;
-  const m = text.match(dateRe);
+  const m = scan.match(dateRe);
+  // A Next call: line with no parseable date (e.g. "after the holidays") is still authoritative —
+  // don't fall back to a stray narrative date; leave it to the free-text / cleared handling upstream.
   if(!m) return '';
   const date = (m[1]||m[2]).trim();
-  const after = text.slice(m.index, m.index+60);
+  const after = scan.slice(m.index, m.index+60);
   const tm = after.match(/(\d{1,2}(?::\d{2})?\s*(?:[ap]\.?\s?m\.?))(\s*(?:ET|PT|CT|MT|EST|PST|CST|Eastern|Pacific|Central|Mountain))?/i);
-  return date + (tm ? ' at '+tm[1].replace(/\s+/g,' ').trim().toUpperCase()+(tm[2]?(' '+tm[2].trim()):'') : '');
+  // strip a trailing SENTENCE period after a non-dotted AM/PM ("10:00 AM." → "10:00 AM"); keep the
+  // dotted "a.m."/"p.m." form intact.
+  const t1 = tm ? tm[1].replace(/\s+/g,' ').trim().toUpperCase().replace(/(AM|PM)\.$/,'$1') : '';
+  return date + (tm ? ' at '+t1+(tm[2]?(' '+tm[2].trim()):'') : '');
 }
 
 // ---- auto-draft the On-Call Helper + goals from the data a profile DOES have ----

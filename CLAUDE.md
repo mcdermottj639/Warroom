@@ -359,15 +359,31 @@ The file is large; these are the load-bearing pieces a new session will likely t
      match **falls through** to the month-name patterns (it does NOT return a junk `Date`).
   2. **`extractNextCall(text)`** — has its **own** date regex (used by `mapImport` to populate
      `intel.nextCall`, which the banner can print **literally**). Same range restriction baked into
-     the regex (`(0?[1-9]|1[0-2])/(0?[1-9]|[12]\d|3[01])`).
+     the regex (`(0?[1-9]|1[0-2])/(0?[1-9]|[12]\d|3[01])`). **Reads the explicit `Next call:` line
+     FIRST (r121 fix).** The Close Action often *opens* with a past reference ("6/30 touch-base held
+     …") and then books the real date on a `Next call: <Type> — Aug 5 10:00 AM` line. Scanning the
+     whole blob grabbed that first `6/30` and masked `Aug 5`, so the client showed the call we'd just
+     held. Now it isolates the `next call:\s*(...)` clause and scans only that; a `Next call:` line
+     with no parseable date returns `''` (don't fall back to a stray narrative date — let
+     cleared/free-text handling take over). Only profiles with **no** `Next call:` line scan the
+     whole blob (back-compat). So **always put the booked date on a `Next call:` line** — a date
+     buried only in the narrative can be out-ordered by an earlier past reference.
   3. **`nextExpectedDate(i)` + `mapImport`** — both treat `intel.nextCallCleared` (the profile's
      explicit "No call scheduled", see Data-model "No next call") as **authoritative**, exactly like
      `missedCall`: `nextExpectedDate` returns null, and `mapImport` forces `nextCall=''` rather than
      scraping the close/summary text. So a "No call scheduled" client lands in **Pending Decisions**,
-     not Upcoming.
-  Rule of thumb: if you add/edit any code that reads a date out of free text, **range-check it and
-  short-circuit on `nextCallCleared`/`missedCall`** — and remember stored `intel.nextCall` only
-  refreshes on a ☁️ Drive **re-sync** (re-runs `parseProfile`→`mapImport`), not a plain reload.
+     not Upcoming. **Past-date guard (r121):** `nextExpectedDate` now drops **any resolved date that's
+     already in the past** to null (a `fresh()` helper; today still counts as upcoming) — a booked
+     call whose date has passed with nothing rebooked is treated like missed/cleared, so the client
+     falls into **Pending Decisions** instead of clinging to a stale Drive-scheduled date. The
+     authoritative `i.nextCall`/close-text explicit-date branches are **decisive** (future→return,
+     past→null) — they never fall through to the "the 30th"→next-month heuristic, which would
+     otherwise resurrect a phantom future call from a past reference. This generalizes the missed-call
+     fix to **every** lapsed booking, not just explicitly-marked ones.
+  Rule of thumb: if you add/edit any code that reads a date out of free text, **range-check it,
+  short-circuit on `nextCallCleared`/`missedCall`, prefer the `Next call:` line, and drop past
+  dates** — and remember stored `intel.nextCall` only refreshes on a ☁️ Drive **re-sync** (re-runs
+  `parseProfile`→`mapImport`), not a plain reload.
 - **Weekly schedule ingest** (since r117) — drop a plain **`WEEKLY SCHEDULE …`** file or Google Doc
   into the `1Remarkable` folder (day header like `Tuesday, June 30`, then rows `9:30 AM  Client Name —
   Type`) and every ☁️ Drive sync **books the listed calls**. It's purely **ADDITIVE**: a client who
