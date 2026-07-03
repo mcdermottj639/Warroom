@@ -331,8 +331,10 @@ client's name or "new notes" never hurt, but aren't required.)
   (`.fchip`, state in `S.ccFilter`) narrows every active-derived section at once
   (All / CRITICAL / HOT / WARM / PIPELINE — only priorities present are shown). The
   **KPI strip is the sole section-nav surface** (the old "Jump to" `.secnav` row was
-  removed in r101 — every widget is now a tappable jump): **seven chips**
-  (Weighted→Top 10 · Upcoming · **Missed** · Pending · Follow-ups · Cooling · **Won this quarter**→Wins),
+  removed in r101 — every widget is now a tappable jump): **eight chips, one per
+  section** (Weighted→Top 10 · Upcoming · **Missed** · Pending · **No call booked** ·
+  Follow-ups · Cooling · **Won this quarter**→Wins) — every `sec-*` group has a matching
+  `data-jump` chip (r126; keep it that way when adding a section),
   each a **button that deep-links** to its section (`data-jump`→`scrollIntoView`) and
   carries a visible **tap affordance** (`.kc-go`, e.g. "Top 10 ›", "Wins ›") naming the
   destination, plus (when no filter is active) a **week-over-week trend chip**

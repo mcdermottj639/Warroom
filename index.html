@@ -857,7 +857,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-03 · r125';
+const BUILD = 'build 2026-07-03 · r126';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2409,6 +2409,7 @@ function renderDashboard(jumpTo){
       <button class="kchip" data-jump="sec-upcoming"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n"><span>scheduled ahead ${tc(upcoming.length, wa&&wa.upN, true, false)}</span><span class="kc-go">Upcoming ›</span></div></button>
       <button class="kchip" data-jump="sec-missed"><div class="kc-l">Missed calls</div><div class="kc-v">${missedL.length}</div><div class="kc-n"><span>lapsed — reschedule ${tc(missedL.length, wa&&wa.missedN, false, false)}</span><span class="kc-go">Missed ›</span></div></button>
       <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n"><span>awaiting a yes/no ${tc(pend.length, wa&&wa.pendN, false, false)}</span><span class="kc-go">Pending ›</span></div></button>
+      <button class="kchip" data-jump="sec-nocall"><div class="kc-l">No call booked</div><div class="kc-v">${noCall.length}</div><div class="kc-n"><span>needs scheduling</span><span class="kc-go">No Call ›</span></div></button>
       <button class="kchip" data-jump="sec-tasks"><div class="kc-l">Follow-ups</div><div class="kc-v">${allTasks.length}</div><div class="kc-n"><span>${overdueCount?`${overdueCount} overdue`:'owed · 2 wks'}</span><span class="kc-go">Follow-ups ›</span></div></button>
       <button class="kchip" data-jump="sec-cooling"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n"><span>${cooling.length} fading ${tc(atRisk, wa&&wa.atRisk, false, true)}</span><span class="kc-go">Cooling ›</span></div></button>
       <button class="kchip" data-jump="sec-wins"><div class="kc-l">Won this quarter</div><div class="kc-v">${fmtVal(wonQval)}</div><div class="kc-n"><span>${wonQ.length} closed${winRate!=null?` · ${winRate}% rate`:''}</span><span class="kc-go">Wins ›</span></div></button>
