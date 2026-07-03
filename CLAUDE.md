@@ -140,17 +140,33 @@ client's name or "new notes" never hurt, but aren't required.)
   `intel.nextCallCleared`, which **clears any stale manual next-call override** on the
   next sync (mirrors `missedCall` being authoritative). Without it, an old in-app
   next-call date sticks around and the client wrongly stays in **Upcoming Calls**
-  instead of dropping into **Pending Decisions**. (`nextExpectedDate` returns null →
-  Pending. A future profile that books a real `Next call:` date surfaces normally.)
+  instead of dropping into **Pending Decisions** (proposal/decision stage) or **No Call
+  Booked** (any other stage). (`nextExpectedDate` returns null. A future profile that
+  books a real `Next call:` date surfaces normally.)
+- **`callSlot(i)` — the one classifier that carves the "no upcoming call" clients into
+  the right section (since r122).** `nextExpectedDate` collapses missed / cleared /
+  lapsed all into a single `null`; `callSlot` keeps **why** there's no call and returns
+  `{slot}` = **`'upcoming'`** (a future call is booked), **`'missed'`** (a booked call's
+  date passed with nothing rebooked, OR a hand-marked 📵 — a dropped ball, any stage),
+  or **`'none'`** (never booked, or an explicit "No call scheduled" — intentional, not
+  dropped). `bookedDateRaw(i)` is the resolved next-call date *without* dropping past
+  ones (trusts only the deliberate booking — the manual override or the `Next call:`
+  line — so a lapsed booking is distinguishable from a stray narrative date). The
+  action sections are carved from these slots so they never overlap. **This is the fix
+  for "missed calls not showing":** before r122 an auto-lapsed call only surfaced if the
+  client was at proposal/decision stage (via the old combined Pending filter); an
+  early-stage client whose booked call passed showed up **nowhere**. Now any `'missed'`
+  slot lands in the dedicated Missed Calls section regardless of stage.
 - **Missed call** — a client's detail next-call banner has a **📵 Missed** button
   (`markMissedCall`). It's **Drive-synced**: `profileSetMissed` writes a
   `Missed call: <ISO>` line into the profile and **drops the booked `Next call:`
   line**, plus a dated `## My Notes` entry — so the state crosses devices.
   `parseProfile`→`mapImport` read it back into `intel.missedCall` (NOT a local sticky).
-  `nextExpectedDate` returns null for a missed client, so they surface at the **top of
-  Pending Decisions** (any stage, tagged 📵 MISSED) and are excluded from Cooling.
-  Setting a new next call (`profileSetNextCall`) or logging a call (`profileEdit`)
-  clears the marker.
+  `callSlot` returns `'missed'` for them, so they surface in the dedicated **📵 Missed
+  Calls** section (any stage, tagged 📵 MISSED, longest-lapsed first) and are excluded
+  from Cooling. **A hand-marked 📵 and an auto-lapsed booked call are both `'missed'`**
+  — the marker just makes it explicit / Drive-synced. Setting a new next call
+  (`profileSetNextCall`) or logging a call (`profileEdit`) clears the marker.
 
 ## Writing profiles from photos (the main workflow)
 - HEIC photos: convert with `pillow-heif` (`pip install pillow-heif`; register the
@@ -187,8 +203,9 @@ client's name or "new notes" never hurt, but aren't required.)
   pipeline $ move — diffed against the persisted snapshot ledger (which now also carries
   `wonQn`/`wonQval`; the win delta is guarded > 0 so a quarter rollover can't show a negative
   win); it's hidden on the very first visit. Everything below is a
-  **stats/analytics board**: five **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
-  Cooling $ at risk · Pending decisions · **Won this month** — the last deep-links to 🏆 Wins
+  **stats/analytics board**: six **hero KPI tiles** (Weighted pipeline · Upcoming calls ·
+  **Missed calls** (t-red, →`sec-missed`) · Cooling $ at risk · Pending decisions ·
+  **Won this month** — the last deep-links to 🏆 Wins
   and its ring shows % of the monthly goal) that **deep-link** into the matching Command
   Center section and each carry a **week-over-week trend chip** (`trChip` — ▲/▼ vs the
   ~7-day-old snapshot, green=good/red=bad per metric direction; absent until a baseline exists),
@@ -268,14 +285,22 @@ client's name or "new notes" never hurt, but aren't required.)
   re-renders a left-open Overview tab when the rollover fires (it stamps `S.ovRenderWeek` alongside
   `S.ovRenderDay`). If you add another "this week" boundary, reuse `thisWeekEnd` so they stay in sync.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
-  → Top 10 → Pending Decisions → Follow-ups (tasks owed, next 2 weeks) → Cooling →
-  Wins. Every client row shows a **note flag** (green pill + count when notes exist;
+  → **📵 Missed Calls** → Top 10 → **⏳ Pending Decisions** → **📇 No Call Booked** →
+  Follow-ups (tasks owed, next 2 weeks) → Cooling → Wins. The old single "Pending
+  Decisions" bucket was split into **three mutually-exclusive** sections (r122), carved
+  from `callSlot`: **Missed Calls** (`slot==='missed'` — a scheduled call that lapsed or
+  a 📵 marker, ANY stage, most urgent); **Pending Decisions** (`slot==='none'` +
+  proposal/decision stage + not cooling — waiting on THEIR decision); **No Call Booked**
+  (`slot==='none'` + any other stage — early-stage clients who need a next touch
+  scheduled, previously invisible). Cooling now excludes any `'missed'` client (was just
+  `!missedCall`), so an auto-lapsed proposal reads as **Missed**, not Cooling. Every
+  client row shows a **note flag** (green pill + count when notes exist;
   click = notes popup inline). A **priority-filter chip row**
   (`.fchip`, state in `S.ccFilter`) narrows every active-derived section at once
   (All / CRITICAL / HOT / WARM / PIPELINE — only priorities present are shown). The
   **KPI strip is the sole section-nav surface** (the old "Jump to" `.secnav` row was
-  removed in r101 — every widget is now a tappable jump): **six chips**
-  (Weighted→Top 10 · Upcoming · Pending · Follow-ups · Cooling · **Won this quarter**→Wins),
+  removed in r101 — every widget is now a tappable jump): **seven chips**
+  (Weighted→Top 10 · Upcoming · **Missed** · Pending · Follow-ups · Cooling · **Won this quarter**→Wins),
   each a **button that deep-links** to its section (`data-jump`→`scrollIntoView`) and
   carries a visible **tap affordance** (`.kc-go`, e.g. "Top 10 ›", "Wins ›") naming the
   destination, plus (when no filter is active) a **week-over-week trend chip**
@@ -286,9 +311,9 @@ client's name or "new notes" never hurt, but aren't required.)
   entry points. (`.secnav` still styles the per-client Prep-Sheet jump nav in
   `renderDetail`.) Inline row
   actions: **Upcoming** rows have a 📞 **Log** button (`openLog`) + a `TODAY` tag on
-  same-day calls; **Pending Decisions** rows have a 📅 **Reschedule** button
-  (`quickReschedule` — opens the **schedule picker**, saves, clears any missed marker, syncs to Drive);
-  **Cooling** keeps its ✉️ re-engage. **Wins** has a This-week / This-month / This-quarter
+  same-day calls; **Missed Calls**, **Pending Decisions**, and **No Call Booked** rows all
+  have a 📅 button (`data-resched` → `quickReschedule` — opens the **schedule picker**,
+  saves, clears any missed marker, syncs to Drive); **Cooling** keeps its ✉️ re-engage. **Wins** has a This-week / This-month / This-quarter
   / YTD / All **time-frame toggle** (`S.winFrame`, filtered by `parseLogDate(wonDate)` against
   `_wfBounds`; week = Sunday-start) and shows a lifetime **win rate** (from `S.outcomeLog`) in
   its header. Changing the timeframe **repaints only the Wins card in place** via `repaintWins()`

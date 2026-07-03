@@ -236,6 +236,7 @@
   .ovtile:focus-visible{outline:2px solid var(--neon);outline-offset:3px}
   .ovtile.t-cyan{--neon:var(--c1)} .ovtile.t-blue{--neon:#60a5fa}
   .ovtile.t-pink{--neon:var(--c3)} .ovtile.t-purple{--neon:var(--c4)} .ovtile.t-green{--neon:#34d399}
+  .ovtile.t-red{--neon:#f87171}
   .ot-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink-dim);font-weight:800}
   .ot-v{font-size:38px;font-weight:800;margin-top:8px;line-height:1;color:#fff;
     text-shadow:0 0 22px color-mix(in srgb,var(--neon) 80%,transparent)}
@@ -855,7 +856,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-02 · r121';
+const BUILD = 'build 2026-07-03 · r122';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1307,6 +1308,36 @@ function nextExpectedDate(i){
   m=text.match(new RegExp('\\b(?:back\\b|reconnect|reach out|circle back|follow up|touch base)[^.]*?\\b'+MO+'\\b','i'));
   if(m) return fresh(new Date(2026, MONTHS[m[1].slice(0,3).toLowerCase()], 15));  // "back in August" => mid-month
   return null;
+}
+// The resolved next-call date WITHOUT dropping past ones (nextExpectedDate nulls anything past).
+// Only trusts a deliberate booking — the manual override or the profile's "Next call:" line
+// (i.nextCall) — not a stray narrative date, so a lapsed booking is distinguishable from noise.
+function bookedDateRaw(i){
+  const s = (i.nextCallSet!==undefined && i.nextCallSet!==null && i.nextCallSet!=='') ? i.nextCallSet : (i.nextCall||'');
+  if(!s) return null;
+  const d=parseLogDate(s); return (d && !isNaN(d)) ? d : null;
+}
+// Classify a client's next-call state into ONE mutually-exclusive slot so the action sections
+// don't overlap (they used to share one blurry "Pending" bucket). nextExpectedDate collapses
+// missed / cleared / lapsed all into a single null; this keeps WHY there's no call:
+//   'upcoming' — a future call is booked.
+//   'missed'   — a booked call's date passed with nothing rebooked, OR a hand-marked 📵. Any
+//                stage. A dropped ball → its own Missed Calls section.
+//   'none'     — never booked, or an explicit "No call scheduled" (they'll get back to us —
+//                intentional, not dropped) → Pending Decisions / No Call Booked.
+function callSlot(i){
+  const today0=new Date(); today0.setHours(0,0,0,0);
+  const hasOverride = i.nextCallSet!==undefined && i.nextCallSet!==null && i.nextCallSet!=='';
+  // hand-marked 📵 wins (unless a newer override re-booked a call); dated by the marker
+  if(i.missedCall && !hasOverride) return { slot:'missed', date:new Date(i.missedCall+'T00:00:00'), marked:true };
+  const d=nextExpectedDate(i);
+  if(d && d>=today0) return { slot:'upcoming', date:d };
+  // explicit "No call scheduled" = intentional, not a dropped ball
+  if(i.nextCallCleared && !hasOverride) return { slot:'none' };
+  // a real booking (override or Next call: line) that has since passed = a lapsed call = missed
+  const b=bookedDateRaw(i);
+  if(b && b<today0) return { slot:'missed', date:b };
+  return { slot:'none' };
 }
 // minutes-past-midnight of the booked call's time (for ordering same-day calls). Pulls a clock
 // time ("5:00 PM", "9 am", schedule.time) from the next-call text; returns 9999 when none is stated
@@ -1835,16 +1866,18 @@ function renderOverview(){
   const upWeek = upcoming.filter(x=>x.d<=weekEnd);
   const todays = upcoming.filter(x=> x.d.getTime()===today0.getTime());
 
-  const cooling = active.filter(c=>isCooling(c) && !c.intel.missedCall).map(c=>({c, ev:expectedValue(c.intel)}));
+  const cooling = active.filter(c=>isCooling(c) && callSlot(c.intel).slot!=='missed').map(c=>({c, ev:expectedValue(c.intel)}));
   const atRisk = cooling.reduce((s,r)=>s+r.ev, 0);
 
-  const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=today0); };
-  // Missed calls with nothing rebooked — the single most urgent action; surfaced at the top of Today's Focus.
-  const missed = active.filter(c => !!c.intel.missedCall && !hasFutureCall(c))
-    .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
-  const pend = active.filter(c => !hasFutureCall(c) && (
-      !!c.intel.missedCall ||
-      (['proposal','decision'].includes((c.intel.stage||'').toLowerCase()) && !isCooling(c))));
+  // Classify every active client's next-call state once (upcoming / missed / none) — see callSlot.
+  const ovSlots = active.map(c=>({c, s:callSlot(c.intel)}));
+  // Missed calls (📵 marked OR a booked call whose date lapsed) — the most urgent action; top of Today's Focus.
+  const missed = ovSlots.filter(x=>x.s.slot==='missed')
+    .sort((a,b)=> (a.s.date-b.s.date) || (expectedValue(b.c.intel)-expectedValue(a.c.intel)));
+  // Pending decisions — proposal/decision stage, no call booked, not cooling (awaiting their call).
+  const pend = ovSlots.filter(x=> x.s.slot==='none'
+      && ['proposal','decision'].includes((x.c.intel.stage||'').toLowerCase()) && !isCooling(x.c))
+    .map(x=>x.c);
 
   const wins = S.clients.filter(c=>c.intel.status==='won');
 
@@ -1868,7 +1901,7 @@ function renderOverview(){
   const taskRow = ({c,t})=>`<div class="ovrow" data-code="${c.code}">
       <span class="when">${t.due?esc(dueLabel(t.due)):'—'}</span>
       <div class="nm">${esc(c.name)}<div class="sub ellip">${esc(t.t)}</div></div></div>`;
-  const missRow = c=>{ const md=new Date(c.intel.missedCall+'T00:00:00');
+  const missRow = ({c,s})=>{ const md=s.date;
     return `<div class="ovrow" data-code="${c.code}">
       <span class="when miss">📵 ${md.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span>
       <div class="nm">${esc(c.name)} <span class="badge b-${esc(c.intel.priority||'PIPELINE')}">${esc(c.intel.priority||'')}</span>
@@ -1939,6 +1972,7 @@ function renderOverview(){
   const rUp = active.length?Math.round(upcoming.length/active.length*100):0;
   const rCool = weighted?Math.round(atRisk/weighted*100):0;
   const rPend = active.length?Math.round(pend.length/active.length*100):0;
+  const rMiss = active.length?Math.round(missed.length/active.length*100):0;
 
   // ===== Conversation-quality analytics (all from existing intel; no fabricated figures) =====
   const has = a => Array.isArray(a) && a.length;   // mirror of renderDetail's local helper
@@ -2066,8 +2100,8 @@ function renderOverview(){
   const goalBlock = gauge(goalPct,`${mLbl} goal`,`${fmtVal(wonMval)} of ${fmtVal(winGoal)}`,'#34d399');
 
   // ---- Snapshot ledger → "since your last visit" strip (#6) + hero week-over-week trend chips (#7) ----
-  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length, wonQn, wonQval, wonMn, wonMval,
-    missed:missed.map(c=>c.code), cooling:cooling.map(r=>r.c.code), pending:pend.map(c=>c.code) };
+  const cur = { date:todayISO, weekAgoDate, weighted, upN:upcoming.length, atRisk, pendN:pend.length, missedN:missed.length, wonQn, wonQval, wonMn, wonMval,
+    missed:missed.map(x=>x.c.code), cooling:cooling.map(r=>r.c.code), pending:pend.map(c=>c.code) };
   const { prev, weekAgo } = recordOverviewSnap(cur);
   const sinceStrip=(()=>{ if(!prev) return '';
     const newOf=(a,p)=>{ const ps=new Set(p||[]); return (a||[]).filter(x=>!ps.has(x)).length; };
@@ -2111,6 +2145,8 @@ function renderOverview(){
         <div class="ot-l">Weighted pipeline</div><div class="ot-v">${fmtVal(weighted)}</div><div class="ot-n">EV across ${active.length} clients ${trChip(weighted, weekAgo&&weekAgo.weighted, true, true, waLbl)}</div></button>
       <button class="ovtile t-blue" data-jump="sec-upcoming"><span class="cnrs"></span><span class="ot-ring" style="--p:${rUp}" title="${upcoming.length} of ${active.length} have a call booked"></span><span class="ot-go">›</span>
         <div class="ot-l">Upcoming calls</div><div class="ot-v">${upcoming.length}</div><div class="ot-n">${upWeek.length} this week ${trChip(upcoming.length, weekAgo&&weekAgo.upN, true, false, waLbl)}</div></button>
+      <button class="ovtile t-red" data-jump="sec-missed"><span class="cnrs"></span><span class="ot-ring" style="--p:${rMiss}" title="${missed.length} lapsed calls to reschedule"></span><span class="ot-go">›</span>
+        <div class="ot-l">Missed calls</div><div class="ot-v">${missed.length}</div><div class="ot-n">lapsed — reschedule now ${trChip(missed.length, weekAgo&&weekAgo.missedN, false, false, waLbl)}</div></button>
       <button class="ovtile t-pink" data-jump="sec-cooling"><span class="cnrs"></span><span class="ot-ring" style="--p:${rCool}" title="${rCool}% of weighted pipeline at risk"></span><span class="ot-go">›</span>
         <div class="ot-l">Cooling $ at risk</div><div class="ot-v">${fmtVal(atRisk)}</div><div class="ot-n">${cooling.length} fading ${trChip(atRisk, weekAgo&&weekAgo.atRisk, false, true, waLbl)}</div></button>
       <button class="ovtile t-purple" data-jump="sec-pending"><span class="cnrs"></span><span class="ot-ring" style="--p:${rPend}" title="${rPend}% of the book awaiting a decision"></span><span class="ot-go">›</span>
@@ -2202,32 +2238,56 @@ function renderDashboard(jumpTo){
     <td class="r col-opt">${Math.round(r.p*100)}%</td>
     <td class="r">${fmtVal(r.ev)}</td></tr>`).join('');
 
-  // Pending decisions = at Proposal/Decision, but with NO future call booked and NOT yet cooling.
-  // (Future call → they're in Upcoming. Faded past our timing → they're in Cooling.)
+  // Every active client's next-call state → one slot (upcoming / missed / none). The action
+  // sections below are carved from these so they never overlap (was one blurry "Pending" bucket).
   const _todayP=new Date(); _todayP.setHours(0,0,0,0);
-  const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=_todayP); };
-  // Missed-call clients land here regardless of stage; otherwise the usual proposal/decision-with-no-call set.
-  const pend = active.filter(c => !hasFutureCall(c) && (
-        !!c.intel.missedCall ||
-        (['proposal','decision'].includes((c.intel.stage||'').toLowerCase()) && !isCooling(c))))
-    .sort((a,b)=> (b.intel.missedCall?1:0)-(a.intel.missedCall?1:0) || expectedValue(b.intel)-expectedValue(a.intel));
-  const pendRows = pend.length ? pend.slice(0,10).map(c=>{
-    const missed = !!c.intel.missedCall;
-    const missDate = missed ? new Date(c.intel.missedCall+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
-    const issue = missed ? `Missed call ${missDate} — reschedule`
-      : (c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending');
-    const cls = missed?'CRITICAL':c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
+  const slotList = active.map(c=>({c, s:callSlot(c.intel)}));
+  const isDecStage = c => ['proposal','decision'].includes((c.intel.stage||'').toLowerCase());
+  const prBadge = c => c.intel.priority==='CRITICAL'?'CRITICAL':c.intel.priority==='HOT'?'HIGH':'MEDIUM';
+
+  // 📵 Missed Calls — a booked call whose date passed (or a hand-marked 📵), ANY stage. Longest-lapsed first.
+  const missedL = slotList.filter(x=>x.s.slot==='missed')
+    .sort((a,b)=> (a.s.date-b.s.date) || (expectedValue(b.c.intel)-expectedValue(a.c.intel)));
+  const missedRows = missedL.length ? missedL.map(({c,s})=>{
+    const md=s.date.toLocaleDateString(undefined,{month:'short',day:'numeric'}); const ty=nextCallType(c.intel);
     return `<div class="crow" data-code="${c.code}">
-      <span class="riskbadge risk-${cls}">${missed?'📵 MISSED':esc(c.intel.priority||'')}</span>
+      <span class="riskbadge risk-CRITICAL">📵 MISSED</span>
+      <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">Due ${esc(md)}${ty?` · ${esc(ty)} call`:''} — reschedule</div></div>
+      <button class="sm iconbtn" data-resched="${c.code}" aria-label="Reschedule ${esc(c.name)}" title="Reschedule — clears the missed flag">📅</button>
+      <span class="chev">›</span></div>`;
+  }).join('') : '<div class="bodynote" style="padding-top:0">No missed calls — nothing slipped through. 👌</div>';
+
+  // ⏳ Pending Decisions — proposal/decision stage, no call booked, not yet cooling (waiting on THEIR call).
+  const pend = slotList.filter(x=> x.s.slot==='none' && isDecStage(x.c) && !isCooling(x.c))
+    .map(x=>x.c).sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
+  const pendRows = pend.length ? pend.slice(0,10).map(c=>{
+    const issue = c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending';
+    return `<div class="crow" data-code="${c.code}">
+      <span class="riskbadge risk-${prBadge(c)}">${esc(c.intel.priority||'')}</span>
       <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">${esc(issue)}</div></div>
-      <button class="sm iconbtn" data-resched="${c.code}" aria-label="Reschedule ${esc(c.name)}" title="${missed?'Reschedule — clears the missed flag':'Book the next call'}">📅</button>
+      <button class="sm iconbtn" data-resched="${c.code}" aria-label="Book next call ${esc(c.name)}" title="Book the next call">📅</button>
       <span class="chev">›</span></div>`;
   }).join('')
-      + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more with no next call booked</div>`:'')
-    : '<div class="bodynote" style="padding-top:0">Every open decision has a call booked or is in Cooling. 👌</div>';
+      + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more awaiting a decision</div>`:'')
+    : '<div class="bodynote" style="padding-top:0">Every open decision has a call booked or is cooling. 👌</div>';
 
-  // Cooling deals — proposals fading, driven by the client's own stated timing (scheduled ones excluded)
-  const cooling = active.filter(c=>isCooling(c) && !c.intel.missedCall).map(c=>({c, st:dealState(c), ev:expectedValue(c.intel)}))
+  // 📇 No Call Booked — any OTHER open client (not a proposal/decision) with no next call on the
+  // books. These used to be invisible: an early-stage client whose call lapsed showed up nowhere.
+  const noCall = slotList.filter(x=> x.s.slot==='none' && !isDecStage(x.c))
+    .map(x=>x.c).sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
+  const noCallRows = noCall.length ? noCall.slice(0,12).map(c=>{
+    const lt=effTouch(c); const sub=`${esc(c.intel.stage||'No stage')} · ${lt?('last '+esc(new Date(lt+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}))):'no contact logged'}`;
+    return `<div class="crow" data-code="${c.code}">
+      <span class="riskbadge risk-${prBadge(c)}">${esc(c.intel.priority||'')}</span>
+      <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">${sub}</div></div>
+      <button class="sm iconbtn" data-resched="${c.code}" aria-label="Book a call ${esc(c.name)}" title="Book a call">📅</button>
+      <span class="chev">›</span></div>`;
+  }).join('')
+      + (noCall.length>12?`<div class="bodynote" style="padding-top:10px">+ ${noCall.length-12} more with no call booked</div>`:'')
+    : '<div class="bodynote" style="padding-top:0">Everyone active has a call booked or a decision pending. 👌</div>';
+
+  // Cooling deals — proposals fading, driven by the client's own stated timing (scheduled/missed excluded)
+  const cooling = active.filter(c=>isCooling(c) && callSlot(c.intel).slot!=='missed').map(c=>({c, st:dealState(c), ev:expectedValue(c.intel)}))
     .sort((a,b)=> (b.ev*(b.st.days||1)) - (a.ev*(a.st.days||1)));
   const atRisk = cooling.reduce((s,r)=>s+r.ev,0);
   const coolRows = cooling.length ? cooling.map(r=>{
@@ -2314,7 +2374,8 @@ function renderDashboard(jumpTo){
     <div class="kstrip">
       <button class="kchip" data-jump="sec-top"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n"><span>EV across ${active.length} ${tc(weighted, wa&&wa.weighted, true, true)}</span><span class="kc-go">Top 10 ›</span></div></button>
       <button class="kchip" data-jump="sec-upcoming"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n"><span>scheduled ahead ${tc(upcoming.length, wa&&wa.upN, true, false)}</span><span class="kc-go">Upcoming ›</span></div></button>
-      <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n"><span>no next call ${tc(pend.length, wa&&wa.pendN, false, false)}</span><span class="kc-go">Pending ›</span></div></button>
+      <button class="kchip" data-jump="sec-missed"><div class="kc-l">Missed calls</div><div class="kc-v">${missedL.length}</div><div class="kc-n"><span>lapsed — reschedule ${tc(missedL.length, wa&&wa.missedN, false, false)}</span><span class="kc-go">Missed ›</span></div></button>
+      <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n"><span>awaiting their call ${tc(pend.length, wa&&wa.pendN, false, false)}</span><span class="kc-go">Pending ›</span></div></button>
       <button class="kchip" data-jump="sec-tasks"><div class="kc-l">Follow-ups</div><div class="kc-v">${allTasks.length}</div><div class="kc-n"><span>${overdueCount?`${overdueCount} overdue`:'owed · 2 wks'}</span><span class="kc-go">Follow-ups ›</span></div></button>
       <button class="kchip" data-jump="sec-cooling"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n"><span>${cooling.length} fading ${tc(atRisk, wa&&wa.atRisk, false, true)}</span><span class="kc-go">Cooling ›</span></div></button>
       <button class="kchip" data-jump="sec-wins"><div class="kc-l">Won this quarter</div><div class="kc-v">${fmtVal(wonQval)}</div><div class="kc-n"><span>${wonQ.length} closed${winRate!=null?` · ${winRate}% rate`:''}</span><span class="kc-go">Wins ›</span></div></button>
@@ -2330,11 +2391,17 @@ function renderDashboard(jumpTo){
       <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsFuture}</tbody></table>
     </div>
 
+    <div class="groupttl" id="sec-missed">📵 Missed Calls — a scheduled call that passed, reschedule now</div>
+    <div class="card">${missedRows}</div>
+
     <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by expected value</div>
     <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r col-opt">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
 
-    <div class="groupttl" id="sec-pending">⏳ Pending Decisions — open, no next call booked</div>
+    <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal/decision out, awaiting their call</div>
     <div class="card">${pendRows}</div>
+
+    <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>
+    <div class="card">${noCallRows}</div>
 
     <div class="groupttl" id="sec-tasks">📌 Follow-ups — what you owe clients (next 2 weeks)</div>
     <div class="card">${taskRows}</div>
@@ -2647,7 +2714,7 @@ function renderDetail(c){
       <button class="nc-set" id="setNcBtn">${ncLabel?'✏️ Change':'+ Set'}</button>
       ${ncLabel&&!i.status?'<button class="nc-set" id="missedBtn">📵 Missed</button>':''}
     </div>
-    ${i.missedCall?`<div class="meta" style="margin:-8px 0 14px;color:var(--warm)">📵 Missed call ${esc(new Date(i.missedCall+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}))} — moved to Pending Decisions; reschedule to clear.</div>`:''}
+    ${i.missedCall?`<div class="meta" style="margin:-8px 0 14px;color:var(--warm)">📵 Missed call ${esc(new Date(i.missedCall+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}))} — moved to Missed Calls; reschedule to clear.</div>`:''}
     ${(()=>{ const ds=dealState(c), lt=coolDays(c); const tag = ds.state==='Scheduled'?`<b style="color:var(--gold)">on track</b>`
         : (ds.state&&!['Fresh',null].includes(ds.state))?`<b style="color:var(--warm)">${ds.overdue?'OVERDUE':ds.state.toUpperCase()}</b>` : '';
       return `<div class="meta" style="margin:-8px 0 14px">🕑 Last touch: ${lt!=null?lt+' day'+(lt===1?'':'s')+' ago':'—'}${tag?' · '+tag:''}</div>`; })()}
@@ -3376,8 +3443,7 @@ function gatherWidgetFeed(){
       md:x.d.toLocaleDateString(undefined,{month:'short',day:'numeric'}),
       type:nextCallType(i)||i.callType||'', time:fmtClock(mins), val:assetVal(i.moveable) }; });
   // urgency counts: missed calls (nothing rebooked) + follow-ups owed now (undated or due ≤ today)
-  const hasFutureCall = c => { const d=nextExpectedDate(c.intel); return !!(d && d>=today0); };
-  const missedCs = active.filter(c => !!c.intel.missedCall && !hasFutureCall(c))
+  const missedCs = active.filter(c => callSlot(c.intel).slot==='missed')
     .sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
   const missedNames = missedCs.slice(0,6).map(c=>c.name);
   let owed=0, overdue=0;
@@ -4083,13 +4149,13 @@ async function saveNotesFor(c, notes){
   await loadClients();
 }
 // Mark a client as having missed their call → drop the booked call, log a dated note, and
-// flag them so they surface in Command Center's Pending Decisions until rescheduled.
+// flag them so they surface in Command Center's Missed Calls section until rescheduled.
 async function markMissedCall(code){
   const c=S.clients.find(x=>x.code===code); if(!c || ['won','lost'].includes(c.intel.status)) return;
   const d=new Date(); const _p=n=>String(n).padStart(2,'0');
   const iso=d.getFullYear()+'-'+_p(d.getMonth()+1)+'-'+_p(d.getDate());
   const nice=d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
-  if(!confirm(`Mark ${c.name} as a missed call (${nice})?\n\nThey'll move to Pending Decisions and the booked call will be cleared.`)) return;
+  if(!confirm(`Mark ${c.name} as a missed call (${nice})?\n\nThey'll move to Missed Calls and the booked call will be cleared.`)) return;
   const notes=(c.intel.notes||[]).slice();
   notes.unshift({ d:d.toLocaleDateString(undefined,{month:'short',day:'numeric'}), t:`Missed call — ${nice}` });
   const intel = {...c.intel, missedCall:iso, nextCallSet:'', pendingDecision:`Missed call ${nice} — reschedule`, notes};
