@@ -857,7 +857,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-03 · r124';
+const BUILD = 'build 2026-07-03 · r125';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1340,18 +1340,25 @@ function callSlot(i){
   if(b && b<today0) return { slot:'missed', date:b };
   return { slot:'none' };
 }
-// "Verdict outstanding" — a deal walked through a proposal with no definitive yes (won) / no (lost)
-// yet. Unlike the mutually-exclusive call-state sections (Missed / Upcoming / No Call Booked), the
-// Pending Decisions board is a CROSS-CUTTING status list: it overlaps them on purpose so the closest-
-// to-close deals collect in one place regardless of whether their next call is booked, missed, or
-// unscheduled. Gate = at Proposal/Decision stage (inferStage marks these only from a HELD call, so
-// stage already means "proposal delivered") OR a proposal/decision call sits in the logged history.
+// "Verdict outstanding" — a deal whose proposal has been DELIVERED with no definitive yes (won) /
+// no (lost) yet. Unlike the mutually-exclusive call-state sections (Missed / Upcoming / No Call
+// Booked), the Pending Decisions board is a CROSS-CUTTING status list: it overlaps them on purpose
+// so the closest-to-close deals collect in one place regardless of the next call's booked/missed/
+// unscheduled state. The gate must require the proposal to be BEHIND them — a bare `stage==='proposal'`
+// is NOT enough, because inferStage tags a client 'Proposal' even when the proposal call is still
+// AHEAD (scheduled, not held), which wrongly listed future-proposal clients. So:
+//   • stage==='decision'            — already at the decision step, proposal is done; OR
+//   • nextCallType(i)==='Decision'  — the next step is a decision (proposal held / decision booked); OR
+//   • a proposal/decision call actually HELD (past/undated) sits in call history.
+// A client whose next call is a FUTURE Proposal returns nextCallType 'Proposal' and has no held
+// proposal, so they correctly stay OUT until that proposal call happens.
 function awaitingDecision(i){
   if(i.status==='won'||i.status==='lost') return false;
-  const st=(i.stage||'').toLowerCase();
-  if(st==='proposal'||st==='decision') return true;
+  if((i.stage||'').toLowerCase()==='decision') return true;
+  if(nextCallType(i)==='Decision') return true;
   const today=new Date(); today.setHours(23,59,59,999);
-  return (i.callHistory||[]).some(h=>{ const d=parseLogDate(h.date); return (!d||d<=today) && /proposal|decision/i.test((h.callType||'')+' '+(h.summary||'')); });
+  return (i.callHistory||[]).some(h=>{ const d=parseLogDate(h.date);
+    return (!d||d<=today) && /proposal|decision/i.test((h.callType||'')+' '+(h.summary||'')); });
 }
 // minutes-past-midnight of the booked call's time (for ordering same-day calls). Pulls a clock
 // time ("5:00 PM", "9 am", schedule.time) from the next-call text; returns 9999 when none is stated
