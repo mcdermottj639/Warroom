@@ -857,7 +857,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-03 · r123';
+const BUILD = 'build 2026-07-03 · r124';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1339,6 +1339,19 @@ function callSlot(i){
   const b=bookedDateRaw(i);
   if(b && b<today0) return { slot:'missed', date:b };
   return { slot:'none' };
+}
+// "Verdict outstanding" — a deal walked through a proposal with no definitive yes (won) / no (lost)
+// yet. Unlike the mutually-exclusive call-state sections (Missed / Upcoming / No Call Booked), the
+// Pending Decisions board is a CROSS-CUTTING status list: it overlaps them on purpose so the closest-
+// to-close deals collect in one place regardless of whether their next call is booked, missed, or
+// unscheduled. Gate = at Proposal/Decision stage (inferStage marks these only from a HELD call, so
+// stage already means "proposal delivered") OR a proposal/decision call sits in the logged history.
+function awaitingDecision(i){
+  if(i.status==='won'||i.status==='lost') return false;
+  const st=(i.stage||'').toLowerCase();
+  if(st==='proposal'||st==='decision') return true;
+  const today=new Date(); today.setHours(23,59,59,999);
+  return (i.callHistory||[]).some(h=>{ const d=parseLogDate(h.date); return (!d||d<=today) && /proposal|decision/i.test((h.callType||'')+' '+(h.summary||'')); });
 }
 // minutes-past-midnight of the booked call's time (for ordering same-day calls). Pulls a clock
 // time ("5:00 PM", "9 am", schedule.time) from the next-call text; returns 9999 when none is stated
@@ -1875,10 +1888,9 @@ function renderOverview(){
   // Missed calls (📵 marked OR a booked call whose date lapsed) — the most urgent action; top of Today's Focus.
   const missed = ovSlots.filter(x=>x.s.slot==='missed')
     .sort((a,b)=> (a.s.date-b.s.date) || (expectedValue(b.c.intel)-expectedValue(a.c.intel)));
-  // Pending decisions — proposal/decision stage, no call booked, not cooling (awaiting their call).
-  const pend = ovSlots.filter(x=> x.s.slot==='none'
-      && ['proposal','decision'].includes((x.c.intel.stage||'').toLowerCase()) && !isCooling(x.c))
-    .map(x=>x.c);
+  // Pending decisions — cross-cutting "awaiting a yes/no" board (proposal delivered, no verdict yet);
+  // overlaps Upcoming/Missed/Cooling. See awaitingDecision + the Command Center Pending section.
+  const pend = active.filter(c=>awaitingDecision(c.intel));
 
   const wins = S.clients.filter(c=>c.intel.status==='won');
 
@@ -2151,7 +2163,7 @@ function renderOverview(){
       <button class="ovtile t-pink" data-jump="sec-cooling"><span class="cnrs"></span><span class="ot-ring" style="--p:${rCool}" title="${rCool}% of weighted pipeline at risk"></span><span class="ot-go">›</span>
         <div class="ot-l">Cooling $ at risk</div><div class="ot-v">${fmtVal(atRisk)}</div><div class="ot-n">${cooling.length} fading ${trChip(atRisk, weekAgo&&weekAgo.atRisk, false, true, waLbl)}</div></button>
       <button class="ovtile t-purple" data-jump="sec-pending"><span class="cnrs"></span><span class="ot-ring" style="--p:${rPend}" title="${rPend}% of the book awaiting a decision"></span><span class="ot-go">›</span>
-        <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">no next call booked ${trChip(pend.length, weekAgo&&weekAgo.pendN, false, false, waLbl)}</div></button>
+        <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">awaiting a yes/no ${trChip(pend.length, weekAgo&&weekAgo.pendN, false, false, waLbl)}</div></button>
       <button class="ovtile t-green" data-jump="sec-wins"><span class="cnrs"></span><span class="ot-ring" style="--p:${goalPct}" title="${goalPct}% of ${esc(mLbl)} goal (${fmtVal(winGoal)})"></span><span class="ot-go">›</span>
         <div class="ot-l">Won this month</div><div class="ot-v">${fmtVal(wonMval)}</div><div class="ot-n">${wonMn} deal${wonMn===1?'':'s'} ${trChip(wonMn, weekAgo&&weekAgo.wonMn, true, false, waLbl)}</div></button>
     </div>
@@ -2258,19 +2270,32 @@ function renderDashboard(jumpTo){
       <span class="chev">›</span></div>`;
   }).join('') : '<div class="bodynote" style="padding-top:0">No missed calls — nothing slipped through. 👌</div>';
 
-  // ⏳ Pending Decisions — proposal/decision stage, no call booked, not yet cooling (waiting on THEIR call).
-  const pend = slotList.filter(x=> x.s.slot==='none' && isDecStage(x.c) && !isCooling(x.c))
-    .map(x=>x.c).sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
-  const pendRows = pend.length ? pend.slice(0,10).map(c=>{
-    const issue = c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'Decision pending';
+  // ⏳ Pending Decisions — CROSS-CUTTING "closest to close" board: every deal awaiting a yes/no
+  // (proposal delivered), regardless of call state. Overlaps Upcoming/Missed/Cooling by design — a
+  // client here also lives in their action section; the status tag shows which. Closest-first:
+  // booked call soonest → then by close probability → then EV.
+  const pendRank = c=>{ const d=nextExpectedDate(c.intel); return (d && d>=_todayP) ? d.getTime() : Infinity; };
+  const pend = active.filter(c=>awaitingDecision(c.intel))
+    .sort((a,b)=> (pendRank(a)-pendRank(b)) || (stageProb(b.intel)-stageProb(a.intel)) || (expectedValue(b.intel)-expectedValue(a.intel)));
+  // per-row status tag = the client's real next-call state (they overlap the other sections)
+  const pendTag = c=>{ const s=callSlot(c.intel);
+    if(s.slot==='upcoming'){ const ty=nextCallType(c.intel); const soon=s.date.getTime()===_todayP.getTime();
+      return `<b style="color:var(--gold)">📅 ${esc(ty||'Call')} ${soon?'today':esc(s.date.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))}</b>`; }
+    if(s.slot==='missed') return `<b style="color:var(--danger)">📵 Missed ${esc(s.date.toLocaleDateString(undefined,{month:'short',day:'numeric'}))} — reschedule</b>`;
+    if(isCooling(c)){ const st=dealState(c); return `<b style="color:var(--warm)">🧊 Cooling · ${st.days}d quiet</b>`; }
+    return `<span style="color:var(--muted)">⏳ No call booked</span>`; };
+  const PEND_CAP=15;
+  const pendRows = pend.length ? pend.slice(0,PEND_CAP).map(c=>{
+    const issue = c.intel.pendingDecision||(c.intel.complications||c.intel.specialFlags||[])[0]||c.intel.objection||'awaiting decision';
     return `<div class="crow" data-code="${c.code}">
       <span class="riskbadge risk-${prBadge(c)}">${esc(c.intel.priority||'')}</span>
-      <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">${esc(issue)}</div></div>
-      <button class="sm iconbtn" data-resched="${c.code}" aria-label="Book next call ${esc(c.name)}" title="Book the next call">📅</button>
+      <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b> <span class="ev">${fmtVal(expectedValue(c.intel))}</span>
+        <div class="fc ellip">${pendTag(c)} · ${esc(issue)}</div></div>
+      <button class="sm iconbtn" data-resched="${c.code}" aria-label="Set next call ${esc(c.name)}" title="Set / change the next call">📅</button>
       <span class="chev">›</span></div>`;
   }).join('')
-      + (pend.length>10?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-10} more awaiting a decision</div>`:'')
-    : '<div class="bodynote" style="padding-top:0">Every open decision has a call booked or is cooling. 👌</div>';
+      + (pend.length>PEND_CAP?`<div class="bodynote" style="padding-top:10px">+ ${pend.length-PEND_CAP} more awaiting a decision</div>`:'')
+    : '<div class="bodynote" style="padding-top:0">No proposals awaiting a decision right now.</div>';
 
   // 📇 No Call Booked — any OTHER open client (not a proposal/decision) with no next call on the
   // books. These used to be invisible: an early-stage client whose call lapsed showed up nowhere.
@@ -2376,7 +2401,7 @@ function renderDashboard(jumpTo){
       <button class="kchip" data-jump="sec-top"><div class="kc-l">Weighted pipeline</div><div class="kc-v">${fmtVal(weighted)}</div><div class="kc-n"><span>EV across ${active.length} ${tc(weighted, wa&&wa.weighted, true, true)}</span><span class="kc-go">Top 10 ›</span></div></button>
       <button class="kchip" data-jump="sec-upcoming"><div class="kc-l">Upcoming calls</div><div class="kc-v">${upcoming.length}</div><div class="kc-n"><span>scheduled ahead ${tc(upcoming.length, wa&&wa.upN, true, false)}</span><span class="kc-go">Upcoming ›</span></div></button>
       <button class="kchip" data-jump="sec-missed"><div class="kc-l">Missed calls</div><div class="kc-v">${missedL.length}</div><div class="kc-n"><span>lapsed — reschedule ${tc(missedL.length, wa&&wa.missedN, false, false)}</span><span class="kc-go">Missed ›</span></div></button>
-      <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n"><span>awaiting their call ${tc(pend.length, wa&&wa.pendN, false, false)}</span><span class="kc-go">Pending ›</span></div></button>
+      <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n"><span>awaiting a yes/no ${tc(pend.length, wa&&wa.pendN, false, false)}</span><span class="kc-go">Pending ›</span></div></button>
       <button class="kchip" data-jump="sec-tasks"><div class="kc-l">Follow-ups</div><div class="kc-v">${allTasks.length}</div><div class="kc-n"><span>${overdueCount?`${overdueCount} overdue`:'owed · 2 wks'}</span><span class="kc-go">Follow-ups ›</span></div></button>
       <button class="kchip" data-jump="sec-cooling"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n"><span>${cooling.length} fading ${tc(atRisk, wa&&wa.atRisk, false, true)}</span><span class="kc-go">Cooling ›</span></div></button>
       <button class="kchip" data-jump="sec-wins"><div class="kc-l">Won this quarter</div><div class="kc-v">${fmtVal(wonQval)}</div><div class="kc-n"><span>${wonQ.length} closed${winRate!=null?` · ${winRate}% rate`:''}</span><span class="kc-go">Wins ›</span></div></button>
@@ -2398,7 +2423,7 @@ function renderDashboard(jumpTo){
     <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by expected value</div>
     <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r col-opt">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
 
-    <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal/decision out, awaiting their call</div>
+    <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal delivered, awaiting a yes/no · closest first</div>
     <div class="card">${pendRows}</div>
 
     <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>

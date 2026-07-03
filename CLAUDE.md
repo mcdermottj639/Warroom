@@ -286,14 +286,25 @@ client's name or "new notes" never hurt, but aren't required.)
   `S.ovRenderDay`). If you add another "this week" boundary, reuse `thisWeekEnd` so they stay in sync.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → **📵 Missed Calls** → Top 10 → **⏳ Pending Decisions** → **📇 No Call Booked** →
-  Follow-ups (tasks owed, next 2 weeks) → Cooling → Wins. The old single "Pending
-  Decisions" bucket was split into **three mutually-exclusive** sections (r122), carved
-  from `callSlot`: **Missed Calls** (`slot==='missed'` — a scheduled call that lapsed or
-  a 📵 marker, ANY stage, most urgent); **Pending Decisions** (`slot==='none'` +
-  proposal/decision stage + not cooling — waiting on THEIR decision); **No Call Booked**
-  (`slot==='none'` + any other stage — early-stage clients who need a next touch
-  scheduled, previously invisible). Cooling now excludes any `'missed'` client (was just
-  `!missedCall`), so an auto-lapsed proposal reads as **Missed**, not Cooling. Every
+  Follow-ups (tasks owed, next 2 weeks) → Cooling → Wins. **Missed Calls** and **No Call
+  Booked** are mutually-exclusive *action* sections carved from `callSlot`: **Missed
+  Calls** (`slot==='missed'` — a scheduled call that lapsed or a 📵 marker, ANY stage,
+  most urgent); **No Call Booked** (`slot==='none'` + any *non*-proposal/decision stage —
+  early-stage clients who need a next touch scheduled, previously invisible). **Pending
+  Decisions is NOT a call-state bucket — it's a CROSS-CUTTING "closest to close" status
+  board (r124).** It lists **every deal awaiting a yes/no** (`awaitingDecision(i)` —
+  proposal delivered, no won/lost yet), *regardless* of call state, so it **overlaps**
+  Upcoming / Missed / Cooling on purpose (a booked decider shows in Upcoming AND Pending).
+  Each row carries a **status tag** (`pendTag` — 📅 booked call · 📵 missed · 🧊 cooling ·
+  ⏳ no call) + the deal's EV, sorted **closest-first** (booked call soonest → `stageProb`
+  → EV). Before r124 Pending was a thin mutually-exclusive slice (proposal + no-call +
+  not-cooling) that read **zero** because every decider got siphoned into Upcoming/Missed/
+  Cooling — the redesign is purely additive (the action sections are unchanged; Pending
+  just *also* surfaces the deciders). `awaitingDecision` gate = Proposal/Decision stage
+  (inferStage sets these only from a HELD call, so stage already means "proposal
+  delivered" — incl. proposals delivered on a screen-share whose notes mention it) OR a
+  past/undated proposal|decision call in `callHistory`. Cooling excludes any `'missed'`
+  client (was just `!missedCall`), so an auto-lapsed proposal reads as **Missed**. Every
   client row shows a **note flag** (green pill + count when notes exist;
   click = notes popup inline). A **priority-filter chip row**
   (`.fchip`, state in `S.ccFilter`) narrows every active-derived section at once
