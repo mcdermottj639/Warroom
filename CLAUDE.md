@@ -77,11 +77,32 @@ client's name or "new notes" never hurt, but aren't required.)
    python3 -c "import re;open('/tmp/c.js','w').write('\n;\n'.join(re.findall(r'<script>(.*?)</script>',open('index.html').read(),re.S)))" && node --check /tmp/c.js
    ```
 3. Bump `BUILD` (e.g. `r69` → `r70`) so the user can confirm the deploy is live.
-4. Commit + push to **both** branches.
+   The stamp shows in the footer **and on the lock screen** (`#lockBuild`), so
+   the user can eyeball what's deployed before unlocking.
+4. Commit + push to **`main`** (Pages serves it). Delete any per-task `claude/*`
+   branch once merged — see the ⚠️ below, ref-deletion is blocked here.
 5. **Deploy:** GitHub Pages rebuilds on push (~1–3 min). To confirm it's live,
    check the "pages build and deployment" run via the GitHub MCP `actions_list`
    (the live site itself is blocked from this environment). The user then
    hard-refreshes / uses `?x=NN`.
+   - ⚠️ **Known-flaky deploy (don't panic, don't chase the code).** The Pages
+     job intermittently fails at the final publish step with
+     `##[error]Deployment failed, try again later.` — the **build + artifact
+     upload always succeed**; it's a transient GitHub Pages hiccup, **never the
+     code** (`node --check` already passed). **Fix = just re-trigger the deploy.**
+     Most reliable: push an **empty commit** (`git commit --allow-empty -m
+     "Redeploy rNN (transient Pages publish error)"`) — that mints a fresh run.
+     `actions_run_trigger method:rerun_failed_jobs` sometimes works too but has
+     been seen to sit stuck in `queued`, so prefer the empty commit. It usually
+     clears on the next attempt (occasionally takes two). This is expected
+     during Pages' flaky windows — re-fire and move on; do not start debugging
+     `index.html`.
+   - ⚠️ **Deleting the `claude/*` branch:** `git push origin --delete …` is
+     **blocked by the egress proxy (HTTP 403)** and there is **no delete-branch
+     MCP tool**, so a session here *cannot* remove the remote branch. Delete the
+     **local** branch (`git branch -D`) and tell the user to click delete at
+     `github.com/<owner>/<repo>/branches` (it's merged, so it's harmless). Don't
+     re-attempt the remote delete each session — it will 403 every time.
 - For logic changes, write a tiny Node test of the extracted function against
   realistic input before shipping (there's no test suite).
 
