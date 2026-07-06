@@ -137,14 +137,36 @@ parses it deterministically and renders the styled widgets. Format:
 
 ### <Title> (angles)
 - Angle title :: One-paragraph strategy angle / how to play it.
+
+### Scenarios to Model (model)
+- Home purchase vs. invest :: home-vs-invest :: price=1.2M; down=450K; invested=620K; mrate=6.5; taxins=1.2; ret=7; years=10; capMo=6000 :: Buy a ~$1.2M home vs. stay put and keep the ~$620K invested.
+- Contractor income dip :: income-change :: nowInc=230K; floorInc=75K; otherInc=110K; dti=36; mrate=6.5 :: If Ashton floors near $75K — cashflow, mortgage carry, self-employed retirement room.
+- 529 for daughter :: contrib-fv :: lump=12K; monthly=250; ret=6; years=16 :: Front-load a $12K lump plus monthly to college.
 ```
 
 Rules:
-- Card **type** is the parenthetical `(table|cashflow|flags|angles)` at the end of
+- Card **type** is the parenthetical `(table|cashflow|flags|angles|model)` at the end of
   the `###` title. If omitted, it's inferred from the title text
-  (fee→table, cash/income→cashflow, flag→flags, strateg/angle→angles).
+  (scenario/model→model, fee→table, cash/income→cashflow, flag→flags, strateg/angle→angles).
 - `table`/`cashflow` cards use `- Label: Value` rows (first colon splits).
 - `flags`/`angles` cards use `- Title :: paragraph` items (` :: ` separator).
+- **`model` cards** = interactive **scenario calculators** (the ⚙ Model this button →
+  a live pop-up the advisor reads on the call). Each item is
+  `- Title :: kind :: params :: optional note`, where **`kind`** is one of the wired
+  calculators and **`params`** is a `k=v; k=v` list (`K`/`M` suffixes and `$`/`,`/`%`
+  are tolerated). Order after the title is flexible (the kind slug, the `=`-bearing
+  params, and the note are detected by shape). The engine is **generic — it runs for
+  any client, any profile, going forward**; you just author the card. If a scenario
+  has no matching `kind`, the item still renders (title + note) but shows no button.
+  **Wired kinds & their params** (all params optional — sensible defaults fill gaps;
+  the pop-up always labels its assumptions and asserts no figure as fact):
+  | kind | models | params (defaults) |
+  |---|---|---|
+  | `home-vs-invest` | buy vs. stay-invested: all-in monthly + 10-yr net-worth compare | `price`(1.2M) `down`(450K) `invested`(620K) `mrate`(6.5) `term`(30) `taxins`(1.2) `ret`(7) `appr`(3) `years`(10) `capMo`(6000) `rentMo`(0) |
+  | `income-change` | income drop → cashflow, max mortgage @ DTI, SEP/Solo-401k room | `nowInc`(230K) `floorInc`(75K) `otherInc`(0) `dti`(36) `mrate`(6.5) `term`(30) `debtMo`(0) `sepPct`(20) |
+  | `free-cashflow` | freed-up cash → FV if invested, or mortgage it services | `freeMo`(4000) `freeYr` `ret`(7) `years`(10) `mrate`(6.5) `term`(30) |
+  | `contrib-fv` | contribution growth to a horizon; front-load vs. monthly | `lump`(12K) `monthly`(250) `ret`(6) `years`(16) |
+  | `retire-proj` | today's balance + contributions → retirement + 4% income | `current`(1.28M) `addMo`(2000) `ret`(7) `retireAge`(60) `curAge`(38) |
 - **Fidelity:** author only from verified notes. Don't assert a fee/savings figure
   that hasn't been confirmed — label it illustrative and prompt to confirm (see the
   Brandon Chambers Fee Delta card for the pattern).

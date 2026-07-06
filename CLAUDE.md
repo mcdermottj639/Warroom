@@ -109,7 +109,18 @@ client's name or "new notes" never hurt, but aren't required.)
 ## Data model & profile format
 - **`docs/data-model.md`** is the source of truth.
   - **§7** = the **Prep Sheet** cards (Claude-authored, app-rendered:
-    `## Prep Sheet` → `### Title (table|cashflow|flags|angles)`).
+    `## Prep Sheet` → `### Title (table|cashflow|flags|angles|model)`). The **`model`**
+    type = interactive **scenario calculators**: `### Scenarios to Model (model)` with
+    items `- Title :: kind :: k=v; k=v :: note`. Each gets a **⚙ Model this** button that
+    runs the closed-form math in-browser and shows a talk-through pop-up (spoken lines +
+    figures + live dials). The engine is **generic — every client/profile going forward**;
+    you only author the card. Wired `kind`s + params are tabulated in §7 (`home-vs-invest`,
+    `income-change`, `free-cashflow`, `contrib-fv`, `retire-proj`); the calculators/dials
+    live in `scenarioModel()`/`modelDials()` in `index.html`. **Whenever a profile has an
+    upcoming call where numbers matter (home/income/retirement/college decisions), author a
+    `(model)` card with the right `kind`s + the client's figures** — that's what lights up
+    the buttons. Directional only: every pop-up labels its assumptions, asserts no saving as
+    fact (fidelity rule).
   - **`## Opening`** (optional, Claude-authored) = a **verbatim, second-person**
     opening recap. When present it **overrides** the app's generated 🎬 Opening
     (blank-line-separated paragraphs become spoken beats). Author it on every
@@ -507,6 +518,16 @@ The file is large; these are the load-bearing pieces a new session will likely t
   lives in the user's Drive, not the repo.
 - **Re-engage email** — `openReengage` drafts a re-engagement email; `driveSaveEmail` saves it
   as a Google Doc in the `1Remarkable` folder (offered for cooling/proposal clients).
+- **Scenario modeling (⚙ Model this)** — `scenarioModel(kind, params)` = the closed-form calc
+  engine (helpers `_pmtMo`/`_loanBal`/`_fv`/`_fvMo`); `modelDials(kind, params)` = the live
+  sliders; `openModel`/`paintModel` drive the `#modelDlg` pop-up (spoken lines + figures +
+  dials that re-run on input). Fed by a **`(model)` Prep Sheet card** parsed in `parseProfile`
+  (items get `{title, kind, params, body}`; `parseModelParams` reads the `k=v` list) and
+  rendered by `prepCardBody(card, cardIdx)` as a **⚙ Model this** button per scenario
+  (`data-model="cardIdx:itemIdx"`, wired in `renderDetail`). **Generic across all clients** —
+  the button only appears when a scenario has a recognized `kind`. Adding a new scenario type =
+  add a `case` to both `scenarioModel` and `modelDials` (keep param defaults in sync) + a row in
+  data-model §7. Fidelity: every pop-up carries an assumptions note and asserts no figure as fact.
 - **In-app profile editor** — `renderEditor(c)` edits fields and writes back via `driveLogCall`.
 - **KPI strip** — `deriveKpis(c)` synthesizes the chip row when a profile carries none.
 - **Surgical Drive writers** — `profileEdit`, `profileSetStatus`, `profileSetTasks`,

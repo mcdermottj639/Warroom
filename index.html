@@ -555,6 +555,22 @@
   .angle{border-left-color:#3fa66a}
   .pc-t{font-size:13px;font-weight:800;color:var(--txt);margin-bottom:3px;overflow-wrap:anywhere}
   .pc-b{font-size:13px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
+  /* ⚙ Scenario modeling */
+  .mdl-scn{display:flex;flex-direction:column;align-items:flex-start}
+  .mdl-btn{margin-top:9px;font-size:12px;font-weight:800;padding:7px 13px;border-radius:8px;
+    background:var(--gold);color:#241a00;border:none;cursor:pointer;letter-spacing:.2px}
+  .mdl-btn:hover{filter:brightness(1.06)}
+  #modelDlg{max-width:520px}
+  .mdl-lines{margin-bottom:6px}
+  .mdl-say{font-size:14px;line-height:1.6;color:var(--txt);margin:0 0 10px}
+  .mdl-say:last-child{margin-bottom:0}
+  .mdl-note{margin-top:10px;font-size:11.5px;line-height:1.5;font-style:italic}
+  .mdl-dials{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);
+    display:flex;flex-direction:column;gap:13px}
+  .mdl-dial{display:flex;flex-direction:column;gap:5px}
+  .md-l{font-size:12px;color:var(--muted)}
+  .md-l b{color:var(--gold);font-size:13px}
+  .mdl-dial input[type=range]{width:100%;accent-color:var(--gold)}
   .winrow:last-child{border-bottom:none}
   .riskbadge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:10px}
   .risk-CRITICAL,.risk-HIGH{background:var(--crit);color:#fff}
@@ -725,6 +741,15 @@
   <div style="display:flex;justify-content:flex-end;margin-top:14px"><button onclick="coachDlg.close()">Done</button></div>
 </dialog>
 
+<!-- SCENARIO MODEL DIALOG — ⚙ Model this -->
+<dialog id="modelDlg">
+  <h3 id="modelTitle" style="margin-bottom:4px"></h3>
+  <div id="modelSub" class="note" style="margin-bottom:12px"></div>
+  <div id="modelBody"></div>
+  <div id="modelDials"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:14px"><button onclick="modelDlg.close()">Done</button></div>
+</dialog>
+
 <!-- RE-ENGAGE DIALOG -->
 <dialog id="reengDlg">
   <h3 style="margin-bottom:4px">✉️ Re-engage <span id="reengName"></span></h3>
@@ -857,7 +882,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-03 · r126';
+const BUILD = 'build 2026-07-06 · r127';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1010,6 +1035,23 @@ const JOSH = {
   ],
   callHistory:[
     {date:"05/20/26", callType:"Discovery / Follow-up", summary:"Engaged; agreed to link outside accounts to get a full picture. Contractor income + scattered accounts.", leftOff:"Link accounts, then full planning review."}
+  ],
+  // Demo of the ⚙ Scenario modeling feature (fictional numbers — no real client data).
+  prep:[
+    {type:"model", title:"Scenarios to Model", items:[
+      {title:"Home purchase vs. invest", kind:"home-vs-invest",
+       params:{price:900000, down:250000, invested:200000, mrate:6.5, taxins:1.2, ret:7, years:10, capMo:5000},
+       body:"Buying a ~$900K home vs. staying put and keeping the ~$200K invested — long-run net worth & monthly cost."},
+      {title:"Contractor income dip", kind:"income-change",
+       params:{nowInc:100000, floorInc:60000, otherInc:100000, dti:36, mrate:6.5},
+       body:"If Josh's contractor income floors near $60K — impact on cashflow, the mortgage they can carry, and self-employed retirement room."},
+      {title:"529 for the kids", kind:"contrib-fv",
+       params:{lump:20000, monthly:300, ret:6, years:14},
+       body:"Front-load a ~$20K lump plus ongoing monthly into the 529 — growth to college; front-loading vs. monthly."},
+      {title:"Retirement track", kind:"retire-proj",
+       params:{current:200000, addMo:2000, ret:7, retireAge:66, curAge:52},
+       body:"Project retirement funding from today's balance so the near-term home/income calls stay anchored to the long-term goal."}
+    ]}
   ]
 };
 
@@ -2612,13 +2654,221 @@ function familyWhyBody(i){
   const grp=(lbl,arr)=> arr.length ? `<div class="fin-grp"><div class="fin-lbl">${lbl}</div>${arr.map(c=>`<div class="fin-item">${esc(c)}</div>`).join('')}</div>` : '';
   return `<div style="padding-top:13px">${grp('Family &amp; dynamics',fam)}${grp('Life &amp; retirement — the why',why)}</div>`;
 }
+/* ============================================================
+   SCENARIO MODELING  (⚙ Model this)
+   A Prep Sheet "(model)" card carries scenarios with a `kind:` tag + labeled
+   inputs; the app runs the closed-form math in-browser and shows a talk-through
+   pop-up (spoken lines + figures + live dials). Deterministic & directional —
+   every pop-up labels its assumptions and asserts no saving as fact.
+   Card markdown:  ### Scenarios to Model (model)
+     - Title :: kind :: price=1.2M; down=450K; ret=7; years=10 :: optional note
+   ============================================================ */
+// "price=1.2M; down=450K, ret=7" -> {price:1200000, down:450000, ret:7}
+function parseModelParams(str){
+  const o={};
+  String(str||'').split(/[;,]/).forEach(kv=>{
+    const m=kv.match(/^\s*([a-zA-Z]\w*)\s*=\s*(.+?)\s*$/); if(!m) return;
+    let v=m[2].replace(/[$%\s]/g,'').replace(/,(?=\d{3}\b)/g,'');
+    const mm=v.match(/^(-?\d*\.?\d+)([kKmM])?$/);
+    if(mm){ let n=parseFloat(mm[1]); const s=(mm[2]||'').toLowerCase(); o[m[1]]= s==='m'?n*1e6 : s==='k'?n*1e3 : n; }
+    else o[m[1]]=m[2];
+  });
+  return o;
+}
+// compact currency: $5,940 · $1.34M · -$160K
+function _mMoney(n){
+  const neg=n<0; n=Math.abs(Math.round(n||0));
+  const s = n>=1e6 ? '$'+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M'
+          : n>=1e5 ? '$'+Math.round(n/1e3)+'K'
+          : '$'+n.toLocaleString();
+  return (neg?'-':'')+s;
+}
+// monthly mortgage P&I on a fully-amortizing loan
+function _pmtMo(annPct, years, principal){
+  const r=annPct/100/12, n=years*12;
+  return r ? principal*r/(1-Math.pow(1+r,-n)) : principal/n;
+}
+// remaining loan balance after k monthly payments
+function _loanBal(principal, annPct, termYrs, kMonths){
+  const r=annPct/100/12, pmt=_pmtMo(annPct,termYrs,principal);
+  return r ? Math.max(0, principal*Math.pow(1+r,kMonths) - pmt*((Math.pow(1+r,kMonths)-1)/r)) : Math.max(0, principal - pmt*kMonths);
+}
+function _fv(pv, annPct, years){ return pv*Math.pow(1+annPct/100, years); }             // lump future value
+function _fvMo(pmtMo, annPct, years){ const r=annPct/100/12, n=years*12; return r ? pmtMo*((Math.pow(1+r,n)-1)/r) : pmtMo*n; } // monthly-contribution FV
+
+// captions shown under each model pop-up title
+const MODEL_SUB={
+  'home-vs-invest':"Buy vs. stay-invested — net worth & monthly cost. Directional; drag a dial to re-run.",
+  'income-change':"Income drop — cashflow, mortgage carry & tax-sheltered saving. Directional.",
+  'free-cashflow':"Freed-up cash — what it funds if invested. Directional; drag a dial to re-run.",
+  'contrib-fv':"Contribution growth — front-load vs. monthly. Directional; drag a dial to re-run.",
+  'retire-proj':"Retirement projection — today's balance + contributions. Directional."
+};
+// scenarioModel(kind, params) -> {lines:[spoken…], figures:[[label,value,hi]], note}
+function scenarioModel(kind, p){
+  const g=(k,d)=> (p&&p[k]!=null&&!isNaN(+p[k]))? +p[k] : d;
+  if(kind==='home-vs-invest'){
+    const price=g('price',1200000), down=g('down',450000), invested=g('invested',620000),
+          mrate=g('mrate',g('rate',6.5)), term=g('term',30), taxins=g('taxins',1.2),
+          ret=g('ret',7), appr=g('appr',3), years=g('years',10), cap=g('capMo',g('cap',6000)), rent=g('rentMo',g('rent',0));
+    const loan=Math.max(0,price-down), pmt=_pmtMo(mrate,term,loan), tiMo=price*(taxins/100)/12, allIn=pmt+tiMo;
+    const homeVal=_fv(price,appr,years), bal=_loanBal(loan,mrate,term,years*12), equity=homeVal-bal;
+    const rem=Math.max(0,invested-down), buyNW=equity+_fv(rem,ret,years);
+    let stayNW=_fv(invested,ret,years); if(rent>0 && allIn>rent) stayNW+=_fvMo(allIn-rent,ret,years);
+    const diff=stayNW-buyNW, ahead=Math.abs(diff);
+    const lines=[
+      `Buying a ${_mMoney(price)} home with ${_mMoney(down)} down puts your all-in around ${_mMoney(allIn)}/mo — ${allIn<=cap?`under your ${_mMoney(cap)} ceiling`:`over your ${_mMoney(cap)} ceiling by ${_mMoney(allIn-cap)}`}.`,
+      `Over ${years} years, buying pencils to about ${_mMoney(buyNW)} in net worth; staying put and keeping ${_mMoney(invested)} invested pencils to about ${_mMoney(stayNW)}.`,
+      diff>0 ? `Purely on the numbers, staying invested edges ahead by roughly ${_mMoney(ahead)} — before the lifestyle value of owning.`
+             : `Buying comes out ahead by roughly ${_mMoney(ahead)} on paper, and that's before the lifestyle value of owning.`
+    ];
+    return {lines, figures:[
+      ['All-in monthly', _mMoney(allIn)+'/mo', allIn<=cap],
+      ['— P&I', _mMoney(pmt)+'/mo'],
+      ['— Tax + insurance', _mMoney(tiMo)+'/mo'],
+      [`Buy — net worth @ ${years}y`, _mMoney(buyNW)],
+      [`Stay invested — @ ${years}y`, _mMoney(stayNW)],
+      [diff>0?'Edge — stay invested':'Edge — buy', _mMoney(ahead), true]
+    ], note:`Assumes ${mrate}% mortgage over ${term}y, ${taxins}% tax+ins, ${appr}% home appreciation, ${ret}% market return${rent>0?`, ${_mMoney(rent)}/mo rent reinvested`:', rent not modeled'}. Directional illustration — not advice; confirm actual rates.`};
+  }
+  if(kind==='income-change'){
+    const now=g('nowInc',230000), floor=g('floorInc',75000), other=g('otherInc',g('spouseInc',0)),
+          dti=g('dti',36), mrate=g('mrate',g('rate',6.5)), term=g('term',30), debtMo=g('debtMo',0), sepPct=g('sepPct',20);
+    const dropMo=(now-floor)/12, hhAfter=floor+other, maxPmt=Math.max(0,hhAfter/12*(dti/100)-debtMo);
+    const r=mrate/100/12, n=term*12, maxLoan=r?maxPmt*(1-Math.pow(1+r,-n))/r:maxPmt*n;
+    const sep=Math.min(69000, floor*sepPct/100), solo=Math.min(69000, 23000+floor*sepPct/100);
+    return {lines:[
+      `Going from ${_mMoney(now)} to a ${_mMoney(floor)} floor trims household cashflow by about ${_mMoney(dropMo)}/mo.`,
+      `At a ${dti}% debt-to-income on ${_mMoney(hhAfter)} household income, that supports a mortgage payment near ${_mMoney(maxPmt)}/mo — roughly a ${_mMoney(maxLoan)} loan.`,
+      `Self-employed doesn't stall retirement: a SEP-IRA shelters about ${_mMoney(sep)}/yr, or a Solo-401(k) up to about ${_mMoney(solo)}/yr on that contractor income.`
+    ], figures:[
+      ['Cashflow change', '-'+_mMoney(dropMo)+'/mo'],
+      ['Household income (after)', _mMoney(hhAfter)+'/yr'],
+      [`Max mortgage pmt @ ${dti}% DTI`, _mMoney(maxPmt)+'/mo', true],
+      ['— supports a loan of', _mMoney(maxLoan)],
+      ['SEP-IRA room', _mMoney(sep)+'/yr'],
+      ['Solo-401(k) room', _mMoney(solo)+'/yr', true]
+    ], note:`Assumes ${dti}% DTI, ${mrate}% over ${term}y, ~${sepPct}% self-employed contribution rate. Retirement caps are illustrative — confirm current IRS limits.`};
+  }
+  if(kind==='free-cashflow'){
+    const freeMo=g('freeMo', g('freeYr',48000)/12), ret=g('ret',7), years=g('years',10), mrate=g('mrate',g('rate',6.5)), term=g('term',30);
+    const fv=_fvMo(freeMo,ret,years), r=mrate/100/12, n=term*12, loanCovered=r?freeMo*(1-Math.pow(1+r,-n))/r:freeMo*n;
+    return {lines:[
+      `Freeing about ${_mMoney(freeMo)}/mo (${_mMoney(freeMo*12)}/yr) opens real room in the budget.`,
+      `Invested at ${ret}% for ${years} years, that's roughly ${_mMoney(fv)} — or it services the payment on about a ${_mMoney(loanCovered)} mortgage.`,
+      `The move is deciding where it goes before it quietly gets absorbed: home payment, the 529, or long-term savings.`
+    ], figures:[
+      ['Freed cashflow', _mMoney(freeMo)+'/mo', true],
+      [`If invested @ ${ret}%, ${years}y`, _mMoney(fv), true],
+      ['— or covers a mortgage of', _mMoney(loanCovered)],
+      ['Annualized', _mMoney(freeMo*12)+'/yr']
+    ], note:`Assumes ${ret}% return over ${years}y; mortgage capacity at ${mrate}% over ${term}y. Directional illustration.`};
+  }
+  if(kind==='contrib-fv'){
+    const lump=g('lump',12000), monthly=g('monthly',250), ret=g('ret',6), years=g('years',16);
+    const fvLump=_fv(lump,ret,years), fvMonthly=_fvMo(monthly,ret,years), total=fvLump+fvMonthly;
+    // front-loading vs. dripping the same lump across year 1 ≈ half a year of growth on the ending balance
+    const edge=Math.max(0, fvLump - fvLump*Math.pow(1+ret/100,-0.5));
+    return {lines:[
+      `A ${_mMoney(lump)} lump today grows to about ${_mMoney(fvLump)} in ${years} years at ${ret}%.`,
+      `Add ${_mMoney(monthly)}/mo and you're looking at roughly ${_mMoney(total)} by college — about ${_mMoney(fvMonthly)} of that from the monthly drip.`,
+      `Front-loading the lump instead of spreading it captures the extra early growth — worth roughly ${_mMoney(edge)} versus dripping it in over the first year.`
+    ], figures:[
+      [`${_mMoney(lump)} lump → @ ${years}y`, _mMoney(fvLump), true],
+      [`${_mMoney(monthly)}/mo → @ ${years}y`, _mMoney(fvMonthly)],
+      ['Combined at college', _mMoney(total), true],
+      ['Front-load advantage', '≈ '+_mMoney(edge)]
+    ], note:`Assumes ${ret}% return over ${years}y. A large lump may use the 5-year gift-tax election (superfunding) — confirm with a tax pro. Directional.`};
+  }
+  if(kind==='retire-proj'){
+    const cur=g('current',1280000), addMo=g('addMo',2000), ret=g('ret',7), retAge=g('retireAge',60), curAge=g('curAge',38);
+    const years=Math.max(1,retAge-curAge), fv=_fv(cur,ret,years)+_fvMo(addMo,ret,years), incomeYr=fv*0.04, incomeMo=incomeYr/12;
+    return {lines:[
+      `With ${_mMoney(cur)} invested today, ${years} years of ${ret}% growth alone gets you to about ${_mMoney(_fv(cur,ret,years))}.`,
+      `Adding ${_mMoney(addMo)}/mo pushes the retirement number to roughly ${_mMoney(fv)} by age ${retAge}.`,
+      `At a 4% draw that's about ${_mMoney(incomeMo)}/mo — the anchor to keep the near-term home and income decisions pointed at.`
+    ], figures:[
+      ['Balance today', _mMoney(cur)],
+      [`Growth only → age ${retAge}`, _mMoney(_fv(cur,ret,years))],
+      [`+ ${_mMoney(addMo)}/mo → age ${retAge}`, _mMoney(fv), true],
+      ['Sustainable income (4%)', _mMoney(incomeMo)+'/mo', true]
+    ], note:`Assumes ${ret}% return, ${years} years to age ${retAge}, 4% withdrawal rule. Directional illustration — not a guarantee.`};
+  }
+  return {lines:['No calculator is wired for this scenario yet.'], figures:[], note:''};
+}
+// live dials per kind — {key,label,min,max,step,val,disp}; defaults MUST match scenarioModel's
+function modelDials(kind, p){
+  const g=(k,d)=> (p&&p[k]!=null&&!isNaN(+p[k]))? +p[k] : d;
+  const D=(key,label,min,max,step,val,fmt)=>({key,label,min,max,step,val,disp:fmt(val)});
+  const pct=v=>v+'%', yr=v=>v+' yr', dol=v=>_mMoney(v), dolMo=v=>_mMoney(v)+'/mo', age=v=>'age '+v;
+  switch(kind){
+    case 'home-vs-invest': return [
+      D('down','Down',100000,600000,25000,g('down',450000),dol),
+      D('ret','Market return',3,10,0.5,g('ret',7),pct),
+      D('years','Horizon',5,30,1,g('years',10),yr)];
+    case 'income-change': return [
+      D('floorInc','Part-time income',40000,150000,5000,g('floorInc',75000),dol),
+      D('dti','Max DTI',28,43,1,g('dti',36),pct)];
+    case 'free-cashflow': return [
+      D('ret','Return',3,10,0.5,g('ret',7),pct),
+      D('years','Horizon',5,20,1,g('years',10),yr)];
+    case 'contrib-fv': return [
+      D('monthly','Monthly add',0,1000,50,g('monthly',250),dolMo),
+      D('ret','Return',3,9,0.5,g('ret',6),pct)];
+    case 'retire-proj': return [
+      D('addMo','Monthly add',0,6000,250,g('addMo',2000),dolMo),
+      D('ret','Return',3,10,0.5,g('ret',7),pct),
+      D('retireAge','Retire at',55,70,1,g('retireAge',60),age)];
+    default: return [];
+  }
+}
+function renderModelBody(kind,p){
+  const r=scenarioModel(kind,p);
+  const lines=r.lines.map(l=>`<p class="mdl-say">${esc(l)}</p>`).join('');
+  const figs=(r.figures||[]).map(f=>`<div class="feerow ${f[2]?'fee-save':''}"><span class="fee-l">${esc(f[0])}</span><span class="fee-v">${esc(f[1])}</span></div>`).join('');
+  return `<div class="mdl-lines">${lines}</div>${figs?`<div class="feetbl">${figs}</div>`:''}${r.note?`<div class="bodynote mdl-note">${esc(r.note)}</div>`:''}`;
+}
+function renderModelDials(kind,p){
+  const dials=modelDials(kind,p);
+  if(!dials.length) return '';
+  return `<div class="mdl-dials">${dials.map(d=>`<label class="mdl-dial"><span class="md-l">${esc(d.label)}: <b id="mdlv_${d.key}">${esc(d.disp)}</b></span>
+    <input type="range" data-dial="${d.key}" min="${d.min}" max="${d.max}" step="${d.step}" value="${d.val}"></label>`).join('')}</div>`;
+}
+let _mdl=null;
+function openModel(code, prepIdx, itemIdx){
+  const c=S.clients.find(x=>x.code===code); if(!c) return;
+  const card=(c.intel.prep||[])[prepIdx]; if(!card) return;
+  const item=(card.items||[])[itemIdx]; if(!item||!item.kind) return;
+  _mdl={kind:item.kind, params:{...(item.params||{})}};
+  $('#modelTitle').textContent='⚙ '+(item.title||'Scenario model');
+  $('#modelSub').textContent=MODEL_SUB[item.kind]||'Directional illustration — read the figures on screen.';
+  paintModel(true);
+  const dl=$('#modelDials'); dl.oninput=e=>{ const k=e.target&&e.target.dataset.dial; if(!k) return; _mdl.params[k]=+e.target.value; paintModel(false); };
+  $('#modelDlg').showModal();
+}
+function paintModel(full){
+  if(!_mdl) return;
+  $('#modelBody').innerHTML=renderModelBody(_mdl.kind,_mdl.params);
+  if(full) $('#modelDials').innerHTML=renderModelDials(_mdl.kind,_mdl.params);
+  else modelDials(_mdl.kind,_mdl.params).forEach(d=>{ const el=$('#mdlv_'+d.key); if(el) el.textContent=d.disp; });
+}
+
 // Prep Sheet cards — Claude-authored, app-rendered cheat-sheet widgets.
 // type table  → fee/cost rows; a row whose label contains "saving"/"delta" gets highlighted, "total" gets the total style.
 // type cashflow → income vs. need rows; a row labeled "opportunity"/"consolidat" is flagged as the opportunity box.
 // type flags  → planning flags (title + paragraph).
 // type angles → strategy angles (title + paragraph).
-function prepIcon(t){ return t==='table'?'💸':t==='cashflow'?'💵':t==='flags'?'🚩':t==='angles'?'🎯':'🧾'; }
-function prepCardBody(card){
+function prepIcon(t){ return t==='table'?'💸':t==='cashflow'?'💵':t==='flags'?'🚩':t==='angles'?'🎯':t==='model'?'⚙️':'🧾'; }
+function prepCardBody(card, cardIdx){
+  if(card.type==='model'){
+    // scenarios with a ⚙ Model this button per item (fires openModel → live calc pop-up)
+    return `<div class="prepcard">${(card.items||[]).map((it,ii)=>`<div class="angle mdl-scn">
+      ${it.title?`<div class="pc-t">${esc(it.title)}</div>`:''}
+      ${it.body?`<div class="pc-b">${esc(it.body)}</div>`:''}
+      ${it.kind?`<button class="mdl-btn" data-model="${cardIdx}:${ii}">⚙ Model this</button>`
+               :`<div class="pc-b" style="opacity:.6;font-style:italic">No calculator wired for this scenario.</div>`}
+    </div>`).join('')}</div>`;
+  }
   if(card.type==='table'||card.type==='cashflow'){
     const cls = card.type==='table'?'feetbl':'cftbl';
     const rows=(card.rows||[]).map(r=>{
@@ -2706,7 +2956,7 @@ function renderDetail(c){
   // Prep Sheet — Claude-authored cheat-sheet cards (Fee Delta / Income & Cash Flow / Planning Flags / Strategy Angles)
   const prepCards = i.prep || [];
   const prepGroup = prepCards.map((card,idx)=>
-    panel(prepIcon(card.type)+' '+esc(card.title||''), '', prepCardBody(card), 'prepbody', idx===0)).join('');
+    panel(prepIcon(card.type)+' '+esc(card.title||''), '', prepCardBody(card, idx), 'prepbody', idx===0)).join('');
   // On-Call Helper section removed — the four top coach buttons (Opening / Questions /
   // Pitch & Why Empower / Next-step play) cover on-call boosts better.
   const helper = '';
@@ -2821,6 +3071,7 @@ function renderDetail(c){
   };
   document.querySelectorAll('[data-coach]').forEach(b=> b.onclick = ()=> openCoach(c.code, b.dataset.coach));
   document.querySelectorAll('[data-widget]').forEach(b=> b.onclick = ()=> openWidget(c.code, b.dataset.widget));
+  document.querySelectorAll('[data-model]').forEach(b=> b.onclick = ()=>{ const [pi,ii]=b.dataset.model.split(':').map(Number); openModel(c.code, pi, ii); });
   const setStatus = async (status, amount)=>{
     if(status==='won'||status==='lost') await logDealOutcome(c, status, status==='won'?(amount||c.intel.moveable):c.intel.moveable);  // record outcome (+objection types +$) before erasing
     if(status==='won'){
@@ -3671,9 +3922,22 @@ function parseProfile(md, name){
       const hm=b.match(/^#{3}\s*(.+)$/m); if(!hm) continue;
       let title=hm[1].trim(), type=''; const tm=title.match(/\(([a-z]+)\)\s*$/i);
       if(tm){ type=tm[1].toLowerCase(); title=title.replace(/\s*\([a-z]+\)\s*$/i,'').trim(); }
-      if(!type){ const t=title.toLowerCase(); type=/fee/.test(t)?'table':/cash|income/.test(t)?'cashflow':/flag/.test(t)?'flags':/strateg|angle/.test(t)?'angles':'table'; }
+      if(!type){ const t=title.toLowerCase(); type=/scenario|model/.test(t)?'model':/fee/.test(t)?'table':/cash|income/.test(t)?'cashflow':/flag/.test(t)?'flags':/strateg|angle/.test(t)?'angles':'table'; }
       const lines=b.replace(/^#{3}.*$/m,'').split('\n').map(l=>l.trim()).filter(l=>/^[-*]/.test(l)).map(l=>l.replace(/^[-*]\s*/,''));
-      if(type==='flags'||type==='angles'){
+      if(type==='model'){
+        // "Title :: kind :: k=v; k=v :: optional note" — kind slug + params + free-text body, any order after the title
+        const items=lines.map(x=>{
+          const sp=x.split(/\s*::\s*/).map(s=>s.trim());
+          const title=strip(sp[0]||''); let kind='', params={}, body='';
+          for(const seg of sp.slice(1)){
+            if(!kind && /^[a-z][a-z-]{2,}$/.test(seg) && !/=/.test(seg)) kind=seg.toLowerCase();
+            else if(/=/.test(seg)) params={...params, ...parseModelParams(seg)};
+            else if(seg) body = body ? body+' '+seg : seg;
+          }
+          return {title, kind, params, body};
+        }).filter(it=>it.title||it.body);
+        if(items.length) prep.push({type, title, items});
+      } else if(type==='flags'||type==='angles'){
         const items=lines.map(x=>{ const sp=x.split(/\s*::\s*/); return {title:strip(sp[0]||''), body:strip(sp.slice(1).join(' :: '))}; }).filter(it=>it.title||it.body);
         if(items.length) prep.push({type, title, items});
       } else {
