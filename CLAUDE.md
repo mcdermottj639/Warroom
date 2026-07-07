@@ -212,6 +212,13 @@ client's name or "new notes" never hurt, but aren't required.)
 - Use the §8 template, labeled Personal bullets, and add a Prep Sheet for clients
   with an upcoming proposal/decision call. Use "about"/"≈" for approximate values,
   **never a bare `~`** (markdown viewers render `~...~` as strikethrough).
+- **When a `(model)` scenario CAN'T be authored because a figure is missing, say so
+  IN the profile** — don't silently omit the card. Add a note (a `⚙ …` flags item on
+  the Prep Sheet and/or a dated `## My Notes` line) naming the exact inputs to collect
+  and which `kind` unlocks once they're in (e.g. "get balances + fee → fee-savings +
+  retire-proj models run"). The advisor wants to know a model is *available* pending
+  data, not discover the gap on the call. (Never author a model card on invented
+  numbers to make a button appear — note the gap instead.)
 
 ## Other workflows
 - **Morning Prep routine** (`docs/prep-today.md`): a scheduled Claude Code
