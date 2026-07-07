@@ -115,7 +115,7 @@ client's name or "new notes" never hurt, but aren't required.)
     runs the closed-form math in-browser and shows a talk-through pop-up (spoken lines +
     figures + live dials). The engine is **generic — every client/profile going forward**;
     you only author the card. Wired `kind`s + params are tabulated in §7 (`home-vs-invest`,
-    `income-change`, `free-cashflow`, `contrib-fv`, `retire-proj`); the calculators/dials
+    `income-change`, `free-cashflow`, `contrib-fv`, `retire-proj`, `annuity-vs-invest`); the calculators/dials
     live in `scenarioModel()`/`modelDials()` in `index.html`. **Whenever a profile has an
     upcoming call where numbers matter (home/income/retirement/college decisions), author a
     `(model)` card with the right `kind`s + the client's figures** — that's what lights up

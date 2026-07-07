@@ -882,7 +882,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-06 · r127';
+const BUILD = 'build 2026-07-07 · r128';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2695,6 +2695,14 @@ function _loanBal(principal, annPct, termYrs, kMonths){
 }
 function _fv(pv, annPct, years){ return pv*Math.pow(1+annPct/100, years); }             // lump future value
 function _fvMo(pmtMo, annPct, years){ const r=annPct/100/12, n=years*12; return r ? pmtMo*((Math.pow(1+r,n)-1)/r) : pmtMo*n; } // monthly-contribution FV
+// effective annual return of a fixed-period annuity: premium in, level pmtMo out for n months (bisection on monthly rate)
+function _annRate(premium, pmtMo, months){
+  const pv=r=> r ? pmtMo*(1-Math.pow(1+r,-months))/r : pmtMo*months;   // PV of the payout stream at monthly rate r
+  let lo=-0.02, hi=0.02;                                               // ±~27%/yr brackets return-of-capital cases
+  if(pv(lo)<premium) return -99; if(pv(hi)>premium) return 99;         // out of range → clamp
+  for(let i=0;i<60;i++){ const mid=(lo+hi)/2; if(pv(mid)>premium) lo=mid; else hi=mid; }  // pv falls as rate rises
+  return (Math.pow(1+(lo+hi)/2,12)-1)*100;                             // annualized %
+}
 
 // captions shown under each model pop-up title
 const MODEL_SUB={
@@ -2702,7 +2710,8 @@ const MODEL_SUB={
   'income-change':"Income drop — cashflow, mortgage carry & tax-sheltered saving. Directional.",
   'free-cashflow':"Freed-up cash — what it funds if invested. Directional; drag a dial to re-run.",
   'contrib-fv':"Contribution growth — front-load vs. monthly. Directional; drag a dial to re-run.",
-  'retire-proj':"Retirement projection — today's balance + contributions. Directional."
+  'retire-proj':"Retirement projection — today's balance + contributions. Directional.",
+  'annuity-vs-invest':"Annuity vs. staying invested — same income, what's left, and the tax control. Directional."
 };
 // scenarioModel(kind, params) -> {lines:[spoken…], figures:[[label,value,hi]], note}
 function scenarioModel(kind, p){
@@ -2794,6 +2803,25 @@ function scenarioModel(kind, p){
       ['Sustainable income (4%)', _mMoney(incomeMo)+'/mo', true]
     ], note:`Assumes ${ret}% return, ${years} years to age ${retAge}, 4% withdrawal rule. Directional illustration — not a guarantee.`};
   }
+  if(kind==='annuity-vs-invest'){
+    // fixed-period annuity (premium in, payoutMo out for term) vs. keeping the premium invested and drawing the SAME income
+    const premium=g('premium',300000), payoutMo=g('payoutMo',2500), term=g('term',10), ret=g('ret',6);
+    const totalOut=payoutMo*12*term, effRate=_annRate(premium, payoutMo, term*12);
+    const investBal=Math.max(0, _fv(premium,ret,term) - _fvMo(payoutMo,ret,term));   // balance left after same withdrawals
+    const rateTxt = effRate<=0.15 && effRate>=-0.15 ? 'about 0%/yr' : `about ${effRate.toFixed(1)}%/yr`;
+    return {lines:[
+      `The ${_mMoney(premium)} annuity pays ${_mMoney(payoutMo)}/mo for ${term} years — that's ${_mMoney(totalOut)} back over the decade, an effective return ${rateTxt}. You're handing over your principal to schedule its own return.`,
+      `Keep that ${_mMoney(premium)} invested at ${ret}% and draw the same ${_mMoney(payoutMo)}/mo, and after ${term} years you'd still have roughly ${_mMoney(investBal)} left — the same income, plus money that stays yours and stays liquid.`,
+      `And you keep the tax dial: annuity income is locked ordinary income every year — it fills the low-income bracket in exactly the 60→70 window you want for Roth conversions, and lifts MAGI toward ACA-subsidy and Medicare-IRMAA thresholds. Drawing from a managed portfolio, you decide how much to realize.`
+    ], figures:[
+      [`Annuity — paid out over ${term}y`, _mMoney(totalOut)],
+      ['— effective return', rateTxt],
+      [`— value left after ${term}y`, '$0 · gone'],
+      [`Invested — same ${_mMoney(payoutMo)}/mo drawn`, _mMoney(payoutMo)+'/mo'],
+      [`— balance left @ ${ret}%`, _mMoney(investBal), true],
+      ['Edge — stay invested', _mMoney(investBal)+' + liquidity', true]
+    ], note:`Assumes ${ret}% market return; the annuity is a ${term}-yr period-certain (return-of-principal), so growth, liquidity, and tax control are the trade. A lifetime annuity would add longevity protection this doesn't model. Directional — not advice; markets aren't guaranteed, confirm the actual contract terms.`};
+  }
   return {lines:['No calculator is wired for this scenario yet.'], figures:[], note:''};
 }
 // live dials per kind — {key,label,min,max,step,val,disp}; defaults MUST match scenarioModel's
@@ -2819,6 +2847,10 @@ function modelDials(kind, p){
       D('addMo','Monthly add',0,6000,250,g('addMo',2000),dolMo),
       D('ret','Return',3,10,0.5,g('ret',7),pct),
       D('retireAge','Retire at',55,70,1,g('retireAge',60),age)];
+    case 'annuity-vs-invest': return [
+      D('ret','Market return',3,9,0.5,g('ret',6),pct),
+      D('payoutMo','Annuity income',1500,4000,100,g('payoutMo',2500),dolMo),
+      D('term','Payout term',5,20,1,g('term',10),yr)];
     default: return [];
   }
 }
