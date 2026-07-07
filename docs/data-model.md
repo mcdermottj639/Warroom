@@ -167,7 +167,7 @@ Rules:
   | `free-cashflow` | freed-up cash → FV if invested, or mortgage it services | `freeMo`(4000) `freeYr` `ret`(7) `years`(10) `mrate`(6.5) `term`(30) |
   | `contrib-fv` | contribution growth to a horizon; front-load vs. monthly | `lump`(12K) `monthly`(250) `ret`(6) `years`(16) |
   | `retire-proj` | today's balance + contributions → retirement + 4% income | `current`(1.28M) `addMo`(2000) `ret`(7) `retireAge`(60) `curAge`(38) |
-  | `annuity-vs-invest` | fixed-period annuity vs. keeping the premium invested & drawing the SAME income: total paid, effective return (via `_annRate` IRR), balance left after N yrs, + the Roth-window / IRMAA-ACA tax-control angle | `premium`(300K) `payoutMo`(2500) `term`(10) `ret`(6) |
+  | `annuity-vs-invest` | fixed-period annuity vs. keeping the premium invested & paying yourself the SAME income. **Honest tradeoff** framing (certainty vs. access/growth/tax-control — NOT "free money"): shows the annuity's *real* implied rate from the entered quote (via `_annRate` IRR — enter the actual quoted payout; a competitive product isn't 0%), the likely balance left, and that investing carries market risk. Tax point is correct-direction: fixed annuity income *raises* MAGI (worse for ACA/IRMAA) & eats Roth room; controllable withdrawals keep MAGI down | `premium`(300K) `payoutMo`(2500) `term`(10) `ret`(6) |
 - **Fidelity:** author only from verified notes. Don't assert a fee/savings figure
   that hasn't been confirmed — label it illustrative and prompt to confirm (see the
   Brandon Chambers Fee Delta card for the pattern).

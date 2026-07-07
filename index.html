@@ -883,7 +883,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-07 · r129';
+const BUILD = 'build 2026-07-07 · r130';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2712,7 +2712,7 @@ const MODEL_SUB={
   'free-cashflow':"Freed-up cash — what it funds if invested. Directional; drag a dial to re-run.",
   'contrib-fv':"Contribution growth — front-load vs. monthly. Directional; drag a dial to re-run.",
   'retire-proj':"Retirement projection — today's balance + contributions. Directional.",
-  'annuity-vs-invest':"Annuity vs. staying invested — same income, what's left, and the tax control. Directional."
+  'annuity-vs-invest':"Annuity vs. investing — certainty vs. access, growth & tax control. Enter the real quote; drag a dial to re-run."
 };
 // scenarioModel(kind, params) -> {lines:[spoken…], figures:[[label,value,hi]], note}
 function scenarioModel(kind, p){
@@ -2805,23 +2805,28 @@ function scenarioModel(kind, p){
     ], note:`Assumes ${ret}% return, ${years} years to age ${retAge}, 4% withdrawal rule. Directional illustration — not a guarantee.`};
   }
   if(kind==='annuity-vs-invest'){
-    // fixed-period annuity (premium in, payoutMo out for term) vs. keeping the premium invested and drawing the SAME income
+    // A fixed-period annuity (premium in, quoted payoutMo out for term) vs. keeping the premium invested and paying
+    // yourself the SAME income. Honest tradeoff framing — certainty vs. access/control — NOT "free money". The implied
+    // annuity rate is computed from the ACTUAL quote you enter (_annRate), so a competitive quote shows a real return.
     const premium=g('premium',300000), payoutMo=g('payoutMo',2500), term=g('term',10), ret=g('ret',6);
     const totalOut=payoutMo*12*term, effRate=_annRate(premium, payoutMo, term*12);
     const investBal=Math.max(0, _fv(premium,ret,term) - _fvMo(payoutMo,ret,term));   // balance left after same withdrawals
-    const rateTxt = effRate<=0.15 && effRate>=-0.15 ? 'about 0%/yr' : `about ${effRate.toFixed(1)}%/yr`;
+    const rateTxt = (effRate>-0.15 && effRate<0.15) ? 'about 0%' : `about ${effRate.toFixed(1)}%`;
+    const growTxt = effRate<1 ? `barely grows — the checks add up to about what you put in` : `works out to ${rateTxt} a year on your money`;
     return {lines:[
-      `The ${_mMoney(premium)} annuity pays ${_mMoney(payoutMo)}/mo for ${term} years — that's ${_mMoney(totalOut)} back over the decade, an effective return ${rateTxt}. You're handing over your principal to schedule its own return.`,
-      `Keep that ${_mMoney(premium)} invested at ${ret}% and draw the same ${_mMoney(payoutMo)}/mo, and after ${term} years you'd still have roughly ${_mMoney(investBal)} left — the same income, plus money that stays yours and stays liquid.`,
-      `And you keep the tax dial: annuity income is locked ordinary income every year — it fills the low-income bracket in exactly the 60→70 window you want for Roth conversions, and lifts MAGI toward ACA-subsidy and Medicare-IRMAA thresholds. Drawing from a managed portfolio, you decide how much to realize.`
+      `An annuity is a trade: you hand over ${_mMoney(premium)} today, and you get a ${_mMoney(payoutMo)} check every month for ${term} years. The upside is real — that check shows up no matter what the market does.`,
+      `The trade-off is getting at your money. Once it's in, that ${_mMoney(premium)} isn't yours to touch — not for an emergency, a new roof, or a change of plan. And on this quote, your money ${growTxt}.`,
+      `The other path: keep the ${_mMoney(premium)} invested and pay yourself the same ${_mMoney(payoutMo)} a month. If it earns about ${ret}% a year, you'd still have around ${_mMoney(investBal)} left after ${term} years — and you could reach it any time. The honest catch: some years the market dips, so unlike the annuity check, that number isn't guaranteed.`,
+      `Staying flexible also protects your taxes. You decide how much to pull out, so you can keep your income lower — that holds down your health-insurance cost before 65, keeps you under the higher Medicare premiums after 65, and leaves room for the Roth moves. A fixed annuity check is income you can't turn down.`
     ], figures:[
-      [`Annuity — paid out over ${term}y`, _mMoney(totalOut)],
-      ['— effective return', rateTxt],
-      [`— value left after ${term}y`, '$0 · gone'],
-      [`Invested — same ${_mMoney(payoutMo)}/mo drawn`, _mMoney(payoutMo)+'/mo'],
-      [`— balance left @ ${ret}%`, _mMoney(investBal), true],
-      ['Edge — stay invested', _mMoney(investBal)+' + liquidity', true]
-    ], note:`Assumes ${ret}% market return; the annuity is a ${term}-yr period-certain (return-of-principal), so growth, liquidity, and tax control are the trade. A lifetime annuity would add longevity protection this doesn't model. Directional — not advice; markets aren't guaranteed, confirm the actual contract terms.`};
+      ['Annuity — guaranteed check', _mMoney(payoutMo)+'/mo'],
+      [`— total paid over ${term}y`, _mMoney(totalOut)],
+      ['— interest it really earns', rateTxt+'/yr'],
+      ['— can you touch the cash?', 'no · locked'],
+      [`Invest & pay yourself the same`, _mMoney(payoutMo)+'/mo'],
+      [`— likely left after ${term}y @ ${ret}%`, '≈ '+_mMoney(investBal), true],
+      ['— can you touch the cash?', 'yes · anytime', true]
+    ], note:`Uses the ${_mMoney(payoutMo)}/mo you entered — put in the real quote for accuracy; a competitive ${term}-yr annuity may pay more, which shrinks the gap. It's a tradeoff, not a slam dunk: the annuity buys certainty and removes market risk (a lifetime version also insures against outliving your money); investing keeps access, control, and growth but carries real market risk. Directional illustration — not advice; confirm the actual contract.`};
   }
   return {lines:['No calculator is wired for this scenario yet.'], figures:[], note:''};
 }
