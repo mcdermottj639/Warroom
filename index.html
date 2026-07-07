@@ -156,7 +156,8 @@
     letter-spacing:.6px;color:var(--accent);font-weight:800;
     border-top:1px solid var(--line);padding-top:14px}
   dialog{background:var(--panel);color:var(--txt);border:1px solid var(--line);
-    border-radius:14px;padding:20px;width:560px;max-width:92vw}
+    border-radius:14px;padding:20px;width:560px;max-width:92vw;
+    max-height:92vh;max-height:92dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
   dialog::backdrop{background:rgba(0,0,0,.6)}
   code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
 
@@ -882,7 +883,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-07 · r128';
+const BUILD = 'build 2026-07-07 · r129';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
