@@ -908,7 +908,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r132';
+const BUILD = 'build 2026-07-14 · r133';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -3071,6 +3071,9 @@ function renderDetail(c){
 
     ${secnav}
 
+    ${dataRow?`<div class="widgetlbl">📊 Client data</div>
+    <div class="coachrow datarow">${dataRow}</div>`:''}
+
     <div class="widgetlbl">🎤 On the call</div>
     <div class="coachrow">
       <button data-coach="open">🎬 Opening</button>
@@ -3078,9 +3081,6 @@ function renderDetail(c){
       <button data-coach="pitch">🎯 Pitch &amp; Why Empower</button>
       <button data-coach="next">🤝 Next-step play</button>
     </div>
-
-    ${dataRow?`<div class="widgetlbl">📊 Client data</div>
-    <div class="coachrow datarow">${dataRow}</div>`:''}
 
     <div class="kstrip">${kstrip}</div>
 
