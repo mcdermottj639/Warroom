@@ -924,7 +924,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r138';
+const BUILD = 'build 2026-07-14 · r139';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -4361,13 +4361,17 @@ function coachContent(c, type){
       let paras=raw.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
       if(paras.length<=1) paras=raw.split(/\n/).map(p=>p.trim()).filter(Boolean);
       paras=paras.map(p=>strip(p.replace(/^[-*]\s*/,'').replace(/\s*\n\s*/g,' ')));
+      // Advisor preference: openings do NOT lead with a personal icebreaker question. If an older
+      // authored recap still opens with one, drop that leading paragraph so it starts on the recap.
+      if(paras.length>1 && /\?\s*$/.test(paras[0])) paras=paras.slice(1);
       const html=paras.map(p=>`<p class="recap">${esc(p)}</p>`).join('')
-        +`<p class="recap-note">Authored recap — read as written; open with the question and let them answer.</p>`;
+        +`<p class="recap-note">Authored recap — read as written.</p>`;
       return {title:`🎬 Opening for ${fn}`, html};
     }
     // Call-type-aware recap. A Proposal call recaps the picture and sets up presenting the plan;
     // a Decision call recaps the SOLUTION + its value and drives to a decision; Enrollment closes
-    // the paperwork; Discovery stays exploratory. Every recap opens with a grounded personal touch.
+    // the paperwork; Discovery stays exploratory. Per advisor preference, recaps do NOT open with a
+    // personal icebreaker question — they get straight into the recap.
     const ty = nextCallType(i);
     const A=(i.accounts||[]);
     const acctPhrase=a=>{ const cu=strip(a.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim();
@@ -4381,19 +4385,6 @@ function coachContent(c, type){
     const sol=youify(strip(i.solutionOffered||''));
     const vTail='professional management, planning depth, and one team coordinating the full picture';
 
-    // a warm, VERBATIM personal opener — an actual question to ask, grounded in the Personal
-    // notes (fidelity: only references details in the profile; safe generic fallback otherwise)
-    const personalOpen=()=>{ const src=strip(i.personalText||i.personal||'');
-      if(/just retired|recently retired|newly retired/i.test(src)) return "How's the start of retirement treating you?";
-      const sp=src.match(/\b(?:wife|husband|spouse|partner)\s+([A-Z][a-z]+)/i);
-      if(sp && /^[A-Z]/.test(sp[1]) && !/^(Still|Works?|Lives?|Has|And|Who|With|Same|Both|Is|Are)$/.test(sp[1])) return `How's ${sp[1]} doing?`;
-      if(/\b(grandkid|grandchild)\b/i.test(src)) return "How's everyone — the grandkids and all?";
-      if(/\b(kids|children|daughter|son)\b/i.test(src)) return "How's the family doing?";
-      if(/downsiz/i.test(src)) return "Any movement on the downsizing?";
-      if(/\b(wife|husband|spouse|partner|married)\b/i.test(src)) return "How are you and the family doing?";
-      return "How've you been since we last talked?"; };
-    const b0 = personalOpen();
-
     let beats, label;
     if(/Decision/.test(ty)){
       label='Decision-call recap';
@@ -4405,19 +4396,19 @@ function coachContent(c, type){
       const b3 = objx
         ? `Today's about getting you to a decision — let's put the open question of ${deCap(objx)} to rest, and if it feels right, get it moving. Where's your head at on it?`
         : `Today's about getting you to a decision — I'll answer any last questions, and if it feels right, we get it started and the transfer moving. Where's your head at on it?`;
-      beats=[b0,b1,b2,b3];
+      beats=[b1,b2,b3];
     } else if(/Enroll/.test(ty)){
       label='Enrollment recap';
       const b1 = `${fn}, you decided to move forward${prod?` with ${prod}`:(sol?` — ${deCap(sol)}`:'')} — love it.`;
       const b2 = reasons.length ? `This gets you exactly what you were after: ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''}.` : '';
       const b3 = `Today we make it official — I'll get the accounts opened and the transfer kicked off. Let's get the paperwork going.`;
-      beats=[b0,b1,b2,b3];
+      beats=[b1,b2,b3];
     } else if(/Discovery|Intro/.test(ty)){
       label='Discovery recap';
       const b1 = accs.length ? `${fn}, last time we started mapping your picture — ${pic}.` : `${fn}, thanks for making the time.`;
       const b2 = reasons.length ? `What I'm hearing matters most to you is ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''}.` : '';
       const b3 = `Today I want to really understand the full picture and what you're hoping to get out of it — then show where Empower could fit${prod?` (likely ${prod})`:''}. Sound good?`;
-      beats=[b0,b1,b2,b3];
+      beats=[b1,b2,b3];
     } else {
       label='Opening recap'; // Proposal (default): recap → main issue → present the plan today
       const b1 = `${fn}, last time we walked through the full picture — ${pic}.`;
@@ -4425,10 +4416,10 @@ function coachContent(c, type){
       if(reasons.length) b2=`The main thing I heard is ${deCap(reasons[0])}`+(reasons[1]?`, and ${deCap(reasons[1])}`:'')+(objx?` — with the open question of whether it's the right move (${deCap(objx)})`:'')+'.';
       else if(objx) b2=`The main thing I heard is the open question of ${deCap(objx)}.`;
       const b3 = `Today I want to show what your current path looks like, where the gaps are, and how consolidating ${tname} into Empower could simplify everything into one coordinated plan${prod?` (${prod})`:''} — ${vTail}.`;
-      beats=[b0,b1,b2,b3];
+      beats=[b1,b2,b3];
     }
     const html=beats.filter(Boolean).map(p=>`<p class="recap">${esc(p)}</p>`).join('')
-      +`<p class="recap-note">Open with the personal question and let them answer · name the specifics so they feel remembered.</p>`;
+      +`<p class="recap-note">Read as written · name the specifics so they feel remembered.</p>`;
     return {title:`🎬 ${label} for ${fn}`, html};
   }
   if(type==='pitch'){

@@ -125,8 +125,11 @@ client's name or "new notes" never hurt, but aren't required.)
     opening recap. When present it **overrides** the app's generated 🎬 Opening
     (blank-line-separated paragraphs become spoken beats). Author it on every
     notes→profile write and in the morning Prep routine — the template generator is
-    a fallback; a hand-written opening is far better. Open with a real personal
-    question, recap what matters in their words, then drive to today's purpose.
+    a fallback; a hand-written opening is far better. **Do NOT open with a personal
+    icebreaker question** (advisor preference) — get straight into the recap of what
+    matters in their words, then drive to today's purpose. (Both the app's generated
+    opening and its render of an authored `## Opening` now strip a leading question, so
+    an older profile that still has one won't show it.)
   - **§8** = the **canonical profile template + "capture everything" routing
     table.** Follow it for every notes→profile write: every fact from the photo
     goes into the section the app reads it from; nothing summarized away.
@@ -425,7 +428,9 @@ client's name or "new notes" never hurt, but aren't required.)
   the 🎬 Opening pop-up renders **that** verbatim. Otherwise it falls back to a
   **call-type-aware generated recap** (Decision recaps the solution+value and
   drives to a decision; Enrollment = paperwork; Discovery = exploratory; Proposal =
-  present-the-plan) opening with a **verbatim personal question** from the notes.
+  present-the-plan). **Neither leads with a personal icebreaker question** (advisor
+  preference): the generated recap opens on the last-time recap, and the authored-recap
+  render drops a leading question paragraph if an older `## Opening` still has one.
   Pop-up content is **what the advisor says out loud**; coaching meta goes in the
   small footnote. Profile clauses (solution/goals are written third-person) are run
   through **`youify()`** so the spoken beats read second-person ("his daughters" →

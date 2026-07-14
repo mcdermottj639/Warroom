@@ -212,8 +212,7 @@ Updated: <Mon D, YYYY>
 - Response: <how to reframe it>
 
 ## Opening               ← optional but ideal: a VERBATIM, second-person opening to read aloud
-<A real personal question grounded in the notes.>
-
+# Do NOT open with a personal icebreaker question — get straight into the recap.
 <Recap of where things stand, in their words — what matters most to them.>
 
 <What today is about + drive to the next step. Each blank-line paragraph = one spoken beat.>
