@@ -417,16 +417,16 @@
     .ovtile .ot-ring{width:27px;height:27px;top:10px;right:12px}
     .ovtile .cnrs{inset:7px}
     .ovtile .ot-go{bottom:9px;right:12px;font-size:13px}
-    /* Today's Focus — permanent left rail (renderOverview forces it open ≥1300px) */
-    .ovfocwrap{grid-area:2/1/4/2;display:flex;flex-direction:column;min-height:0}
+    /* Today's Focus — permanent full-height RIGHT column (renderOverview forces it open ≥1300px) */
+    .ovfocwrap{grid-area:2/4/5/5;display:flex;flex-direction:column;min-height:0}
     .ovwrap .ovfocus{flex:1;min-height:0;overflow-y:auto;margin-bottom:0}
     .ovfocus-hd{cursor:default}
     .ovfocus-caret{display:none}
     .ovwrap .ovrow{padding:5px 4px}
     .ovrow .nm{font-size:12px} .ovrow .sub{font-size:10.5px} .ovrow .when{min-width:64px;font-size:10px}
-    /* Wins & Momentum — docked under the Focus rail: chart rides full-width on top,
+    /* Wins & Momentum — top of the narrow left rail: chart rides full-width on top,
        goal ring + buttons beneath it (bigger axis type so the rail chart stays legible) */
-    .ovwins{grid-area:4/1/5/2;margin:0;padding:6px 12px 5px;gap:2px 12px}
+    .ovwins{grid-area:2/1/3/2;margin:0;padding:6px 12px 5px;gap:2px 12px;overflow:auto}
     .ovwins-chart{order:-1;flex:1 1 100%;max-width:none;min-width:0}
     .ovwins .velsvg{max-height:none}
     .ovwins .velsvg .velx{font-size:11px}
@@ -448,7 +448,7 @@
     .ovcharts>div:nth-child(1){grid-area:3/2/5/3}   /* Pipeline Velocity */
     .ovcharts>div:nth-child(2){grid-area:3/3/5/4}   /* Activity Trend */
     .ovcharts>div:nth-child(3){grid-area:2/2/3/3}   /* Stage Funnel + Win Probability */
-    .ovcharts>div:nth-child(4){grid-area:2/4/5/5}   /* Discovery Depth (full column) */
+    .ovcharts>div:nth-child(4){grid-area:3/1/5/2}   /* Discovery Depth — left rail, under Momentum */
     .ovcharts>div:nth-child(5){grid-area:2/3/3/4}   /* Objection Handling */
     /* merged funnel card: bars left, the two rings right */
     .fwrow{flex:1;display:flex;gap:10px;min-height:0;align-items:center;flex-wrap:wrap}
@@ -467,6 +467,10 @@
     .funnelfill{justify-content:space-evenly}
     /* let the list panels breathe into their slot instead of clustering at the top */
     .ovcharts>div:nth-child(4)>.card,.ovcharts>div:nth-child(5)>.card{justify-content:space-evenly}
+    /* Discovery lives in the narrow rail now — smaller ring so it sits BESIDE the coverage bars */
+    .ovcharts>div:nth-child(4) .gauge{width:94px}
+    .ovcharts>div:nth-child(4) .gauge .g-ring{width:74px;height:74px}
+    .ovcharts>div:nth-child(4) .gauge .g-num{font-size:17px}
     .covrow{padding:2px 0} .covlbl{font-size:10.5px}
     .objrow{padding:3px 0} .objlbl{font-size:10.5px}
     .ovcharts .bodynote{font-size:9.5px}
@@ -1021,7 +1025,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r152';
+const BUILD = 'build 2026-07-14 · r153';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2280,7 +2284,7 @@ function renderOverview(){
       : '<div class="bodynote" style="padding:4px 0">Every active profile covers this. 👌</div>';
     return `<div class="covrow${missC.length?' xpand':''}"${missC.length?` data-exp="cov-${di}"`:''}><span class="covlbl">${d.k}</span><span class="covbar"><span class="covfill" style="width:${pct}%"></span></span><span class="covpct">${pct}%${missC.length?` <span class="xchev">›</span>`:''}</span></div>
       <div class="ovexp" id="cov-${di}" hidden>${exp}</div>`; }).join('');
-  const thin=depthScores.filter(x=>x.n<DEPTH.length).sort((a,b)=>a.n-b.n).slice(0, ovWide?6:4);   // the wide board gives Discovery a full column — show more gaps
+  const thin=depthScores.filter(x=>x.n<DEPTH.length).sort((a,b)=>a.n-b.n).slice(0,4);
   const thinList=thin.length?`<div class="bodynote" style="padding-top:10px">Thinnest profiles — fill the gaps</div>`
       + thin.map(x=>{ const miss=DEPTH.filter(d=>!d.has(x.c.intel)).map(d=>d.k).slice(0,3).join(', ');
         return `<div class="ovrow" data-code="${x.c.code}"><span class="when">${x.n}/${DEPTH.length}</span><div class="nm">${esc(x.c.name)}<div class="sub ellip">missing: ${esc(miss)}</div></div></div>`; }).join(''):'';
