@@ -325,7 +325,19 @@ client's name or "new notes" never hurt, but aren't required.)
   `S.ovRenderDay`). If you add another "this week" boundary, reuse `thisWeekEnd` so they stay in sync.
 - **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
   → **📵 Missed Calls** → Top 10 → **⏳ Pending Decisions** → **📇 No Call Booked** →
-  Follow-ups (tasks owed, next 2 weeks) → Cooling → Wins. **Missed Calls** and **No Call
+  Follow-ups (tasks owed, next 2 weeks) → Cooling → Wins. **On wide desktop (≥1200px) these
+  flow two-up** (`renderDashboard` uses `.pad wide`; the section stack is wrapped in `.ccgrid`
+  → two `.cccol` flex columns — **left** = Upcoming / Missed / Top 10 / Pending, **right** = No
+  Call / Follow-ups / Cooling / Wins; the KPI strip + filter chips stay full-width above). Below
+  1200px `.cccol` are plain block so the sections stack in the same single-column order as before —
+  phones/tablets are untouched. If you add a section, put it in whichever `.cccol` keeps the left/right
+  order contiguous. **Top 10 is click-to-sort (r137):** the **Transferable / P / EV** column headers
+  (`.sortth`, `data-osort` = `transferable`|`prob`|`ev`) are buttons — the active one goes gold with a
+  ▼ and the subtitle updates. State = `S.oppSort` (default `ev`). `oppCmp(key)` re-ranks the whole
+  active set (EV = `expectedValue`, transferable = `moveableNum`, prob = `stageProb`) and `top10Rows`
+  slices the top 10, so "sort by transferable" shows the 10 biggest books, etc. `repaintTop10()`
+  repaints the card **in place** (rows + arrow + subtitle + row wiring — mirrors `repaintWins`), honoring
+  `S.ccFilter`, so switching sort never jumps the scroll. **Missed Calls** and **No Call
   Booked** are mutually-exclusive *action* sections carved from `callSlot`: **Missed
   Calls** (`slot==='missed'` — a scheduled call that lapsed or a 📵 marker, ANY stage,
   most urgent); **No Call Booked** (`slot==='none'` + any *non*-proposal/decision stage —
@@ -563,9 +575,12 @@ The file is large; these are the load-bearing pieces a new session will likely t
 - Pop-up/coaching text = verbatim spoken lines; put advice/meta in a footnote.
 - Approximate values: "about" or "≈", never bare `~` in profiles.
 - Keep new code in the file's existing compact idiom.
-- **Responsive width (r132):** the shared content container is `.pad` (`max-width:1000px`). The
-  **client-intel page** (`renderDetail`) opts into a wider desktop layout via `.pad wide` — at
-  **≥1200px** it grows to ~1460px (1680px ≥1750px) and the **Prep Sheet** cards flow **two-up**.
+- **Responsive width (r132, extended r137):** the shared content container is `.pad`
+  (`max-width:1000px`). The **client-intel page** (`renderDetail`) **and the Command Center**
+  (`renderDashboard`) opt into a wider desktop layout via `.pad wide` — at **≥1200px** it grows to
+  ~1460px (1680px ≥1750px). The client page flows its **Prep Sheet** cards two-up; the Command Center
+  flows its section stack two-up via `.ccgrid`/`.cccol` (see the Command Center feature-map entry).
+  The **editor** stays at 1000px (no `wide` class).
   **Prep cards start collapsed + JS masonry, no grey voids (r136):** `panel(...)` renders every Prep
   card collapsed (the old `idx===0` open-first is gone). `layoutPrep()` (runs on render, on each
   expand/collapse via the `.ahead` toggle, and on resize) does a **two-column greedy masonry**: it
@@ -579,7 +594,7 @@ The file is large; these are the load-bearing pieces a new session will likely t
   `column-count` masonry (r134, couldn't force expanded-to-top) and a flex-wrap `order:-1` row (r135,
   left a void under the shorter expanded card) — were superseded; use `layoutPrep`, don't reintroduce
   a pure-CSS two-up. All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
-  layout is untouched; the Command Center + editor stay at 1000px (no `wide` class). If a new
+  layout is untouched (only the editor stays at 1000px now — no `wide` class). If a new
   detail-page section should also fill the desktop width, put it inside `.pad.wide` and gate any
   multi-column CSS on `@media(min-width:1200px)`.
 - The current build is in the footer (`const BUILD`); bump it every shippable change.

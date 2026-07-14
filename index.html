@@ -490,6 +490,11 @@
   .dtbl tr.click{cursor:pointer}
   .dtbl tr.click:hover td{background:var(--panel2)}
   .dtbl .r{text-align:right;font-weight:700;white-space:nowrap}
+  /* click-to-sort column headers (Top 10) — active column goes gold with a ▼ */
+  .dtbl th.sortth{cursor:pointer;user-select:none}
+  .dtbl th.sortth:hover{color:var(--txt)}
+  .dtbl th.sortth.on{color:var(--gold)}
+  .dtbl th.sortth .sarr{font-size:8px}
   .rank{display:inline-flex;width:20px;height:20px;border-radius:5px;background:var(--panel2);
     border:1px solid var(--line);align-items:center;justify-content:center;font-size:11px;font-weight:700}
   .frow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
@@ -589,10 +594,17 @@
   .risk-LOW{background:var(--pipe);color:#fff}
 
   /* WIDE DESKTOP — reclaim the empty right side on a big monitor. Gated at ≥1200px so phones
-     (≤820px) and tablets are left exactly as they were. Only the client-intel page opts in via
-     `.pad.wide`; the Command Center / editor keep their current width. */
+     (≤820px) and tablets are left exactly as they were. The client-intel page AND the Command
+     Center opt in via `.pad.wide`; the editor keeps its current width. */
   @media (min-width:1200px){
     .pad.wide{max-width:1460px}
+    /* Command Center flows its section stack into two columns at width (the KPI strip + filter
+       chips stay full-width above). `.cccol` are plain block below 1200px, so the sections stack
+       in their normal single-column order on phones/tablets. Left col = the action sections
+       (Upcoming / Missed / Top 10 / Pending), right col = follow-through (No Call / Follow-ups /
+       Cooling / Wins). */
+    .pad.wide .ccgrid{display:flex;gap:24px;align-items:flex-start}
+    .pad.wide .ccgrid .cccol{flex:1 1 0;min-width:0}
     /* Prep Sheet cards flow two-up as a JS masonry (layoutPrep): two flex columns, each card
        greedily dropped into the shorter one so collapsed headers pack up UNDER a short expanded
        card — no grey voids — while the expanded cards sit atop the columns as the top row. All
@@ -912,7 +924,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r136';
+const BUILD = 'build 2026-07-14 · r137';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2318,17 +2330,11 @@ function renderDashboard(jumpTo){
   // faint otherwise; click pops the notes dialog inline (view + add) without leaving the dash.
   const noteFlag = c => { const n=(c.intel.notes||[]).length;
     return `<button class="noteflag${n?' has':''}" data-notecode="${c.code}" tabindex="-1" title="${n?n+' note'+(n>1?'s':'')+' — click to read':'Add a note'}" aria-label="${n?'View notes':'Add a note'}">🗒️${n?`<span class="nfn">${n}</span>`:''}</button>`; };
-  const ranked = active.map(c => ({c, ev:expectedValue(c.intel), p:stageProb(c.intel)}))
-    .sort((a,b)=> b.ev - a.ev);
-  const weighted = ranked.reduce((s,r)=>s+r.ev, 0);
-
-  const oppRows = ranked.slice(0,10).map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
-    <td><span class="rank">${idx+1}</span></td>
-    <td>${noteFlag(r.c)} ${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
-    <td>${esc(r.c.intel.stage||'')}</td>
-    <td class="r">${esc(moneyShort(r.c.intel.moveable))}</td>
-    <td class="r col-opt">${Math.round(r.p*100)}%</td>
-    <td class="r">${fmtVal(r.ev)}</td></tr>`).join('');
+  const weighted = active.reduce((s,c)=>s+expectedValue(c.intel), 0);
+  // Top-10 rows honor the chosen sort (EV / transferable / chance-to-close); built by top10Rows so
+  // the click-to-sort repaint (repaintTop10) shares one source of truth.
+  const oppRows = top10Rows(active);
+  const oppLabel = OPP_LABELS[OPP_SORTS.includes(S.oppSort)?S.oppSort:'ev'];
 
   // Every active client's next-call state → one slot (upcoming / missed / none). The action
   // sections below are carved from these so they never overlap (was one blurry "Pending" bucket).
@@ -2469,7 +2475,7 @@ function renderDashboard(jumpTo){
   const fchips = `<button class="fchip${filt==='all'?' on':''}" data-filt="all">All (${allActive.length})</button>`
     + present.map(p=>`<button class="fchip${filt===p?' on':''}" data-filt="${p}">${esc(p)} (${allActive.filter(c=>prioOf(c)===p).length})</button>`).join('');
 
-  $('#main').innerHTML = `<div class="pad"><span id="topAnchor"></span>
+  $('#main').innerHTML = `<div class="pad wide"><span id="topAnchor"></span>
     <div class="head"><div><h2>⚔️ Command Center</h2>
       <div class="meta">${filt==='all'?`${active.length} tracked`:`${active.length} of ${allActive.length} · ${esc(filt)}`} · Weighted pipeline ${fmtVal(weighted)}</div></div>
       <div class="btns"><button class="sm ghost" id="ccBack">← Overview</button></div></div>
@@ -2487,44 +2493,49 @@ function renderDashboard(jumpTo){
       <button class="kchip" data-jump="sec-wins"><div class="kc-l">Won this quarter</div><div class="kc-v">${fmtVal(wonQval)}</div><div class="kc-n"><span>${wonQ.length} closed${winRate!=null?` · ${winRate}% rate`:''}</span><span class="kc-go">Wins ›</span></div></button>
     </div>
 
-    <div class="groupttl" id="sec-upcoming">📅 Upcoming Calls</div>
-    <div class="card">
-      <div class="tabs" id="upTabs">
-        <button class="tab active" data-up="week">This Week (${upWeek.length}${todays.length?` · ${todays.length} today`:''})</button>
-        <button class="tab" data-up="future">Future (${upFuture.length})</button>
+    <div class="ccgrid">
+     <div class="cccol">
+      <div class="groupttl" id="sec-upcoming">📅 Upcoming Calls</div>
+      <div class="card">
+        <div class="tabs" id="upTabs">
+          <button class="tab active" data-up="week">This Week (${upWeek.length}${todays.length?` · ${todays.length} today`:''})</button>
+          <button class="tab" data-up="future">Future (${upFuture.length})</button>
+        </div>
+        <table class="dtbl" id="upTblWeek"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsWeek}</tbody></table>
+        <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsFuture}</tbody></table>
       </div>
-      <table class="dtbl" id="upTblWeek"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsWeek}</tbody></table>
-      <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsFuture}</tbody></table>
-    </div>
 
-    <div class="groupttl" id="sec-missed">📵 Missed Calls — a scheduled call that passed, reschedule now</div>
-    <div class="card">${missedRows}</div>
+      <div class="groupttl" id="sec-missed">📵 Missed Calls — a scheduled call that passed, reschedule now</div>
+      <div class="card">${missedRows}</div>
 
-    <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by expected value</div>
-    <div class="card"><table class="dtbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r">Transferable</th><th class="r col-opt">P</th><th class="r">EV</th></tr></thead><tbody>${oppRows}</tbody></table></div>
+      <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by ${oppLabel}</div>
+      <div class="card"><table class="dtbl" id="oppTbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r sortth" data-osort="transferable" data-oslabel="Transferable" role="button" tabindex="0" title="Sort by transferable assets">Transferable</th><th class="r col-opt sortth" data-osort="prob" data-oslabel="P" role="button" tabindex="0" title="Sort by chance to close">P</th><th class="r sortth" data-osort="ev" data-oslabel="EV" role="button" tabindex="0" title="Sort by expected value">EV</th></tr></thead><tbody id="oppBody">${oppRows}</tbody></table></div>
 
-    <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal delivered, awaiting a yes/no · closest first</div>
-    <div class="card">${pendRows}</div>
+      <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal delivered, awaiting a yes/no · closest first</div>
+      <div class="card">${pendRows}</div>
+     </div>
+     <div class="cccol">
+      <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>
+      <div class="card">${noCallRows}</div>
 
-    <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>
-    <div class="card">${noCallRows}</div>
+      <div class="groupttl" id="sec-tasks">📌 Follow-ups — what you owe clients (next 2 weeks)</div>
+      <div class="card">${taskRows}</div>
 
-    <div class="groupttl" id="sec-tasks">📌 Follow-ups — what you owe clients (next 2 weeks)</div>
-    <div class="card">${taskRows}</div>
+      <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
+      <div class="card">${coolRows}</div>
 
-    <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
-    <div class="card">${coolRows}</div>
-
-    <div class="groupttl" id="sec-wins">🏆 Wins</div>
-    <div class="card">
-      <div class="tabs" id="winTabs">
-        <button class="tab${winFrame==='week'?' active':''}" data-wf="week">This week (${winCount('week')})</button>
-        <button class="tab${winFrame==='month'?' active':''}" data-wf="month">This month (${winCount('month')})</button>
-        <button class="tab${winFrame==='quarter'?' active':''}" data-wf="quarter">This quarter (${winCount('quarter')})</button>
-        <button class="tab${winFrame==='ytd'?' active':''}" data-wf="ytd">YTD (${winCount('ytd')})</button>
-        <button class="tab${winFrame==='all'?' active':''}" data-wf="all">All (${winsAll.length})</button>
+      <div class="groupttl" id="sec-wins">🏆 Wins</div>
+      <div class="card">
+        <div class="tabs" id="winTabs">
+          <button class="tab${winFrame==='week'?' active':''}" data-wf="week">This week (${winCount('week')})</button>
+          <button class="tab${winFrame==='month'?' active':''}" data-wf="month">This month (${winCount('month')})</button>
+          <button class="tab${winFrame==='quarter'?' active':''}" data-wf="quarter">This quarter (${winCount('quarter')})</button>
+          <button class="tab${winFrame==='ytd'?' active':''}" data-wf="ytd">YTD (${winCount('ytd')})</button>
+          <button class="tab${winFrame==='all'?' active':''}" data-wf="all">All (${winsAll.length})</button>
+        </div>
+        <div id="winBody"></div>
       </div>
-      <div id="winBody"></div>
+     </div>
     </div>
     <div class="fabgroup">
       <button class="fab fab-icon" id="searchFab" aria-label="Search clients">🔍</button>
@@ -2568,6 +2579,9 @@ function renderDashboard(jumpTo){
   // #main.scrollTop didn't help mobile). In-place update touches nothing around it, so no jump.
   document.querySelectorAll('#winTabs .tab').forEach(b=> b.onclick = ()=>{ S.winFrame=b.dataset.wf; repaintWins(); });
   repaintWins();   // initial paint of the Wins header + rows for the current frame
+  // Top-10 click-to-sort headers (EV / Transferable / chance-to-close) — repaint in place, no jump.
+  document.querySelectorAll('#oppTbl th.sortth').forEach(th=> th.onclick = ()=>{ S.oppSort=th.dataset.osort; repaintTop10(); });
+  repaintTop10();  // paint the active-sort arrow + subtitle for the current S.oppSort
   $('#topFab').onclick = ()=> scrollMainTop();
   $('#searchFab').onclick = ()=>{ const inp=$('#clientSearch'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center'}); } };
   $('#ccBack').onclick = ()=> renderOverview();
@@ -2605,6 +2619,49 @@ function repaintWins(){
   if(hdr) hdr.innerHTML=`🏆 Wins${wins.length?` · ${fmtVal(winTotal)}`:''}${winRate!=null?` · ${winRate}% win rate (${wonN}/${wonN+lostN})`:''}`;
   document.querySelectorAll('#winTabs .tab').forEach(t=>t.classList.toggle('active', t.dataset.wf===frame));
   body.querySelectorAll('[data-notecode]').forEach(btn=> btn.onclick=(e)=>{ e.stopPropagation(); openNotes(btn.dataset.notecode); });
+}
+
+// Top-10 Opportunities sort. `ev` = expected value (moveable × close prob × recency — the default
+// ranking), `transferable` = raw moveable $, `prob` = stageProb (chance to close). Each re-ranks the
+// whole active set and slices the top 10 (so "sort by transferable" shows the 10 biggest books, etc).
+const OPP_SORTS=['ev','transferable','prob'];
+const OPP_LABELS={ev:'expected value',transferable:'transferable assets',prob:'chance to close'};
+function oppCmp(key){
+  if(key==='transferable') return (a,b)=> moveableNum(b.c.intel)-moveableNum(a.c.intel) || b.ev-a.ev;
+  if(key==='prob') return (a,b)=> b.p-a.p || b.ev-a.ev;
+  return (a,b)=> b.ev-a.ev;
+}
+// Build the Top-10 <tbody> rows for `active`, sorted by S.oppSort. Self-contained (own note-flag
+// markup) so repaintTop10 can call it without renderDashboard's closures.
+function top10Rows(active){
+  const key=OPP_SORTS.includes(S.oppSort)?S.oppSort:'ev';
+  const nf=c=>{ const n=(c.intel.notes||[]).length;
+    return `<button class="noteflag${n?' has':''}" data-notecode="${c.code}" tabindex="-1" title="${n?n+' note'+(n>1?'s':'')+' — click to read':'Add a note'}" aria-label="${n?'View notes':'Add a note'}">🗒️${n?`<span class="nfn">${n}</span>`:''}</button>`; };
+  return active.map(c=>({c, ev:expectedValue(c.intel), p:stageProb(c.intel)}))
+    .sort(oppCmp(key)).slice(0,10)
+    .map((r,idx)=>`<tr class="click" data-code="${r.c.code}">
+      <td><span class="rank">${idx+1}</span></td>
+      <td>${nf(r.c)} ${esc(r.c.name)} <span class="badge b-${esc(r.c.intel.priority||'PIPELINE')}">${esc(r.c.intel.priority||'')}</span></td>
+      <td>${esc(r.c.intel.stage||'')}</td>
+      <td class="r">${esc(moneyShort(r.c.intel.moveable))}</td>
+      <td class="r col-opt">${Math.round(r.p*100)}%</td>
+      <td class="r">${fmtVal(r.ev)}</td></tr>`).join('');
+}
+// Re-sort + repaint the Top-10 card in place (rows, active-column ▼ arrow, subtitle) — no full
+// renderDashboard, so the scroll never jumps (mirrors repaintWins). Recomputes `active` from S so
+// it honors the current priority filter (S.ccFilter).
+function repaintTop10(){
+  const tb=document.getElementById('oppBody'); if(!tb) return;   // only when the dashboard is mounted
+  const allActive=S.clients.filter(c=>!['won','lost'].includes(c.intel.status));
+  const prioOf=c=>(c.intel.priority||'PIPELINE');
+  const active=(S.ccFilter && allActive.some(c=>prioOf(c)===S.ccFilter)) ? allActive.filter(c=>prioOf(c)===S.ccFilter) : allActive;
+  const key=OPP_SORTS.includes(S.oppSort)?S.oppSort:'ev';
+  tb.innerHTML=top10Rows(active);
+  const hdr=document.getElementById('sec-top'); if(hdr) hdr.innerHTML=`🎯 Top 10 Opportunities — ranked by ${OPP_LABELS[key]}`;
+  document.querySelectorAll('#oppTbl th.sortth').forEach(th=>{ const on=th.dataset.osort===key;
+    th.classList.toggle('on',on); th.innerHTML=th.dataset.oslabel+(on?' <span class="sarr">▼</span>':''); });
+  tb.querySelectorAll('tr.click').forEach(row=> row.onclick=()=>{ const c=S.clients.find(x=>x.code===row.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); } });
+  tb.querySelectorAll('[data-notecode]').forEach(b=> b.onclick=(e)=>{ e.stopPropagation(); openNotes(b.dataset.notecode); });
 }
 
 function renderList(){
