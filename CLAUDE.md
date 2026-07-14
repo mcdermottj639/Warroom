@@ -385,7 +385,13 @@ client's name or "new notes" never hurt, but aren't required.)
   (income/asset streams + spending, with SS/pension shown once — old Streams + Income &
   Spending merged; SS/pension feeds `incomeStreams`, so its bullets render only when no
   structured streams exist), **❤️ Why** (family + life/retirement + goals — old Family &
-  Why + Goals merged), and **📞 Call history**. Each opens in the shared pop-up via
+  Why + Goals merged), and **📞 Call history** (a **scannable timeline** — since r131 each
+  entry is a compact card: header = `date · type` + a right-aligned relative **"when"** chip
+  (`agoLbl` → "2 wks ago"); **"what happened"** (the raw `summary`) is **CSS line-clamped to 2
+  lines** so you scan the gist, and `wireCallHist()` flags only the entries that actually
+  overflow as `.ch-clamped` (tap the card → toggles `.ch-open` to reveal the full text — nothing
+  is lost, it's all still in the DOM); the **next step** we had in place renders on its own
+  `→ Next:` line (`.ch-next`, was the plain "Left off:" line). Newest-first). Each opens in the shared pop-up via
   `dataWidget(c,key)`; the merged bodies stack `incomeSpendingBody`/`familyWhyBody`/
   `tldrBody` plus per-section `.fin-grp`/`.fin-lbl` sub-headers (a legacy free-text income
   profile still falls back to `incomeSpendingBody`'s regex path). Below the widgets sits only the **🧾 Prep Sheet** group

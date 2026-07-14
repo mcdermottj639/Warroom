@@ -389,12 +389,22 @@
   .nextcall .nc-set{margin-left:auto;flex:none;background:transparent;border:1px solid var(--line);
     color:var(--muted);font-weight:700;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer}
   .nextcall .nc-set:hover{border-color:var(--gold);color:var(--gold)}
-  .chentry{padding:10px 0;border-bottom:1px solid var(--line)}
+  .chentry{padding:11px 0;border-bottom:1px solid var(--line)}
+  .chentry.ch-clamped{cursor:pointer}
   .chentry:first-child{padding-top:13px}
   .chentry:last-child{border-bottom:none}
-  .ch-h{font-size:12px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.3px}
-  .ch-s{font-size:13px;color:var(--txt);margin-top:3px;overflow-wrap:anywhere}
-  .ch-l{font-size:12px;color:var(--muted);font-weight:600;margin-top:3px;overflow-wrap:anywhere}
+  .ch-h{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.3px}
+  .ch-when{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0;white-space:nowrap;flex:0 0 auto}
+  /* "what happened" — clamped to 2 lines for a quick scan; tap the card to expand (full text stays in the DOM) */
+  .ch-s{font-size:13px;color:var(--txt);margin-top:4px;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .chentry.ch-open .ch-s{-webkit-line-clamp:unset;overflow:visible}
+  .ch-more{display:none;font-size:11px;font-weight:800;color:var(--gold);margin-top:4px;user-select:none;letter-spacing:.2px}
+  .chentry.ch-clamped .ch-more{display:inline-block}
+  .ch-more::after{content:'⌄ full call'}
+  .chentry.ch-open .ch-more::after{content:'⌃ less'}
+  /* the next step we had in place — the key scan target */
+  .ch-next{font-size:12.5px;color:var(--txt);margin-top:6px;overflow-wrap:anywhere}
+  .ch-next b{color:var(--gold);font-weight:800}
   .notesbox{padding-top:13px}
   .noterow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}
   .noterow .note-main{flex:1;min-width:0;font-size:13px;color:var(--txt);overflow-wrap:anywhere}
@@ -883,7 +893,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-07 · r130';
+const BUILD = 'build 2026-07-14 · r131';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -4440,13 +4450,21 @@ function dataWidget(c, key){
   }
   if(key==='callhist'){
     const chSorted = (i.callHistory||[]).map((h,idx)=>({h,idx,d:parseLogDate(h.date)}))
-      .sort((a,b)=> (b.d?+b.d:0)-(a.d?+a.d:0) || a.idx-b.idx).map(x=>x.h);
+      .sort((a,b)=> (b.d?+b.d:0)-(a.d?+a.d:0) || a.idx-b.idx);
+    // relative "when" so you can scan the timeline at a glance (full text of each call stays in the DOM)
+    const t0=new Date(); t0.setHours(0,0,0,0);
+    const agoLbl = d=>{ if(!d) return ''; const dd=new Date(d); dd.setHours(0,0,0,0);
+      const days=Math.round((t0-dd)/86400000);
+      if(days<0) return ''; if(days===0) return 'today'; if(days===1) return 'yesterday';
+      if(days<7) return days+' days ago'; if(days<14) return 'last week';
+      if(days<45) return Math.round(days/7)+' wks ago'; if(days<400) return Math.round(days/30)+' mos ago';
+      return Math.round(days/365)+' yrs ago'; };
     return {title:`📞 Call history${chSorted.length?` · ${chSorted.length} call${chSorted.length>1?'s':''}`:''}`,
-      html: chSorted.length ? chSorted.map(h=>`<div class="chentry">
-        <div class="ch-h">${esc(h.date||'—')}${h.callType?' · '+esc(h.callType):''}</div>
-        ${h.summary?`<div class="ch-s">${esc(h.summary)}</div>`:''}
-        ${h.leftOff?`<div class="ch-l">Left off: ${esc(h.leftOff)}</div>`:''}
-      </div>`).join('') : '<div class="bodynote" style="padding-top:0">No call log in the profile yet.</div>'};
+      html: chSorted.length ? chSorted.map(({h,d})=>{ const when=agoLbl(d); return `<div class="chentry">
+        <div class="ch-h"><span>${esc(h.date||'—')}${h.callType?' · '+esc(h.callType):''}</span>${when?`<span class="ch-when">${esc(when)}</span>`:''}</div>
+        ${h.summary?`<div class="ch-s">${esc(h.summary)}</div><span class="ch-more"></span>`:''}
+        ${h.leftOff?`<div class="ch-next"><b>→ Next:</b> ${esc(h.leftOff)}</div>`:''}
+      </div>`; }).join('') : '<div class="bodynote" style="padding-top:0">No call log in the profile yet.</div>'};
   }
   return {title:'', html:none};
 }
@@ -4457,6 +4475,19 @@ function openWidget(code, key){
   $('#coachSub').textContent='Client data — straight from the profile.';
   $('#coachBody').innerHTML=r.html;
   $('#coachDlg').showModal();
+  if(key==='callhist') wireCallHist();
+}
+// Call-history entries clamp "what happened" to 2 lines for a quick scan. After the dialog is
+// open (so layout/scrollHeight is real), flag the ones that actually overflow as tappable and
+// let a tap toggle the full call open/closed. Short calls stay static (no misleading affordance).
+function wireCallHist(){
+  $('#coachBody').querySelectorAll('.chentry').forEach(en=>{
+    const s=en.querySelector('.ch-s');
+    if(s && s.scrollHeight - s.clientHeight > 2){
+      en.classList.add('ch-clamped');
+      en.addEventListener('click', ()=> en.classList.toggle('ch-open'));
+    }
+  });
 }
 
 /* ---- log a call → write the profile back to Drive ---- */
