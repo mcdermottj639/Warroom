@@ -940,7 +940,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r147';
+const BUILD = 'build 2026-07-14 · r148';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2508,9 +2508,6 @@ function renderDashboard(jumpTo){
 
       <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>
       <div class="card">${noCallRows}</div>
-
-      <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
-      <div class="card">${coolRows}</div>
      </div>
      <div class="cccol">
       <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by ${oppLabel}</div>
@@ -2518,6 +2515,9 @@ function renderDashboard(jumpTo){
 
       <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal delivered, awaiting a yes/no · closest first</div>
       <div class="card">${pendRows}</div>
+
+      <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
+      <div class="card">${coolRows}</div>
 
       <div class="groupttl" id="sec-wins">🏆 Wins</div>
       <div class="card">

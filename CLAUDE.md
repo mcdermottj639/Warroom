@@ -358,10 +358,10 @@ client's name or "new notes" never hurt, but aren't required.)
 - **Command Center** sections (**seven** — the old **📌 Follow-ups** section was removed as low-value;
   tasks still live on the client page and in the Overview's Today's Focus). **On wide desktop (≥1200px)
   they flow two-up** (`renderDashboard` uses `.pad wide`; the section stack is wrapped in `.ccgrid`
-  → two `.cccol` flex columns — **left** = Upcoming / Missed / No Call / Cooling, **right** = Top 10 /
-  Pending / Wins; the KPI strip + filter chips stay full-width above). Below 1200px `.cccol` are plain
-  block so the sections stack in DOM order (left column then right: Upcoming → Missed → No Call →
-  Cooling → Top 10 → Pending → Wins) — phones/tablets are untouched. If you add a section, put it in
+  → two `.cccol` flex columns — **left** = Upcoming / Missed / No Call, **right** = Top 10 /
+  Pending / Cooling / Wins; the KPI strip + filter chips stay full-width above). Below 1200px `.cccol`
+  are plain block so the sections stack in DOM order (left column then right: Upcoming → Missed → No
+  Call → Top 10 → Pending → Cooling → Wins) — phones/tablets are untouched. If you add a section, put it in
   whichever `.cccol` keeps the left/right order contiguous. **Top 10 is click-to-sort (r137):** the **Transferable / P / EV** column headers
   (`.sortth`, `data-osort` = `transferable`|`prob`|`ev`) are buttons — the active one goes gold with a
   ▼ and the subtitle updates. State = `S.oppSort` (default `ev`). `oppCmp(key)` re-ranks the whole
