@@ -212,10 +212,16 @@ Updated: <Mon D, YYYY>
 - Response: <how to reframe it>
 
 ## Opening               ← optional but ideal: a VERBATIM, second-person opening to read aloud
-# Do NOT open with a personal icebreaker question — get straight into the recap.
-<Recap of where things stand, in their words — what matters most to them.>
+# NO personal icebreaker question. Easy-going, warm, contractions. Standing THREE-BEAT shape:
+# ① Warm recap of the picture — and when their money is spread across several places, name that
+#    it's scattered ("good money, just sitting in a few places, none of it really working together").
+<Warm recap of where things stand, in their words — framed as scattered if it's in several places.>
 
-<What today is about + drive to the next step. Each blank-line paragraph = one spoken beat.>
+<Their ONE real question / driver, stated plainly — "that's what I want to answer for you today.">
+
+<Today = the answer, with CONSOLIDATION as the mechanism: bringing the outside accounts alongside
+what they've already got at Empower so it works as one coordinated plan, then the drive to next step.
+Each blank-line paragraph = one spoken beat.>
 
 ## Prep Sheet            ← optional but ideal for proposal/decision calls (see §7)
 ### <Title> (table|cashflow|flags|angles)

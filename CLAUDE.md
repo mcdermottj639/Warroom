@@ -126,10 +126,15 @@ client's name or "new notes" never hurt, but aren't required.)
     (blank-line-separated paragraphs become spoken beats). Author it on every
     notes→profile write and in the morning Prep routine — the template generator is
     a fallback; a hand-written opening is far better. **Do NOT open with a personal
-    icebreaker question** (advisor preference) — get straight into the recap of what
-    matters in their words, then drive to today's purpose. (Both the app's generated
-    opening and its render of an authored `## Opening` now strip a leading question, so
-    an older profile that still has one won't show it.)
+    icebreaker question** (advisor preference). Voice = easy-going, warm, contractions.
+    **Standing THREE-BEAT shape:** ① warm recap of the picture — and when their money is
+    spread across several places, name that it's **scattered** ("good money, just sitting
+    in a few places, none of it really working together"); ② their **one real question /
+    driver**, stated plainly ("that's what I want to answer for you today"); ③ today = the
+    answer, with **consolidation as the mechanism** — bringing the outside accounts
+    alongside what they already hold at Empower so it works as one coordinated plan — then
+    the drive to next step. (Both the app's generated opening and its render of an authored
+    `## Opening` strip a leading question, so an older profile that still has one won't show it.)
   - **§8** = the **canonical profile template + "capture everything" routing
     table.** Follow it for every notes→profile write: every fact from the photo
     goes into the section the app reads it from; nothing summarized away.

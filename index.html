@@ -924,7 +924,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r139';
+const BUILD = 'build 2026-07-14 · r140';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -4368,10 +4368,12 @@ function coachContent(c, type){
         +`<p class="recap-note">Authored recap — read as written.</p>`;
       return {title:`🎬 Opening for ${fn}`, html};
     }
-    // Call-type-aware recap. A Proposal call recaps the picture and sets up presenting the plan;
-    // a Decision call recaps the SOLUTION + its value and drives to a decision; Enrollment closes
-    // the paperwork; Discovery stays exploratory. Per advisor preference, recaps do NOT open with a
-    // personal icebreaker question — they get straight into the recap.
+    // Call-type-aware recap in the standing THREE-BEAT shape (advisor preference):
+    //   ① warm recap of the picture — framed as scattered money when it's in several places,
+    //   ② their ONE real question / driver, stated plainly ("that's what I want to answer today"),
+    //   ③ today = the answer, with CONSOLIDATION as the mechanism that gets them there.
+    // Recaps never open with a personal icebreaker question. Decision/Proposal use the full shape;
+    // Enrollment (deal done) and Discovery (exploratory) keep the same warmth + consolidation frame.
     const ty = nextCallType(i);
     const A=(i.accounts||[]);
     const acctPhrase=a=>{ const cu=strip(a.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim();
@@ -4384,39 +4386,41 @@ function coachContent(c, type){
     const tname=target?('your '+strip(target.custodian).replace(/\s*[—-].*$/,'').replace(/\s*\(.*?\)/g,'').trim()):'your outside accounts';
     const sol=youify(strip(i.solutionOffered||''));
     const vTail='professional management, planning depth, and one team coordinating the full picture';
+    const scattered = accs.length>1;                 // money sitting in more than one place
+    const hasAnchor = A.some(a=>a.anchor);            // already holds something at Empower
+    const consClause = hasAnchor ? `bringing ${tname} alongside what you've already got here`
+                                 : `pulling ${tname} together with everything else`;
+
+    // ① warm recap of the picture (scattered-money framing when it's spread out)
+    const b1recap = accs.length
+      ? `${fn}, good to see you. Last time we laid it all out — ${pic}.${scattered?` Good money — just spread across a few different places right now, none of it really working together.`:''}`
+      : `${fn}, good to see you.`;
+    // ② their one real question / driver, stated plainly — the thing today answers
+    const b2question = reasons.length
+      ? `And the thing you keep coming back to is ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''} — that's what I want to answer for you today.`
+      : (objx ? `And the open question on your mind is ${deCap(objx)} — that's what I want to get you an answer on today.` : '');
 
     let beats, label;
     if(/Decision/.test(ty)){
       label='Decision-call recap';
-      const b1 = sol ? `${fn}, last time I laid out the plan — ${deCap(sol)}.`
-        : `${fn}, last time I walked you through my recommendation${prod?` — ${prod} for ${tname}`:` for ${tname}`}.`;
-      const b2 = reasons.length
-        ? `It's built around what matters to you — ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''} — with ${vTail}.`
-        : `The whole point is simplifying everything into one coordinated plan — ${vTail}.`;
-      const b3 = objx
-        ? `Today's about getting you to a decision — let's put the open question of ${deCap(objx)} to rest, and if it feels right, get it moving. Where's your head at on it?`
-        : `Today's about getting you to a decision — I'll answer any last questions, and if it feels right, we get it started and the transfer moving. Where's your head at on it?`;
-      beats=[b1,b2,b3];
+      const b3 = `So here's how we get you that answer: ${consClause} so it all works as one plan${prod?` (${prod})`:''}. ${objx&&reasons.length?`Let's put the open question of ${deCap(objx)} to rest, and if it feels right, get it moving.`:`I'll walk you through it, answer any last questions, and if it feels right we get the transfer moving.`} Where's your head at on it?`;
+      beats=[b1recap,b2question,b3];
     } else if(/Enroll/.test(ty)){
       label='Enrollment recap';
-      const b1 = `${fn}, you decided to move forward${prod?` with ${prod}`:(sol?` — ${deCap(sol)}`:'')} — love it.`;
+      const b1 = `${fn}, good to see you. You decided to move forward${prod?` with ${prod}`:(sol?` — ${deCap(sol)}`:'')} — love it.`;
       const b2 = reasons.length ? `This gets you exactly what you were after: ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''}.` : '';
-      const b3 = `Today we make it official — I'll get the accounts opened and the transfer kicked off. Let's get the paperwork going.`;
+      const b3 = `Today we make it official — ${consClause} and getting it all under one roof: I'll get the accounts opened and the transfer kicked off. Let's get the paperwork going.`;
       beats=[b1,b2,b3];
     } else if(/Discovery|Intro/.test(ty)){
       label='Discovery recap';
-      const b1 = accs.length ? `${fn}, last time we started mapping your picture — ${pic}.` : `${fn}, thanks for making the time.`;
+      const b1 = accs.length ? `${fn}, good to see you. Last time we started mapping your picture — ${pic}.${scattered?` A lot of good money, just spread across a few places.`:''}` : `${fn}, good to see you — thanks for making the time.`;
       const b2 = reasons.length ? `What I'm hearing matters most to you is ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''}.` : '';
-      const b3 = `Today I want to really understand the full picture and what you're hoping to get out of it — then show where Empower could fit${prod?` (likely ${prod})`:''}. Sound good?`;
+      const b3 = `Today I want to really understand the full picture and what you're hoping to get out of it — then show what ${consClause} could do for you${prod?`, likely ${prod}`:''}. Sound good?`;
       beats=[b1,b2,b3];
     } else {
-      label='Opening recap'; // Proposal (default): recap → main issue → present the plan today
-      const b1 = `${fn}, last time we walked through the full picture — ${pic}.`;
-      let b2='';
-      if(reasons.length) b2=`The main thing I heard is ${deCap(reasons[0])}`+(reasons[1]?`, and ${deCap(reasons[1])}`:'')+(objx?` — with the open question of whether it's the right move (${deCap(objx)})`:'')+'.';
-      else if(objx) b2=`The main thing I heard is the open question of ${deCap(objx)}.`;
-      const b3 = `Today I want to show what your current path looks like, where the gaps are, and how consolidating ${tname} into Empower could simplify everything into one coordinated plan${prod?` (${prod})`:''} — ${vTail}.`;
-      beats=[b1,b2,b3];
+      label='Opening recap'; // Proposal (default): recap → their question → present the plan, consolidation is how
+      const b3 = `So here's what today's about: showing you what your current path looks like, where the gaps are, and how ${consClause} pulls it all into one coordinated plan${prod?` (${prod})`:''} — ${vTail}.`;
+      beats=[b1recap,b2question,b3];
     }
     const html=beats.filter(Boolean).map(p=>`<p class="recap">${esc(p)}</p>`).join('')
       +`<p class="recap-note">Read as written · name the specifics so they feel remembered.</p>`;
