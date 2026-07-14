@@ -924,7 +924,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r141';
+const BUILD = 'build 2026-07-14 · r142';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -4388,22 +4388,41 @@ function coachContent(c, type){
     const vTail='professional management, planning depth, and one team coordinating the full picture';
     const scattered = accs.length>1;                 // money sitting in more than one place
     const hasAnchor = A.some(a=>a.anchor);            // already holds something at Empower
-    // The consolidation ANGLE is chosen from THIS client's situation — the tone stays constant
-    // (easy-going); only the reason/framing changes per client. Order = most specific signal first:
-    //   · self-directed / no advisor → "a lot to steer alone" + get one team on it
-    //   · holds something at Empower already → bring the rest ALONGSIDE the anchor
-    //   · money in several places → SCATTERED, under one roof
-    //   · a single outside account → no scatter framing; just get it into a real plan
-    const cblob=((i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o&&o.objection||'').join(' ')+' '+(i.specialFlags||[]).join(' ')+' '+(i.complications||[]).join(' ')+' '+(i.personalText||i.personal||'')).toLowerCase();
-    const selfDirected=/self-?directed|no advisor|without an advisor|manages?\s+(?:it|my|his|her|their)\s+own|\bdiy\b|on (?:his|her|their|my) own|by (?:him|her|my|them)self/.test(cblob);
-    const consClause = selfDirected ? `bringing in one team to steer ${tname} alongside everything else`
-      : hasAnchor ? `bringing ${tname} alongside what you've already got here`
-      : `pulling ${tname} together with everything else`;
-    // ① warm recap of the picture — the framing LINE is drawn from the same client signal
-    const frameLine = !accs.length ? ''
-      : selfDirected ? ` You've been running all of this yourself — and doing a solid job — but it's a lot to steer alone.`
-      : scattered ? ` Good money — just spread across a few different places right now, none of it really working together.`
-      : ``;
+    const alongside = hasAnchor ? ' alongside what you already hold here' : '';
+    // The consolidation ANGLE (the REASON money should move) is chosen from THIS client's notes —
+    // the tone stays constant (easy-going); only the reason/framing changes per client. This is the
+    // full menu of why people move/consolidate money; each angle fires ONLY on a real signal
+    // (fidelity — never assert a fee/performance problem the notes don't show), most concrete first.
+    const acctBlob = A.map(a=>`${a.custodian||''} ${a.tag||''}`).join(' ');
+    const cblob=((i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o&&o.objection||'').join(' ')+' '+(i.specialFlags||[]).join(' ')+' '+(i.complications||[]).join(' ')+' '+(i.motivation||[]).join(' ')+' '+acctBlob+' '+((i.fee&&`${i.fee.from||''} ${i.fee.to||''}`)||'')+' '+(i.personalText||i.personal||'')).toLowerCase();
+    const S={
+      fee:        !!(i.fee&&(i.fee.from||i.fee.savings)) || /\bfees?\b|expense ratio|expense-ratio|\bloads?\b|loaded fund|paying too much|too much in fees|high[- ]?cost|costs? too much|\b1(?:\.\d+)?\s?%|\b0\.\d+\s?%/.test(cblob),
+      idleCash:   A.some(a=>a.value && /\bcash\b|checking|savings|hysa|high[- ]?yield|money[- ]?market|\bcd\b|\bmmf\b/i.test(`${a.custodian||''} ${a.tag||''}`)) || /sitting in cash|cash drag|too much cash|idle cash|uninvested|not invested|parked in cash/.test(cblob),
+      rollover:   /former[- ]?employer|old 401|previous employer|prior employer|orphan|left (?:my|his|her|their|the) (?:job|employer)|rollover|roll (?:it |that )?over/.test(cblob),
+      planning:   /no (?:real )?plan\b|without a plan|no financial plan|no strategy|no roadmap|needs? a plan|wants? (?:a )?plan|planning help|hands[- ]?off|wants? (?:it )?managed|managed (?:plan|money|account)/.test(cblob),
+      selfDir:    /self-?directed|no advisor|without an advisor|manages?\s+(?:it|my|his|her|their)\s+own|\bdiy\b|on (?:his|her|their|my) own|by (?:him|her|my|them)self/.test(cblob),
+      concentr:   /concentrat|single[- ]?stock|company stock|one position|one stock|too much in one|crypto/.test(cblob),
+      perform:    /underperform|under-perform|lagging|not (?:really )?grow|barely (?:moved|grown|grew)|gone nowhere|(?:hasn't|haven't) grown|flat for|been flat|poor return|weak return|returns?[^.]{0,24}(?:bad|poor|low|flat|nowhere|down)/.test(cblob),
+      service:    /no service|never hear from|can't reach|hard to reach|robo|call center|no (?:human|real person)|ignored|neglected/.test(cblob),
+    };
+    // [signal, ① frame clause appended to the recap, ③ mechanism (how consolidating fixes it)]
+    const ANGLES=[
+      [S.fee,      ` What jumps out, honestly, is how much is quietly going to fees every year — a real drag on the balance.`,           `moving ${tname} into a lower-cost home${alongside}`],
+      [S.idleCash, ` A big piece of it is just sitting in cash — safe, sure, but not really working for you.`,                            `putting that cash to work${alongside}`],
+      [S.rollover, ` And that old 401(k) is still sitting where you left it, kind of orphaned.`,                                          `rolling that old 401(k) over${alongside}`],
+      [S.perform,  ` And honestly it hasn't been doing much lately — the money's there, it's just not really growing.`,                   `putting ${tname} under active management${alongside}`],
+      [S.service,  ` And it sounds like you haven't really had anyone in your corner on it — no one you can actually pick up the phone and call.`, `bringing ${tname} somewhere you've got a real team${alongside}`],
+      [S.planning, ` The piece that's been missing is a real plan around it all — not just the investments, the whole picture.`,          `building a real plan around all of it`],
+      [S.selfDir,  ` You've been running all of this yourself — and doing a solid job — but it's a lot to steer alone.`,                   `bringing in one team to steer ${tname}${alongside}`],
+      [S.concentr, ` Right now a lot of it is riding on one spot — fine when it's working, but that's a lot leaning on one thing.`,        `spreading it out so it's not all on one bet`],
+      [scattered,  ` Good money — just spread across a few different places right now, none of it really working together.`,             hasAnchor?`bringing ${tname} alongside what you've already got here`:`pulling ${tname} together with everything else`],
+      [hasAnchor,  ``,                                                                                                                    `bringing ${tname} alongside what you've already got here`],
+      [true,       ``,                                                                                                                    `pulling ${tname} together into one place`],
+    ];
+    const angle = ANGLES.find(a=>a[0]) || ANGLES[ANGLES.length-1];
+    const frameLine = accs.length ? angle[1] : '';
+    const consClause = angle[2];
+    // ① warm recap of the picture + the client-specific reason it should move
     const b1recap = accs.length
       ? `${fn}, good to see you. Last time we laid it all out — ${pic}.${frameLine}`
       : `${fn}, good to see you.`;

@@ -215,12 +215,14 @@ Updated: <Mon D, YYYY>
 # NO personal icebreaker question. TONE IS CONSTANT for every client: easy-going, warm, contractions.
 # What VARIES per client is the REASON/ANGLE to consolidate — draw it from THAT client's info, don't
 # reuse one framing for everyone. Standing THREE-BEAT shape:
-# ① Warm recap of the picture. Pick the framing from the client's situation:
-#    · self-directed / no advisor → "you've been running all this yourself… a lot to steer alone"
-#    · already holds money at Empower → "bring the rest alongside what you've already got here"
-#    · money in several places → "scattered, none of it really working together"
-#    · a single account → no scatter framing; just get it into a real plan.
-<Warm recap of where things stand, in their words — framing chosen from their actual situation.>
+# ① Warm recap of the picture + the REASON this client's money should move. Pick whichever the
+#    notes actually support (most concrete first) — high fees (mgmt or fund) · idle cash not invested
+#    · orphaned old 401(k) to roll over · underperformance · poor/no service (no one to call, robo) ·
+#    no real financial planning (just investments) · self-directed / no advisor ("a lot to steer
+#    alone") · concentration risk (one stock/crypto) · scattered across places · already holds money
+#    at Empower (bring the rest alongside the anchor). Fidelity: don't assert a fee/return problem
+#    the notes don't show.
+<Warm recap of where things stand, in their words + the client-true reason it should move.>
 
 <Their ONE real question / driver, stated plainly — "that's what I want to answer for you today.">
 
