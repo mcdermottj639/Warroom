@@ -566,15 +566,19 @@ The file is large; these are the load-bearing pieces a new session will likely t
 - **Responsive width (r132):** the shared content container is `.pad` (`max-width:1000px`). The
   **client-intel page** (`renderDetail`) opts into a wider desktop layout via `.pad wide` — at
   **≥1200px** it grows to ~1460px (1680px ≥1750px) and the **Prep Sheet** cards flow **two-up**.
-  **Prep cards start collapsed and expand-to-top (r135):** `panel(...)` renders every Prep card
-  collapsed (the old `idx===0` open-first is gone); `.prepgrid` is a **flex-wrap 2-up row** (NOT
-  column-masonry — that stranded an expanded card down a column) and an open card gets **`order:-1`**
-  so whichever cards you expand float to the **top row, side-by-side, source-order left→right**
-  (e.g. X-Ray + Cashflow), with collapsed headers packing below. `align-items:flex-start` keeps a
-  collapsed header short beside a tall open card on a boundary row; uniform collapsed rows have no
-  grey voids. The `.ahead` click-toggle (adds/removes `.open`) drives it — the reorder is pure CSS,
-  no JS. On phone/tablet `.prepgrid` is an unstyled block, so cards stack full-width (still collapsed
-  by default). All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
+  **Prep cards start collapsed + JS masonry, no grey voids (r136):** `panel(...)` renders every Prep
+  card collapsed (the old `idx===0` open-first is gone). `layoutPrep()` (runs on render, on each
+  expand/collapse via the `.ahead` toggle, and on resize) does a **two-column greedy masonry**: it
+  caches the cards on `grid._cards`, then places **expanded cards first (original order)** — one atop
+  each column, so whichever two you open read as the **top row side-by-side** (e.g. X-Ray + Cashflow)
+  — then drops every card into the **currently-shorter column**, so collapsed headers pack up *under*
+  a short expanded card and **fill the gap** (this is the fix for the grey voids a plain flex/grid
+  row left below the shorter of two unequal expanded cards). CSS: `.prepgrid.masonry` = flex row of
+  two `.prepcol` flex-columns. Below 1200px `layoutPrep` strips `.masonry` and appends cards straight
+  back into `.prepgrid` (plain single-column stack, still collapsed by default). Earlier attempts —
+  `column-count` masonry (r134, couldn't force expanded-to-top) and a flex-wrap `order:-1` row (r135,
+  left a void under the shorter expanded card) — were superseded; use `layoutPrep`, don't reintroduce
+  a pure-CSS two-up. All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
   layout is untouched; the Command Center + editor stay at 1000px (no `wide` class). If a new
   detail-page section should also fill the desktop width, put it inside `.pad.wide` and gate any
   multi-column CSS on `@media(min-width:1200px)`.

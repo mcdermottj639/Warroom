@@ -593,14 +593,13 @@
      `.pad.wide`; the Command Center / editor keep their current width. */
   @media (min-width:1200px){
     .pad.wide{max-width:1460px}
-    /* Prep Sheet cards flow two-up. Flex row (not column-masonry): cards default collapsed, and
-       an EXPANDED card (.open) floats to the top via order:-1 — so whichever two you open show as
-       the top row (X-Ray + Cashflow), source-order left→right, not stranded down a masonry column.
-       align-items:flex-start keeps a collapsed header short next to a tall open card on a boundary
-       row. Collapsed rows are uniform-height headers, so they pack with no grey voids. */
-    .pad.wide .prepgrid{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
-    .pad.wide .prepgrid .apanel{flex:0 0 calc(50% - 4px);margin:0}
-    .pad.wide .prepgrid .apanel.open{order:-1}
+    /* Prep Sheet cards flow two-up as a JS masonry (layoutPrep): two flex columns, each card
+       greedily dropped into the shorter one so collapsed headers pack up UNDER a short expanded
+       card — no grey voids — while the expanded cards sit atop the columns as the top row. All
+       cards start collapsed. Layout runs on render, on each expand/collapse, and on resize. */
+    .pad.wide .prepgrid.masonry{display:flex;gap:8px;align-items:flex-start}
+    .pad.wide .prepgrid.masonry .prepcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:8px}
+    .pad.wide .prepgrid.masonry .apanel{margin:0}
     /* give the data cards a touch more presence at width */
     .pad.wide .kstrip{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
   }
@@ -913,7 +912,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r135';
+const BUILD = 'build 2026-07-14 · r136';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2982,6 +2981,24 @@ function tldrBody(c){
   ].filter(Boolean).join('');
   return `${lead?`<div class="tl-lead">${esc(lead)}</div>`:''}<ul class="tl-list">${items}</ul>`;
 }
+// Prep Sheet masonry (wide desktop only). Two-column greedy pack so there are NO grey voids:
+// EXPANDED cards go first (original order) — one lands atop each column, so whichever two you
+// open read as the top row side-by-side — then every card (open + collapsed) is dropped into the
+// currently-shorter column, so collapsed headers flow up UNDER a short expanded card and fill the
+// gap. Below 1200px it reverts to a plain single-column stack (cards straight back into .prepgrid).
+function layoutPrep(){
+  const grid=document.querySelector('.prepgrid'); if(!grid) return;
+  const cards = grid._cards || (grid._cards = Array.from(grid.querySelectorAll('.apanel')));
+  grid.textContent='';
+  if(!window.matchMedia('(min-width:1200px)').matches){        // phone/tablet: plain stack
+    grid.classList.remove('masonry'); cards.forEach(c=>grid.appendChild(c)); return;
+  }
+  grid.classList.add('masonry');
+  const colA=document.createElement('div'), colB=document.createElement('div');
+  colA.className=colB.className='prepcol'; grid.append(colA,colB);
+  const open=cards.filter(c=>c.classList.contains('open')), shut=cards.filter(c=>!c.classList.contains('open'));
+  [...open,...shut].forEach(c=> (colA.offsetHeight<=colB.offsetHeight?colA:colB).appendChild(c));
+}
 function renderDetail(c){
  try{
   const i = c.intel;
@@ -3094,7 +3111,9 @@ function renderDetail(c){
   </div>`;
 
   document.querySelectorAll('.ahead').forEach(h=>
-    h.onclick = ()=> h.parentElement.classList.toggle('open'));
+    h.onclick = ()=>{ h.parentElement.classList.toggle('open'); layoutPrep(); });
+  layoutPrep();   // initial masonry pass (all collapsed → tidy 2-col stack of headers)
+  if(!window._prepResizeHooked){ window._prepResizeHooked=true; window.addEventListener('resize', layoutPrep); }
   document.querySelectorAll('.secnav button').forEach(b=> b.onclick = ()=>{
     const el = document.getElementById(b.dataset.target);
     if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
