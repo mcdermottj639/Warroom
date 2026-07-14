@@ -563,4 +563,12 @@ The file is large; these are the load-bearing pieces a new session will likely t
 - Pop-up/coaching text = verbatim spoken lines; put advice/meta in a footnote.
 - Approximate values: "about" or "≈", never bare `~` in profiles.
 - Keep new code in the file's existing compact idiom.
+- **Responsive width (r132):** the shared content container is `.pad` (`max-width:1000px`). The
+  **client-intel page** (`renderDetail`) opts into a wider desktop layout via `.pad wide` — at
+  **≥1200px** it grows to ~1460px (1680px ≥1750px) and the **Prep Sheet** cards flow **two-up**
+  (`.prepgrid` → 2-col grid; on phone/tablet `.prepgrid` is an unstyled block, so cards stack as
+  before). All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
+  layout is untouched; the Command Center + editor stay at 1000px (no `wide` class). If a new
+  detail-page section should also fill the desktop width, put it inside `.pad.wide` and gate any
+  multi-column CSS on `@media(min-width:1200px)`.
 - The current build is in the footer (`const BUILD`); bump it every shippable change.
