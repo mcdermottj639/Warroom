@@ -332,6 +332,15 @@ client's name or "new notes" never hurt, but aren't required.)
   session by `recordOverviewSnap` and read back to power the trend chips (#7) and the
   since-last-visit strip (#6). Baselines are **frozen once per session** (`S.ovSnapSession`) so
   theme/midnight re-renders don't reset the deltas to zero. `renderOverview()`.
+  **Fits-on-one-screen on a wide dashboard (r145):** the charts (`.velsvg`) are height-capped
+  (`max-height:190px`) so they can't balloon when their column is wide — before this, the
+  Wins & Momentum bars scaled to the full column width (viewBox 340×130) and grew ~450px tall on a
+  big monitor, shoving the six analytic panels below the fold. The Wins chart is also width-capped
+  (`.ovwins-chart max-width:520px`). At **≥1300px** a dashboard block lays the six hero KPIs out in
+  **one row** (`.ovhero` → `repeat(6,1fr)`) and the six analytic panels **3-up** (`.ovcharts` →
+  `repeat(3,1fr)`, so 2 rows not 3) with tighter `.ovinner`/`.ovhero`/`.ovwins` spacing and smaller
+  tiles — so the whole board fits one screen (collapse Today's Focus for the tightest fit). All behind
+  `min-width` so phones/tablets are untouched.
 - **"This Week" window** (`thisWeekEnd(today0)`, since r118) — the Upcoming "This Week" tab (Command
   Center) and the Overview "N this week" KPI both bound on the **coming Sunday (23:59)**, but **from
   Saturday noon onward (and all day Sunday) the window rolls forward a full week**, so the weekend is
