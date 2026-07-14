@@ -593,12 +593,14 @@
      `.pad.wide`; the Command Center / editor keep their current width. */
   @media (min-width:1200px){
     .pad.wide{max-width:1460px}
-    /* Prep Sheet cards flow two-up so they fill the width instead of one tall single column.
-       Masonry via CSS multi-column (not grid): grid locks each row to its tallest card and
-       leaves grey voids beside/below the short ones — columns pack cards tightly up each
-       column instead. break-inside:avoid keeps every card whole. */
-    .pad.wide .prepgrid{column-count:2;column-gap:8px}
-    .pad.wide .prepgrid .apanel{margin:0 0 8px;break-inside:avoid;-webkit-column-break-inside:avoid}
+    /* Prep Sheet cards flow two-up. Flex row (not column-masonry): cards default collapsed, and
+       an EXPANDED card (.open) floats to the top via order:-1 — so whichever two you open show as
+       the top row (X-Ray + Cashflow), source-order left→right, not stranded down a masonry column.
+       align-items:flex-start keeps a collapsed header short next to a tall open card on a boundary
+       row. Collapsed rows are uniform-height headers, so they pack with no grey voids. */
+    .pad.wide .prepgrid{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+    .pad.wide .prepgrid .apanel{flex:0 0 calc(50% - 4px);margin:0}
+    .pad.wide .prepgrid .apanel.open{order:-1}
     /* give the data cards a touch more presence at width */
     .pad.wide .kstrip{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
   }
@@ -911,7 +913,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r134';
+const BUILD = 'build 2026-07-14 · r135';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -3022,7 +3024,7 @@ function renderDetail(c){
   // Prep Sheet — Claude-authored cheat-sheet cards (Fee Delta / Income & Cash Flow / Planning Flags / Strategy Angles)
   const prepCards = i.prep || [];
   const prepGroup = prepCards.map((card,idx)=>
-    panel(prepIcon(card.type)+' '+esc(card.title||''), '', prepCardBody(card, idx), 'prepbody', idx===0)).join('');
+    panel(prepIcon(card.type)+' '+esc(card.title||''), '', prepCardBody(card, idx), 'prepbody', false)).join('');  // all collapsed by default; expanded cards float top-2-up (.open→order:-1)
   // On-Call Helper section removed — the four top coach buttons (Opening / Questions /
   // Pitch & Why Empower / Next-step play) cover on-call boosts better.
   const helper = '';

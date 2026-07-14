@@ -565,11 +565,16 @@ The file is large; these are the load-bearing pieces a new session will likely t
 - Keep new code in the file's existing compact idiom.
 - **Responsive width (r132):** the shared content container is `.pad` (`max-width:1000px`). The
   **client-intel page** (`renderDetail`) opts into a wider desktop layout via `.pad wide` — at
-  **≥1200px** it grows to ~1460px (1680px ≥1750px) and the **Prep Sheet** cards flow **two-up**
-  (`.prepgrid` → **masonry via CSS `column-count:2`**, r134 — NOT a grid: a 2-col grid locked each
-  row to its tallest card and left grey voids beside the short ones, so cards now pack tightly up
-  each column with `break-inside:avoid`; on phone/tablet `.prepgrid` is an unstyled block, so cards
-  stack as before). All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
+  **≥1200px** it grows to ~1460px (1680px ≥1750px) and the **Prep Sheet** cards flow **two-up**.
+  **Prep cards start collapsed and expand-to-top (r135):** `panel(...)` renders every Prep card
+  collapsed (the old `idx===0` open-first is gone); `.prepgrid` is a **flex-wrap 2-up row** (NOT
+  column-masonry — that stranded an expanded card down a column) and an open card gets **`order:-1`**
+  so whichever cards you expand float to the **top row, side-by-side, source-order left→right**
+  (e.g. X-Ray + Cashflow), with collapsed headers packing below. `align-items:flex-start` keeps a
+  collapsed header short beside a tall open card on a boundary row; uniform collapsed rows have no
+  grey voids. The `.ahead` click-toggle (adds/removes `.open`) drives it — the reorder is pure CSS,
+  no JS. On phone/tablet `.prepgrid` is an unstyled block, so cards stack full-width (still collapsed
+  by default). All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
   layout is untouched; the Command Center + editor stay at 1000px (no `wide` class). If a new
   detail-page section should also fill the desktop width, put it inside `.pad.wide` and gate any
   multi-column CSS on `@media(min-width:1200px)`.
