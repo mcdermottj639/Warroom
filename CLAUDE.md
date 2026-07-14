@@ -344,8 +344,8 @@ client's name or "new notes" never hurt, but aren't required.)
   → **📵 Missed Calls** → Top 10 → **⏳ Pending Decisions** → **📇 No Call Booked** →
   Follow-ups (tasks owed, next 2 weeks) → Cooling → Wins. **On wide desktop (≥1200px) these
   flow two-up** (`renderDashboard` uses `.pad wide`; the section stack is wrapped in `.ccgrid`
-  → two `.cccol` flex columns — **left** = Upcoming / Top 10 / Pending / Cooling / Wins, **right**
-  = Missed / No Call / Follow-ups; the KPI strip + filter chips stay full-width above). Below
+  → two `.cccol` flex columns — **left** = Upcoming / Top 10 / No Call / Cooling / Wins, **right**
+  = Missed / Pending / Follow-ups; the KPI strip + filter chips stay full-width above). Below
   1200px `.cccol` are plain block so the sections stack in the same single-column order as before —
   phones/tablets are untouched. If you add a section, put it in whichever `.cccol` keeps the left/right
   order contiguous. **Top 10 is click-to-sort (r137):** the **Transferable / P / EV** column headers
