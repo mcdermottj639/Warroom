@@ -924,7 +924,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r137';
+const BUILD = 'build 2026-07-14 · r138';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2505,21 +2505,11 @@ function renderDashboard(jumpTo){
         <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsFuture}</tbody></table>
       </div>
 
-      <div class="groupttl" id="sec-missed">📵 Missed Calls — a scheduled call that passed, reschedule now</div>
-      <div class="card">${missedRows}</div>
-
       <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by ${oppLabel}</div>
       <div class="card"><table class="dtbl" id="oppTbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r sortth" data-osort="transferable" data-oslabel="Transferable" role="button" tabindex="0" title="Sort by transferable assets">Transferable</th><th class="r col-opt sortth" data-osort="prob" data-oslabel="P" role="button" tabindex="0" title="Sort by chance to close">P</th><th class="r sortth" data-osort="ev" data-oslabel="EV" role="button" tabindex="0" title="Sort by expected value">EV</th></tr></thead><tbody id="oppBody">${oppRows}</tbody></table></div>
 
       <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal delivered, awaiting a yes/no · closest first</div>
       <div class="card">${pendRows}</div>
-     </div>
-     <div class="cccol">
-      <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>
-      <div class="card">${noCallRows}</div>
-
-      <div class="groupttl" id="sec-tasks">📌 Follow-ups — what you owe clients (next 2 weeks)</div>
-      <div class="card">${taskRows}</div>
 
       <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
       <div class="card">${coolRows}</div>
@@ -2535,6 +2525,16 @@ function renderDashboard(jumpTo){
         </div>
         <div id="winBody"></div>
       </div>
+     </div>
+     <div class="cccol">
+      <div class="groupttl" id="sec-missed">📵 Missed Calls — a scheduled call that passed, reschedule now</div>
+      <div class="card">${missedRows}</div>
+
+      <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>
+      <div class="card">${noCallRows}</div>
+
+      <div class="groupttl" id="sec-tasks">📌 Follow-ups — what you owe clients (next 2 weeks)</div>
+      <div class="card">${taskRows}</div>
      </div>
     </div>
     <div class="fabgroup">
