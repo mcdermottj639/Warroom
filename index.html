@@ -294,17 +294,6 @@
      the columns to roughly equal height → tightest total. Order is column-major (fine — order-agnostic). */
   .ovcharts{column-count:2;column-gap:16px;margin-top:16px}
   @media(max-width:820px){.ovcharts{column-count:1}}
-  /* Dashboard-wide (≥1300px): fit the whole board on one screen — 6 KPIs one row, 3-column masonry,
-     tighter vertical rhythm, smaller tiles. Charts are height-capped below so they don't balloon. */
-  @media(min-width:1300px){
-    .ovinner{padding:18px 26px 22px}
-    .ovhero{grid-template-columns:repeat(6,1fr);margin:12px 0 12px;gap:12px}
-    .ovtile{padding:14px 18px 13px}
-    .ovtile .ot-v{font-size:30px;margin-top:5px}
-    .ovwins{padding:6px 16px;margin-bottom:10px}
-    .ovcharts{column-count:3;column-gap:14px;margin-top:8px}
-    .ovcharts>div{margin-bottom:14px}
-  }
   /* each card = natural height; keep whole cards from splitting across columns */
   .ovcharts>div{break-inside:avoid;-webkit-column-break-inside:avoid;margin-bottom:16px;min-width:0}
   .ovcharts>div>.card{display:flex;flex-direction:column}
@@ -313,6 +302,8 @@
   .velsvg{width:100%;height:auto;max-height:190px;margin:0 auto;display:block;overflow:visible}
   .velsvg .velx{fill:#9fb0c9;font-size:8px;font-weight:700;letter-spacing:.2px}
   .velsvg .actwin{font-size:9px;font-weight:800;fill:#6ee7b7}
+  /* stock-style volume sub-pane (proposal / decision calls per week) — count labels on the bars */
+  .velsvg .velvn{fill:#cfd9ea;font-size:7px;font-weight:800}
   .gauges{display:flex;gap:14px;justify-content:space-around;align-items:flex-start;padding:8px 0 4px;flex-wrap:wrap}
   .gauge{position:relative;width:120px;text-align:center}
   .gauge .g-ring{position:relative;width:98px;height:98px;margin:0 auto}
@@ -397,6 +388,79 @@
   .ovexp{margin:2px 0 8px;padding:2px 0 2px 10px;border-left:2px solid rgba(96,165,250,.3)}
   .ovexp .ovrow{padding:7px 4px}
   .ovexp .ovrow .when{min-width:58px;color:var(--ink-dim);text-shadow:none;font-size:9.5px}
+  /* Dashboard-wide (≥1300px): the board becomes a FIXED one-screen grid that fills the whole
+     viewport (100% height, no page scroll) — one-line header, 6 KPIs in a row, then a 4-column
+     body: Today's Focus is a permanent LEFT RAIL (always expanded, scrolls internally) with the
+     Wins/Momentum strip docked under it, and the six analytic panels stretch across the remaining
+     3 columns × 2 rows so every pixel of a 1920×1080 monitor is used. Below 1300px nothing here
+     applies — phones/tablets keep the stacked flow + 2-col masonry. */
+  @media(min-width:1300px){
+    .ovwrap{height:100%;display:flex;flex-direction:column}
+    .ovinner{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 22px 12px}
+    .ovbar{margin-bottom:8px;padding-bottom:8px}
+    .ovbar-actions button{padding:6px 11px;font-size:11.5px;border-radius:9px}
+    .ovtop{display:flex;align-items:center;gap:10px 16px;margin:0 0 8px;flex-wrap:wrap}
+    .ovtop .ovhead{display:flex;align-items:baseline;gap:12px;min-width:0}
+    .ovtop .ovhead h2{font-size:17px;white-space:nowrap}
+    .ovtop .ovhead .meta{margin-top:0;font-size:11.5px;white-space:nowrap}
+    .ovtop .ovsince{margin:0 0 0 auto;padding:5px 12px;font-size:11.5px}
+    /* the body grid — rows: hero / top panels / bottom panels / wins (col-1 footer) */
+    .ovbody{flex:1;min-height:0;display:grid;gap:10px 12px;
+      grid-template-columns:.95fr 1fr 1fr 1.1fr;grid-template-rows:auto .72fr 1fr auto}
+    .ovhero{grid-area:1/1/2/5;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:0}
+    .ovtile{padding:11px 15px 10px;border-radius:13px}
+    .ovtile .ot-l{font-size:9.5px;letter-spacing:.7px}
+    .ovtile .ot-v{font-size:25px;margin-top:4px}
+    .ovtile .ot-n{font-size:10px;margin-top:4px}
+    .ovtile .ot-ring{width:27px;height:27px;top:10px;right:12px}
+    .ovtile .cnrs{inset:7px}
+    .ovtile .ot-go{bottom:9px;right:12px;font-size:13px}
+    /* Today's Focus — permanent left rail (renderOverview forces it open ≥1300px) */
+    .ovfocwrap{grid-area:2/1/4/2;display:flex;flex-direction:column;min-height:0}
+    .ovwrap .ovfocus{flex:1;min-height:0;overflow-y:auto;margin-bottom:0}
+    .ovfocus-hd{cursor:default}
+    .ovfocus-caret{display:none}
+    .ovwrap .ovrow{padding:5px 4px}
+    .ovrow .nm{font-size:12px} .ovrow .sub{font-size:10.5px} .ovrow .when{min-width:64px;font-size:10px}
+    /* Wins & Momentum — docked under the Focus rail: chart rides full-width on top,
+       goal ring + buttons beneath it (bigger axis type so the rail chart stays legible) */
+    .ovwins{grid-area:4/1/5/2;margin:0;padding:6px 12px 5px;gap:2px 12px}
+    .ovwins-chart{order:-1;flex:1 1 100%;max-width:none;min-width:0}
+    .ovwins .velsvg{max-height:none}
+    .ovwins .velsvg .velx{font-size:11px}
+    .ovwins .velsvg .winn{font-size:11px}
+    .ovwins-goal{gap:8px}
+    .ovwins .g-ring{width:44px;height:44px}
+    .ovwins .g-num{font-size:11.5px}
+    .ovwins .g-lbl{font-size:8.5px;margin-top:3px}
+    .ovwins .g-sub{font-size:8.5px;margin-top:1px}
+    .ovwins .ovgoalbtns{flex-direction:row}
+    .ovwins .velsub{margin-bottom:2px}
+    /* the six analytic panels become direct grid items (display:contents) and stretch to fill:
+       top row = Win Probability | Stage Funnel | Objection Handling (short stat panels),
+       bottom row (taller — it absorbs the wins-strip row) = Velocity | Activity | Discovery */
+    .ovcharts{display:contents}
+    .ovcharts>div{display:flex;flex-direction:column;min-height:0;margin:0}
+    .ovcharts>div>.card{flex:1;min-height:0;overflow:auto;padding:11px 14px;margin:0}
+    .ovcharts>div:nth-child(1){grid-area:3/2/5/3}   /* Pipeline Velocity */
+    .ovcharts>div:nth-child(2){grid-area:2/2/3/3}   /* Win Probability */
+    .ovcharts>div:nth-child(3){grid-area:3/3/5/4}   /* Activity Trend */
+    .ovcharts>div:nth-child(4){grid-area:2/3/3/4}   /* Stage Funnel */
+    .ovcharts>div:nth-child(5){grid-area:3/4/5/5}   /* Discovery Depth */
+    .ovcharts>div:nth-child(6){grid-area:2/4/3/5}   /* Objection Handling */
+    .ovbody .groupttl{margin:0 0 5px;font-size:10px}
+    .velcard .velsvg{flex:1;min-height:0;max-height:none}
+    .gauges{flex:1;align-items:center;padding:0}
+    .ovcharts .gauge{width:118px}
+    .ovcharts .gauge .g-ring{width:92px;height:92px}
+    .ovcharts .gauge .g-num{font-size:22px}
+    .funnelfill{justify-content:space-evenly}
+    /* let the list panels breathe into their slot instead of clustering at the top */
+    .ovcharts>div:nth-child(5)>.card,.ovcharts>div:nth-child(6)>.card{justify-content:space-evenly}
+    .covrow{padding:2px 0} .covlbl{font-size:10.5px}
+    .objrow{padding:3px 0} .objlbl{font-size:10.5px}
+    .ovcharts .bodynote{font-size:9.5px}
+  }
   .nextcall{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);
     border-left:4px solid var(--gold);border-radius:11px;padding:12px 16px;margin-bottom:16px}
   .nextcall .nc-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;flex:none}
@@ -947,7 +1011,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r150';
+const BUILD = 'build 2026-07-14 · r151';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2041,8 +2105,10 @@ function renderOverview(){
     : '<div class="bodynote" style="padding:4px 0">Nothing due today and no calls on the books. 👌</div>';
 
   // Today's Focus is a collapsible card (state persisted; default open). When folded, the header
-  // still carries a one-line count summary so it stays useful.
-  const focusCollapsed = localStorage.getItem('wr_focusCollapsed')==='1';
+  // still carries a one-line count summary so it stays useful. On the wide one-screen board
+  // (≥1300px) it's a permanent left rail — always open, scrolls internally.
+  const ovWide = window.innerWidth>=1300;
+  const focusCollapsed = !ovWide && localStorage.getItem('wr_focusCollapsed')==='1';
   const focusSummary = (()=>{ const b=[]; if(missed.length)b.push(`📵 ${missed.length}`);
     if(todays.length)b.push(`📞 ${todays.length}`); if(dueTasks.length)b.push(`📌 ${dueTasks.length}${overdueCount?'!':''}`);
     return b.length?b.join(' · '):'all clear 👌'; })();
@@ -2065,20 +2131,26 @@ function renderOverview(){
 
   // ---- Pipeline Velocity — expected value flowing through the next 6 weeks (by expected close week) ----
   const WK=6, DAYMS=86400000;
-  const buckets=Array.from({length:WK},()=>({ev:0,n:0,lbl:''}));
+  const buckets=Array.from({length:WK},()=>({ev:0,n:0,p:0,lbl:''}));
   upcoming.forEach(x=>{ const di=Math.floor((x.d-today0)/(7*DAYMS));
-    if(di>=0 && di<WK){ buckets[di].ev+=expectedValue(x.c.intel); buckets[di].n++; } });
+    if(di>=0 && di<WK){ buckets[di].ev+=expectedValue(x.c.intel); buckets[di].n++;
+      if(/proposal/i.test(nextCallType(x.c.intel)||'')) buckets[di].p++; } });   // volume sub-pane: proposal calls booked that week
   buckets.forEach((b,i)=>{ const ds=new Date(today0); ds.setDate(ds.getDate()+i*7);
     b.lbl = i===0?'This wk':ds.toLocaleDateString(undefined,{month:'short',day:'numeric'}); });
   const velMax = Math.max(1, ...buckets.map(b=>b.ev));
-  const VW=340,VH=130,base=VH-20,top=14,bw=VW/WK;
+  // deeper viewBox on the one-screen board; a stock-style "volume" pane rides under the main chart
+  const VW=340,VH=ovWide?250:130,volH=ovWide?30:16,volBase=VH-16,volTop=volBase-volH,base=volTop-9,top=14,bw=VW/WK;
   const yOf = ev => base-(ev/velMax)*(base-top);
   const velBars = buckets.map((b,i)=>{ const h=base-yOf(b.ev), x=i*bw+bw*0.20, w=bw*0.60, y=yOf(b.ev);
     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3.5" fill="url(#velbar)" opacity="${b.ev?0.92:0.28}"/>
       <text x="${(i*bw+bw/2).toFixed(1)}" y="${VH-4}" text-anchor="middle" class="velx">${esc(b.lbl)}</text>`; }).join('');
   const velPts = buckets.map((b,i)=>`${(i*bw+bw/2).toFixed(1)},${yOf(b.ev).toFixed(1)}`).join(' ');
   const velDots = buckets.map((b,i)=> b.ev?`<circle cx="${(i*bw+bw/2).toFixed(1)}" cy="${yOf(b.ev).toFixed(1)}" r="2.8" fill="#fff" filter="url(#velglow)"/>`:'').join('');
-  const velSvg = `<svg viewBox="0 0 ${VW} ${VH}" class="velsvg" role="img" aria-label="Pipeline velocity by week">
+  const velVolMax=Math.max(1,...buckets.map(b=>b.p));
+  const velVol = buckets.map((b,i)=>{ if(!b.p) return ''; const h=(b.p/velVolMax)*volH, x=i*bw+bw*0.30, w=bw*0.40;
+    return `<rect x="${x.toFixed(1)}" y="${(volBase-h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="#a78bfa" opacity=".6"/>
+      <text x="${(i*bw+bw/2).toFixed(1)}" y="${(volBase-h-2).toFixed(1)}" text-anchor="middle" class="velvn">${b.p}</text>`; }).join('');
+  const velSvg = `<svg viewBox="0 0 ${VW} ${VH}" class="velsvg" role="img" aria-label="Pipeline velocity by week, with proposal calls booked per week beneath">
     <defs>
       <linearGradient id="velbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#3b82f6" stop-opacity=".55"/></linearGradient>
       <linearGradient id="velline" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#f472b6"/></linearGradient>
@@ -2087,6 +2159,8 @@ function renderOverview(){
     ${velBars}
     <polyline points="${velPts}" fill="none" stroke="url(#velline)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#velglow)"/>
     ${velDots}
+    <line x1="0" y1="${volTop-4}" x2="${VW}" y2="${volTop-4}" stroke="rgba(255,255,255,.09)" stroke-width="1"/>
+    ${velVol}
   </svg>`;
   const velTotal = buckets.reduce((s,b)=>s+b.ev,0);
   // The chart is scheduled-call EV in the next 6 wks; the rest of the book (calls booked further out,
@@ -2147,17 +2221,18 @@ function renderOverview(){
   // --- 3. Activity Trend — calls logged per week over the last 8 weeks (real history from call logs) ---
   const AW=8;
   const wkStart=new Date(today0); wkStart.setDate(wkStart.getDate()-wkStart.getDay()); // Sunday of this week
-  const actB=Array.from({length:AW},(_,i)=>{ const ds=new Date(wkStart); ds.setDate(ds.getDate()-(AW-1-i)*7); return {ds,n:0,w:0}; });
+  const actB=Array.from({length:AW},(_,i)=>{ const ds=new Date(wkStart); ds.setDate(ds.getDate()-(AW-1-i)*7); return {ds,n:0,w:0,dc:0}; });
   const winStart=actB[0].ds;
   S.clients.forEach(c=> (c.intel.callHistory||[]).forEach(h=>{ const d=parseLogDate(h.date||''); if(!d) return;
-    if(d<winStart || d>today0) return; const wi=Math.floor((d-winStart)/(7*DAYMS)); if(wi>=0&&wi<AW) actB[wi].n++; }));
+    if(d<winStart || d>today0) return; const wi=Math.floor((d-winStart)/(7*DAYMS));
+    if(wi>=0&&wi<AW){ actB[wi].n++; if(/decision/i.test(h.callType||'')) actB[wi].dc++; } }));   // volume sub-pane: decision calls held that week
   // 🏆 deals closed per week — same window — so the calls→close rhythm reads off one chart.
   wins.forEach(c=>{ const d=parseLogDate(c.intel.wonDate||''); if(!d || d<winStart || d>today0) return;
     const wi=Math.floor((d-winStart)/(7*DAYMS)); if(wi>=0&&wi<AW) actB[wi].w++; });
   const actWins=actB.reduce((s,b)=>s+b.w,0);
   const actMax=Math.max(1,...actB.map(b=>b.n));
   const actTotal=actB.reduce((s,b)=>s+b.n,0);
-  const AVW=340,AVH=130,abase=AVH-20,atop=14,abw=AVW/AW;
+  const AVW=340,AVH=ovWide?250:130,avolH=ovWide?30:16,avolBase=AVH-16,avolTop=avolBase-avolH,abase=avolTop-9,atop=14,abw=AVW/AW;
   const ayOf=n=>abase-(n/actMax)*(abase-atop);
   const actBars=actB.map((b,i)=>{ const x=i*abw+abw*0.20, w=abw*0.60, y=ayOf(b.n), h=abase-y;
     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3" fill="url(#actbar)" opacity="${b.n?0.92:0.25}"/>
@@ -2165,13 +2240,19 @@ function renderOverview(){
   const actPts=actB.map((b,i)=>`${(i*abw+abw/2).toFixed(1)},${ayOf(b.n).toFixed(1)}`).join(' ');
   // 🏆 markers — one per week a deal closed, pinned near the top so they never collide with the bars.
   const actWinMarks=actB.map((b,i)=> b.w?`<text x="${(i*abw+abw/2).toFixed(1)}" y="11" text-anchor="middle" class="actwin">🏆${b.w>1?'×'+b.w:''}</text>`:'').join('');
-  const actSvg=`<svg viewBox="0 0 ${AVW} ${AVH}" class="velsvg" role="img" aria-label="Calls logged per week, with deals closed marked">
+  const actVolMax=Math.max(1,...actB.map(b=>b.dc));
+  const actVol=actB.map((b,i)=>{ if(!b.dc) return ''; const h=(b.dc/actVolMax)*avolH, x=i*abw+abw*0.30, w=abw*0.40;
+    return `<rect x="${x.toFixed(1)}" y="${(avolBase-h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="#f472b6" opacity=".55"/>
+      <text x="${(i*abw+abw/2).toFixed(1)}" y="${(avolBase-h-2).toFixed(1)}" text-anchor="middle" class="velvn">${b.dc}</text>`; }).join('');
+  const actSvg=`<svg viewBox="0 0 ${AVW} ${AVH}" class="velsvg" role="img" aria-label="Calls logged per week, with deals closed marked and decision calls per week beneath">
     <defs>
       <linearGradient id="actbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#3b82f6" stop-opacity=".55"/></linearGradient>
     </defs>
     ${actBars}
     <polyline points="${actPts}" fill="none" stroke="url(#velline)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#velglow)"/>
     ${actWinMarks}
+    <line x1="0" y1="${avolTop-4}" x2="${AVW}" y2="${avolTop-4}" stroke="rgba(255,255,255,.09)" stroke-width="1"/>
+    ${actVol}
   </svg>`;
 
   // --- 4. Discovery Depth — shared DISCO_TOPICS detectors (same source the Questions pop-up probes from) ---
@@ -2258,10 +2339,11 @@ function renderOverview(){
         <button id="ovbLock" class="lock">🔒 Lock</button>
       </div>
     </div>
-    <div class="ovhead"><h2>🏠 Overview</h2>
+    <div class="ovtop"><div class="ovhead"><h2>🏠 Overview</h2>
       <div class="meta">${hi} · ${dateStr} · ${active.length} active · weighted pipeline ${fmtVal(weighted)}</div></div>
-    ${sinceStrip}
+    ${sinceStrip}</div>
 
+    <div class="ovbody">
     <div class="card ovwins">
       <div class="ovwins-goal">${goalBlock}<div class="ovgoalbtns"><button class="ovgoalset" id="ovGoalSet">${winGoal?'✎ goal':'🎯 set goal'}</button><button class="ovgoalset" id="ovBackfill">📊 backfill</button></div></div>
       <div class="ovwins-chart">
@@ -2270,10 +2352,12 @@ function renderOverview(){
       </div>
     </div>
 
+    <div class="ovfocwrap">
     <div class="groupttl ovfocus-hd" id="ovFocusHd" role="button" tabindex="0" aria-expanded="${!focusCollapsed}">
       <span>🎯 Today's Focus<span class="ovfocus-sum">${esc(focusSummary)}</span></span>
       <span class="ovfocus-caret">${focusCollapsed?'▸':'▾'}</span></div>
     <div class="card ovfocus"${focusCollapsed?' hidden':''}>${focusInner}</div>
+    </div>
 
     <div class="ovhero">
       <button class="ovtile t-cyan" data-jump="sec-top"><span class="cnrs"></span><span class="ot-ring" style="--p:${avgProb}" title="${avgProb}% EV-weighted close probability"></span><span class="ot-go">›</span>
@@ -2292,12 +2376,12 @@ function renderOverview(){
 
     <div class="ovcharts">
       <div><div class="groupttl">📈 Pipeline Velocity</div>
-        <div class="card velcard"><div class="velsub">EV by next-call week · next 6 wks ${fmtVal(velTotal)}${unbookedEV?` · ${fmtVal(unbookedEV)} not yet booked`:''}</div>${velSvg}</div></div>
+        <div class="card velcard"><div class="velsub">EV by next-call week · next 6 wks ${fmtVal(velTotal)}${unbookedEV?` · ${fmtVal(unbookedEV)} not yet booked`:''} · <span style="color:#a78bfa">▂ proposal calls/wk</span></div>${velSvg}</div></div>
       <div><div class="groupttl">🎯 Win Probability</div>
         <div class="card"><div class="gauges">${gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')}${gauge(closeRate,'Close rate',(wonN+lostN)?`${wonN}W · ${lostN}L`:'as you mark deals','#f472b6')}</div></div></div>
 
       <div><div class="groupttl">📊 Activity Trend</div>
-        <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks${actWins?` · 🏆 ${actWins} closed`:''}</div>${actSvg}</div></div>
+        <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks${actWins?` · 🏆 ${actWins} closed`:''} · <span style="color:#f472b6">▂ decision calls/wk</span></div>${actSvg}</div></div>
       <div><div class="groupttl">🪜 Stage Funnel + Win Rate</div>
         <div class="card"><div class="velsub">${active.length} active · ${(wonN+lostN)?`${closeRate}% win rate · ${wonN}W · ${lostN}L`:'win rate builds as you mark deals Won/Lost'}</div><div class="funnelfill">${funnelRows}</div></div></div>
 
@@ -2305,6 +2389,7 @@ function renderOverview(){
         <div class="card"><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${gauge(avgDepth,'Avg capture','of 6 topics','#a78bfa')}<div style="flex:1;min-width:170px">${covRows}</div></div>${thinList}</div></div>
       <div><div class="groupttl">🧯 Objection Handling — how you close by type</div>
         <div class="card"><div class="velsub">${esc(objHead)}</div>${objRows}</div></div>
+    </div>
     </div>
   </div></div>`;
 
@@ -2319,7 +2404,8 @@ function renderOverview(){
     el.classList.toggle('open', open); });
   // Today's Focus — collapsible (state persisted in localStorage; click or Enter/Space toggles).
   const fhd=$('#ovFocusHd');
-  if(fhd){ const toggle=()=>{ const now=localStorage.getItem('wr_focusCollapsed')==='1';
+  if(fhd){ const toggle=()=>{ if(window.innerWidth>=1300) return;   // permanent rail on the wide board — no toggle
+      const now=localStorage.getItem('wr_focusCollapsed')==='1';
       localStorage.setItem('wr_focusCollapsed', now?'0':'1'); renderOverview(); };
     fhd.onclick=toggle; fhd.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }; }
   // Monthly wins goal — a plain $ target (not sensitive), stored locally; accepts "4M"/"4000000".
