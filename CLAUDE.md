@@ -251,9 +251,12 @@ client's name or "new notes" never hurt, but aren't required.)
   Center). It's a neon-HUD "command deck" (glassmorphism, scoped to `.ovwrap` so it
   stays dark even in light theme). Top = the only **action** block: **🎯 Today's Focus**
   (📵 missed calls to reschedule, surfaced FIRST as the most urgent action · calls today ·
-  follow-ups owed — undated or due today/overdue). It's a **collapsible card** (state in
-  localStorage `wr_focusCollapsed`, default open); folded, its header keeps a one-line count
-  summary (📵 n · 📞 n · 📌 n, `!` = overdue present). Directly under the header a **⏱ "since your
+  follow-ups owed — undated or due today/overdue). On phones/tablets it's a **collapsible card**
+  (state in localStorage `wr_focusCollapsed`, default open); folded, its header keeps a one-line
+  count summary (📵 n · 📞 n · 📌 n, `!` = overdue present). **On the wide one-screen board
+  (≥1300px) it's a permanent LEFT RAIL** — always open (renderOverview forces `focusCollapsed=false`,
+  the header toggle no-ops, caret hidden), scrolling internally so a long missed list can never push
+  the analytics off-screen. Directly under the header a **⏱ "since your
   last visit" delta strip** (`sinceStrip`) calls out what changed since the previous session —
   **🏆 new wins (count + $, good news leads)**, newly missed / cooling / pending clients + the
   pipeline $ move — diffed against the persisted snapshot ledger (which now also carries
@@ -292,7 +295,9 @@ client's name or "new notes" never hurt, but aren't required.)
   then six analytic panels — **Pipeline Velocity** (SVG bar+line of EV by **next-call week**,
   next 6 wks — forward projection; the subtitle also shows EV **not yet booked** = `weighted −
   bookedEV` so the chart reconciles with the Weighted-pipeline tile instead of silently
-  undercounting), **Win Probability** (two conic
+  undercounting; a **stock-style volume sub-pane** (r151) rides under the main chart — purple
+  count-labelled bars of **proposal calls booked per week**, separator line above, legend in the
+  subtitle), **Win Probability** (two conic
   gauges: EV-weighted avg close prob + historical close rate from the durable de-named
   `S.outcomeLog` ledger — `{outcome,date,amount}` per decided deal; losses are deleted from
   state so a live count can't see them; `amount` (since r99) keeps $ won durable past the
@@ -300,7 +305,8 @@ client's name or "new notes" never hurt, but aren't required.)
   (bars by stage + won/lost rate), **Activity Trend** (8-wk SVG of calls logged/week from
   `callHistory` dates — genuine history; weeks a deal closed carry a **🏆 marker** (×N if
   >1) pinned at the top + a "🏆 N closed" note in the subtitle, so the calls→close rhythm
-  reads off one chart), **Discovery Depth** (avg "capture" gauge +
+  reads off one chart; its **volume sub-pane** (r151) tracks **decision calls held per week**
+  in pink, same stock-chart treatment as Velocity's), **Discovery Depth** (avg "capture" gauge +
   per-topic coverage bars + thinnest profiles; reuses the client view's data-presence
   detectors `incomeSpendingBody`/`familyWhyBody`/`has(...)` for parity — **each coverage bar is
   click-to-expand**, revealing the clients missing that topic, each row deep-linking to the
@@ -332,28 +338,27 @@ client's name or "new notes" never hurt, but aren't required.)
   session by `recordOverviewSnap` and read back to power the trend chips (#7) and the
   since-last-visit strip (#6). Baselines are **frozen once per session** (`S.ovSnapSession`) so
   theme/midnight re-renders don't reset the deltas to zero. `renderOverview()`.
-  **Fits-on-one-screen on a wide dashboard (r145):** the charts (`.velsvg`) are height-capped
-  (`max-height:190px`) so they can't balloon when their column is wide — before this, the
-  Wins & Momentum bars scaled to the full column width (viewBox 340×130) and grew ~450px tall on a
-  big monitor, shoving the six analytic panels below the fold. The Wins chart is also width-capped
-  (`.ovwins-chart max-width:520px`). At **≥1300px** a dashboard block lays the six hero KPIs out in
-  **one row** (`.ovhero` → `repeat(6,1fr)`) with tighter `.ovinner`/`.ovhero`/`.ovwins` spacing and
-  smaller tiles — so the whole board fits one screen (collapse Today's Focus for the tightest fit). All
-  behind `min-width` so phones/tablets are untouched.
-  **The six analytic panels are a MASONRY, not a stretch grid (r150):** `.ovcharts` is CSS multi-column
-  (`column-count:2`, →`3` at ≥1300px) with each `.ovcharts>div` `break-inside:avoid` and the card at its
-  **natural height** (no `flex:1` stretch). The old grid stretched every card in a row to the tallest,
-  so short panels — **Stage Funnel** (3 bars) and **Win Probability** (2 rings) — got inflated with grey
-  voids to match the tall Discovery Depth / Objection Handling panels. Masonry lets each card be its own
-  height and `column-fill:balance` packs the columns to ~equal height, killing the voids and tightening
-  the total. Order is column-major (order-agnostic — fine). If you add an analytic panel, just append
-  another `.ovcharts>div`; the masonry places it.
-  **Wins & Momentum is a compact header strip (r147):** it moved from a tall card mid-page to a slim
-  banner **above Today's Focus** (right under the since-strip) — a small goal ring + a **short, wide**
-  6-month $-won bar chart (`winSvg` is now viewBox 520×64, not 340×130) + a one-line "🏆 Momentum · N
-  wins · $X · last 6 mo" subtitle. The `.ovwins` card is compacted (small `.gauge` ring, tight
-  padding); the ✎ goal / 📊 backfill buttons (`#ovGoalSet`/`#ovBackfill`) ride along in the strip.
-  This frees the vertical space the tall bars ate and puts momentum at a glance up top.
+  **ONE-SCREEN COMMAND DECK at ≥1300px (r151, supersedes the r145/r147/r150 fit work):** the wide
+  board is a **fixed grid that fills the viewport exactly — no page scroll**. `.ovwrap`/`.ovinner`
+  become a 100%-height flex column; header collapses to one line (`.ovtop` puts the 🏠 title +
+  greeting + since-strip on one row); everything below lives in **`.ovbody`**, a
+  `grid-template-columns:.95fr 1fr 1fr 1.1fr` / `rows:auto .72fr 1fr auto` grid: row 1 = the six
+  hero KPIs (`repeat(6,1fr)`), **column 1 = the Today's-Focus rail** (`.ovfocwrap` spans rows 2–3,
+  card scrolls internally) with the **Wins & Momentum strip docked beneath it** (row 4 — momentum
+  chart full-width on top via `order:-1`, goal ring + ✎/📊 buttons below, `.velx` axis type bumped
+  to 11px so the rail-width chart stays legible), and the **six analytic panels fill the remaining
+  3 columns × 2 rows**: `.ovcharts` goes `display:contents` so its children place directly via
+  `nth-child` grid-areas — top (shorter .72fr) row = Win Probability | Stage Funnel | Objection
+  Handling, bottom (taller) row = Pipeline Velocity | Activity Trend | Discovery Depth. Cards
+  stretch (`flex:1` + `overflow:auto`); Velocity/Activity SVGs deepen their viewBox to 250 (vs 130
+  mobile) via the `ovWide` flag in `renderOverview` so they fill the tall slots; Discovery/Objection
+  cards `justify-content:space-evenly`. **DOM order is unchanged** — below 1300px the board is the
+  same stacked flow as ever (wins strip → collapsible Focus → hero → `.ovcharts` 2-col masonry with
+  natural card heights), so phones/tablets are untouched. ⚠️ The `@media(min-width:1300px)` block
+  sits AFTER all the base overview CSS on purpose — several overrides (`.ovwins`, `.ovhero`,
+  `.gauges`) are same-specificity and win by order; don't move it back up. If you add an analytic
+  panel, append the `.ovcharts>div` AND give it an `nth-child` grid-area in the wide block (the
+  masonry below 1300px places it automatically).
 - **"This Week" window** (`thisWeekEnd(today0)`, since r118) — the Upcoming "This Week" tab (Command
   Center) and the Overview "N this week" KPI both bound on the **coming Sunday (23:59)**, but **from
   Saturday noon onward (and all day Sunday) the window rolls forward a full week**, so the weekend is
