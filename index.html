@@ -298,7 +298,7 @@
     .ovhero{grid-template-columns:repeat(6,1fr);margin:12px 0 12px;gap:12px}
     .ovtile{padding:14px 18px 13px}
     .ovtile .ot-v{font-size:30px;margin-top:5px}
-    .ovwins{padding:10px 16px}
+    .ovwins{padding:6px 16px;margin-bottom:10px}
     .ovcharts{grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
   }
   /* equal-height paired cards: each cell stretches, its card fills, lighter content centers */
@@ -323,10 +323,16 @@
   .gauge .g-num span{font-size:12px;color:var(--ink-dim);margin-left:1px}
   .gauge .g-lbl{font-size:11px;color:var(--ink);font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-top:10px}
   .gauge .g-sub{font-size:10.5px;color:var(--ink-dim);font-weight:600;margin-top:2px}
-  /* 🏆 Wins & Momentum — full-width results row (goal ring + monthly $-won bars) */
-  .ovwins{display:flex;gap:22px;align-items:center;flex-wrap:wrap;padding:14px 16px}
+  /* 🏆 Wins & Momentum — compact header strip above Today's Focus (small goal ring + short $-won bars) */
+  .ovwins{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:8px 14px;margin-bottom:14px}
   .ovwins-goal{display:flex;align-items:center;gap:10px;flex-shrink:0}
-  .ovwins-chart{flex:1;min-width:220px;max-width:520px}
+  .ovwins .gauge{width:auto}
+  .ovwins .g-ring{width:58px;height:58px}
+  .ovwins .g-num{font-size:15px}
+  .ovwins .g-num span{font-size:9px}
+  .ovwins .g-lbl{font-size:9.5px;margin-top:5px}
+  .ovwins .g-sub{font-size:9.5px}
+  .ovwins-chart{flex:1;min-width:240px;max-width:560px}
   .ovgoalset{border:1px solid var(--edge);background:rgba(255,255,255,.04);color:var(--ink-dim);
     font-size:10.5px;font-weight:700;letter-spacing:.3px;border-radius:8px;padding:5px 9px;cursor:pointer;transition:color .15s,border-color .15s}
   .ovgoalset:hover{color:#34d399;border-color:#34d399}
@@ -934,7 +940,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r146';
+const BUILD = 'build 2026-07-14 · r147';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2203,7 +2209,7 @@ function renderOverview(){
     if(mi>=0&&mi<MW){ mb[mi].v+=wonAmtOf(c); mb[mi].n++; } });
   mb.forEach(b=>{ b.v += hist[winMonthKey(b.ds)]||0; });   // layer in any manual monthly backfill
   const winMax=Math.max(1,...mb.map(b=>b.v)), win6$=mb.reduce((s,b)=>s+b.v,0), win6n=mb.reduce((s,b)=>s+b.n,0);
-  const WVW=340,WVH=130,wbase=WVH-20,wtop=14,wbw=WVW/MW, wyOf=v=>wbase-(v/winMax)*(wbase-wtop);
+  const WVW=520,WVH=64,wbase=WVH-13,wtop=7,wbw=WVW/MW, wyOf=v=>wbase-(v/winMax)*(wbase-wtop);  // short + wide: header strip
   const winBars=mb.map((b,i)=>{ const x=i*wbw+wbw*0.20,w=wbw*0.60,y=wyOf(b.v),h=wbase-y;
     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3.5" fill="url(#winbar)" opacity="${b.v?0.95:0.22}"/>
       ${b.n?`<text x="${(i*wbw+wbw/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" class="winn">${b.n}</text>`:''}
@@ -2249,6 +2255,14 @@ function renderOverview(){
       <div class="meta">${hi} · ${dateStr} · ${active.length} active · weighted pipeline ${fmtVal(weighted)}</div></div>
     ${sinceStrip}
 
+    <div class="card ovwins">
+      <div class="ovwins-goal">${goalBlock}<div class="ovgoalbtns"><button class="ovgoalset" id="ovGoalSet">${winGoal?'✎ goal':'🎯 set goal'}</button><button class="ovgoalset" id="ovBackfill">📊 backfill</button></div></div>
+      <div class="ovwins-chart">
+        <div class="velsub">🏆 Momentum · ${win6n} win${win6n===1?'':'s'} · ${fmtVal(win6$)} · last ${MW} mo${wonMn?` · ${esc(mLbl)} ${fmtVal(wonMval)}`:''}</div>
+        ${winSvg}
+      </div>
+    </div>
+
     <div class="groupttl ovfocus-hd" id="ovFocusHd" role="button" tabindex="0" aria-expanded="${!focusCollapsed}">
       <span>🎯 Today's Focus<span class="ovfocus-sum">${esc(focusSummary)}</span></span>
       <span class="ovfocus-caret">${focusCollapsed?'▸':'▾'}</span></div>
@@ -2267,15 +2281,6 @@ function renderOverview(){
         <div class="ot-l">Pending decisions</div><div class="ot-v">${pend.length}</div><div class="ot-n">awaiting a yes/no ${trChip(pend.length, weekAgo&&weekAgo.pendN, false, false, waLbl)}</div></button>
       <button class="ovtile t-green" data-jump="sec-wins"><span class="cnrs"></span><span class="ot-ring" style="--p:${goalPct}" title="${goalPct}% of ${esc(mLbl)} goal (${fmtVal(winGoal)})"></span><span class="ot-go">›</span>
         <div class="ot-l">Won this month</div><div class="ot-v">${fmtVal(wonMval)}</div><div class="ot-n">${wonMn} deal${wonMn===1?'':'s'} ${trChip(wonMn, weekAgo&&weekAgo.wonMn, true, false, waLbl)}</div></button>
-    </div>
-
-    <div class="groupttl">🏆 Wins & Momentum</div>
-    <div class="card ovwins">
-      <div class="ovwins-goal">${goalBlock}<div class="ovgoalbtns"><button class="ovgoalset" id="ovGoalSet">${winGoal?'✎ goal':'🎯 set goal'}</button><button class="ovgoalset" id="ovBackfill">📊 backfill</button></div></div>
-      <div class="ovwins-chart">
-        <div class="velsub">${win6n} win${win6n===1?'':'s'} · ${fmtVal(win6$)} · last ${MW} months${wonMn?` · ${esc(mLbl)}: ${fmtVal(wonMval)}`:''}</div>
-        ${winSvg}
-      </div>
     </div>
 
     <div class="ovcharts">

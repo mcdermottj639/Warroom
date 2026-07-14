@@ -341,6 +341,12 @@ client's name or "new notes" never hurt, but aren't required.)
   `repeat(3,1fr)`, so 2 rows not 3) with tighter `.ovinner`/`.ovhero`/`.ovwins` spacing and smaller
   tiles — so the whole board fits one screen (collapse Today's Focus for the tightest fit). All behind
   `min-width` so phones/tablets are untouched.
+  **Wins & Momentum is a compact header strip (r147):** it moved from a tall card mid-page to a slim
+  banner **above Today's Focus** (right under the since-strip) — a small goal ring + a **short, wide**
+  6-month $-won bar chart (`winSvg` is now viewBox 520×64, not 340×130) + a one-line "🏆 Momentum · N
+  wins · $X · last 6 mo" subtitle. The `.ovwins` card is compacted (small `.gauge` ring, tight
+  padding); the ✎ goal / 📊 backfill buttons (`#ovGoalSet`/`#ovBackfill`) ride along in the strip.
+  This frees the vertical space the tall bars ate and puts momentum at a glance up top.
 - **"This Week" window** (`thisWeekEnd(today0)`, since r118) — the Upcoming "This Week" tab (Command
   Center) and the Overview "N this week" KPI both bound on the **coming Sunday (23:59)**, but **from
   Saturday noon onward (and all day Sunday) the window rolls forward a full week**, so the weekend is
