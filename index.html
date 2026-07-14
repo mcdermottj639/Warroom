@@ -924,7 +924,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r142';
+const BUILD = 'build 2026-07-14 · r143';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2386,7 +2386,7 @@ function renderDashboard(jumpTo){
   // books. These used to be invisible: an early-stage client whose call lapsed showed up nowhere.
   const noCall = slotList.filter(x=> x.s.slot==='none' && !isDecStage(x.c))
     .map(x=>x.c).sort((a,b)=> expectedValue(b.intel)-expectedValue(a.intel));
-  const noCallRows = noCall.length ? noCall.slice(0,12).map(c=>{
+  const noCallRows = noCall.length ? noCall.map(c=>{
     const lt=effTouch(c); const sub=`${esc(c.intel.stage||'No stage')} · ${lt?('last '+esc(new Date(lt+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}))):'no contact logged'}`;
     return `<div class="crow" data-code="${c.code}">
       <span class="riskbadge risk-${prBadge(c)}">${esc(c.intel.priority||'')}</span>
@@ -2394,7 +2394,6 @@ function renderDashboard(jumpTo){
       <button class="sm iconbtn" data-resched="${c.code}" aria-label="Book a call ${esc(c.name)}" title="Book a call">📅</button>
       <span class="chev">›</span></div>`;
   }).join('')
-      + (noCall.length>12?`<div class="bodynote" style="padding-top:10px">+ ${noCall.length-12} more with no call booked</div>`:'')
     : '<div class="bodynote" style="padding-top:0">Everyone active has a call booked or a decision pending. 👌</div>';
 
   // Cooling deals — proposals fading, driven by the client's own stated timing (scheduled/missed excluded)
