@@ -354,10 +354,13 @@
   .frrow{display:flex;align-items:center;gap:10px;padding:7px 2px;cursor:pointer;border-radius:8px;transition:background .12s}
   .frrow:hover{background:rgba(96,165,250,.08)}
   .frlbl{font-size:12px;font-weight:700;color:var(--ink);width:78px;flex-shrink:0}
-  .frbar{flex:1;height:14px;border-radius:7px;background:rgba(255,255,255,.06);overflow:hidden;min-width:40px}
+  .frbar{flex:1;height:16px;border-radius:8px;background:rgba(255,255,255,.06);overflow:hidden;min-width:40px}
   .frfill{display:block;height:100%;border-radius:7px;background:linear-gradient(90deg,color-mix(in srgb,var(--bc) 55%,transparent),var(--bc));
     box-shadow:0 0 10px -1px var(--bc);transition:width .5s cubic-bezier(.2,.7,.3,1)}
   .frval{font-size:11.5px;font-weight:700;color:var(--ink-dim);white-space:nowrap;min-width:96px;text-align:right}
+  /* Stage Funnel has only 3 rows — spread them across the card's full (row-matched) height so it fills
+     instead of clustering at the top with a void below. */
+  .funnelfill{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;min-height:0}
   /* discovery coverage bars */
   .covrow{display:flex;align-items:center;gap:9px;padding:3.5px 0}
   .covlbl{font-size:11px;font-weight:700;color:var(--ink-dim);width:96px;flex-shrink:0}
@@ -940,7 +943,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r148';
+const BUILD = 'build 2026-07-14 · r149';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2292,7 +2295,7 @@ function renderOverview(){
       <div><div class="groupttl">📊 Activity Trend</div>
         <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks${actWins?` · 🏆 ${actWins} closed`:''}</div>${actSvg}</div></div>
       <div><div class="groupttl">🪜 Stage Funnel + Win Rate</div>
-        <div class="card"><div class="velsub">${active.length} active · ${(wonN+lostN)?`${closeRate}% win rate · ${wonN}W · ${lostN}L`:'win rate builds as you mark deals Won/Lost'}</div>${funnelRows}</div></div>
+        <div class="card"><div class="velsub">${active.length} active · ${(wonN+lostN)?`${closeRate}% win rate · ${wonN}W · ${lostN}L`:'win rate builds as you mark deals Won/Lost'}</div><div class="funnelfill">${funnelRows}</div></div></div>
 
       <div><div class="groupttl">🔎 Discovery Depth</div>
         <div class="card"><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${gauge(avgDepth,'Avg capture','of 6 topics','#a78bfa')}<div style="flex:1;min-width:170px">${covRows}</div></div>${thinList}</div></div>
