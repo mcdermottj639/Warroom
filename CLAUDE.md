@@ -349,15 +349,14 @@ client's name or "new notes" never hurt, but aren't required.)
   that flips at the same pivot, so `ovDayCheck` (the 60 s / focus / visibilitychange auto-refresh)
   re-renders a left-open Overview tab when the rollover fires (it stamps `S.ovRenderWeek` alongside
   `S.ovRenderDay`). If you add another "this week" boundary, reuse `thisWeekEnd` so they stay in sync.
-- **Command Center** sections, in order: Upcoming Calls (This Week / Future tabs)
-  → **📵 Missed Calls** → Top 10 → **⏳ Pending Decisions** → **📇 No Call Booked** →
-  Follow-ups (tasks owed, next 2 weeks) → Cooling → Wins. **On wide desktop (≥1200px) these
-  flow two-up** (`renderDashboard` uses `.pad wide`; the section stack is wrapped in `.ccgrid`
-  → two `.cccol` flex columns — **left** = Upcoming / Top 10 / No Call / Cooling / Wins, **right**
-  = Missed / Pending / Follow-ups; the KPI strip + filter chips stay full-width above). Below
-  1200px `.cccol` are plain block so the sections stack in the same single-column order as before —
-  phones/tablets are untouched. If you add a section, put it in whichever `.cccol` keeps the left/right
-  order contiguous. **Top 10 is click-to-sort (r137):** the **Transferable / P / EV** column headers
+- **Command Center** sections (**seven** — the old **📌 Follow-ups** section was removed as low-value;
+  tasks still live on the client page and in the Overview's Today's Focus). **On wide desktop (≥1200px)
+  they flow two-up** (`renderDashboard` uses `.pad wide`; the section stack is wrapped in `.ccgrid`
+  → two `.cccol` flex columns — **left** = Upcoming / Missed / No Call / Cooling, **right** = Top 10 /
+  Pending / Wins; the KPI strip + filter chips stay full-width above). Below 1200px `.cccol` are plain
+  block so the sections stack in DOM order (left column then right: Upcoming → Missed → No Call →
+  Cooling → Top 10 → Pending → Wins) — phones/tablets are untouched. If you add a section, put it in
+  whichever `.cccol` keeps the left/right order contiguous. **Top 10 is click-to-sort (r137):** the **Transferable / P / EV** column headers
   (`.sortth`, `data-osort` = `transferable`|`prob`|`ev`) are buttons — the active one goes gold with a
   ▼ and the subtitle updates. State = `S.oppSort` (default `ev`). `oppCmp(key)` re-ranks the whole
   active set (EV = `expectedValue`, transferable = `moveableNum`, prob = `stageProb`) and `top10Rows`
@@ -387,9 +386,9 @@ client's name or "new notes" never hurt, but aren't required.)
   (`.fchip`, state in `S.ccFilter`) narrows every active-derived section at once
   (All / CRITICAL / HOT / WARM / PIPELINE — only priorities present are shown). The
   **KPI strip is the sole section-nav surface** (the old "Jump to" `.secnav` row was
-  removed in r101 — every widget is now a tappable jump): **eight chips, one per
+  removed in r101 — every widget is now a tappable jump): **seven chips, one per
   section** (Weighted→Top 10 · Upcoming · **Missed** · Pending · **No call booked** ·
-  Follow-ups · Cooling · **Won this quarter**→Wins) — every `sec-*` group has a matching
+  Cooling · **Won this quarter**→Wins) — every `sec-*` group has a matching
   `data-jump` chip (r126; keep it that way when adding a section),
   each a **button that deep-links** to its section (`data-jump`→`scrollIntoView`) and
   carries a visible **tap affordance** (`.kc-go`, e.g. "Top 10 ›", "Wins ›") naming the

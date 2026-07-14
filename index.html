@@ -934,7 +934,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r145';
+const BUILD = 'build 2026-07-14 · r146';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2457,23 +2457,8 @@ function renderDashboard(jumpTo){
   const wonQ = winsAll.filter(c=>winIn(c,'quarter'));
   const wonQval = wonQ.reduce((s,c)=>s+assetVal(normMoney(c.intel.wonAmount||c.intel.moveable)),0);
 
-  // Follow-ups — open tasks across all clients; only show the next 2 weeks (+ overdue / undated)
-  const _ft=new Date(); _ft.setHours(0,0,0,0); _ft.setDate(_ft.getDate()+14);
-  const _pad=n=>String(n).padStart(2,'0');
-  const cutoffISO=_ft.getFullYear()+'-'+_pad(_ft.getMonth()+1)+'-'+_pad(_ft.getDate());
-  const allTasks=[]; let laterCount=0;
-  S.clients.forEach(c=> (c.intel.tasks||[]).forEach((t,idx)=>{ if(t.done) return;
-    if(t.due && t.due>cutoffISO){ laterCount++; return; }   // further out than 2 weeks → wait
-    allTasks.push({c, t, idx}); }));
-  allTasks.sort((a,b)=> ((a.t.due||'9999-99')<(b.t.due||'9999-99')?-1:1));
-  const taskRows = (allTasks.length ? allTasks.map(({c,t,idx})=>`<div class="crow" data-code="${c.code}">
-      <input type="checkbox" class="task-chk-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Mark done" title="Mark done">
-      <div style="flex:1;min-width:0">${noteFlag(c)} <b>${esc(c.name)}</b><div class="fc ellip">${esc(t.t)}</div></div>
-      ${t.due?`<span class="task-due ${dueClass(t.due)}">${esc(dueLabel(t.due))}</span>`:'<span class="fc">no date</span>'}
-      <button class="note-del task-del-dash" data-code="${c.code}" data-ti="${idx}" aria-label="Delete follow-up">✕</button></div>`).join('')
-    : '<div class="bodynote" style="padding-top:0">Nothing due in the next 2 weeks. 👌</div>')
-    + (laterCount?`<div class="bodynote" style="padding-top:10px">+ ${laterCount} scheduled further out — they’ll appear here as they come within 2 weeks.</div>`:'');
-  const overdueCount = allTasks.filter(x=>dueClass(x.t.due)==='task-over').length;
+  // (Follow-ups section removed — low value on the Command Center; tasks still live on the client
+  // page and in the Overview's Today's Focus.)
 
   // Week-over-week trend chips reuse the Overview snapshot baseline (S.ovWeekAgo, set once per
   // session when the Overview renders at boot). Suppressed while a priority filter is active —
@@ -2497,7 +2482,6 @@ function renderDashboard(jumpTo){
       <button class="kchip" data-jump="sec-missed"><div class="kc-l">Missed calls</div><div class="kc-v">${missedL.length}</div><div class="kc-n"><span>lapsed — reschedule ${tc(missedL.length, wa&&wa.missedN, false, false)}</span><span class="kc-go">Missed ›</span></div></button>
       <button class="kchip" data-jump="sec-pending"><div class="kc-l">Pending decisions</div><div class="kc-v">${pend.length}</div><div class="kc-n"><span>awaiting a yes/no ${tc(pend.length, wa&&wa.pendN, false, false)}</span><span class="kc-go">Pending ›</span></div></button>
       <button class="kchip" data-jump="sec-nocall"><div class="kc-l">No call booked</div><div class="kc-v">${noCall.length}</div><div class="kc-n"><span>needs scheduling</span><span class="kc-go">No Call ›</span></div></button>
-      <button class="kchip" data-jump="sec-tasks"><div class="kc-l">Follow-ups</div><div class="kc-v">${allTasks.length}</div><div class="kc-n"><span>${overdueCount?`${overdueCount} overdue`:'owed · 2 wks'}</span><span class="kc-go">Follow-ups ›</span></div></button>
       <button class="kchip" data-jump="sec-cooling"><div class="kc-l">Cooling $ at risk</div><div class="kc-v">${fmtVal(atRisk)}</div><div class="kc-n"><span>${cooling.length} fading ${tc(atRisk, wa&&wa.atRisk, false, true)}</span><span class="kc-go">Cooling ›</span></div></button>
       <button class="kchip" data-jump="sec-wins"><div class="kc-l">Won this quarter</div><div class="kc-v">${fmtVal(wonQval)}</div><div class="kc-n"><span>${wonQ.length} closed${winRate!=null?` · ${winRate}% rate`:''}</span><span class="kc-go">Wins ›</span></div></button>
     </div>
@@ -2514,14 +2498,21 @@ function renderDashboard(jumpTo){
         <table class="dtbl hidden" id="upTblFuture"><thead><tr><th>Date</th><th>Client</th><th>Next</th><th class="r">Transferable</th><th class="r col-act"></th></tr></thead><tbody>${upRowsFuture}</tbody></table>
       </div>
 
-      <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by ${oppLabel}</div>
-      <div class="card"><table class="dtbl" id="oppTbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r sortth" data-osort="transferable" data-oslabel="Transferable" role="button" tabindex="0" title="Sort by transferable assets">Transferable</th><th class="r col-opt sortth" data-osort="prob" data-oslabel="P" role="button" tabindex="0" title="Sort by chance to close">P</th><th class="r sortth" data-osort="ev" data-oslabel="EV" role="button" tabindex="0" title="Sort by expected value">EV</th></tr></thead><tbody id="oppBody">${oppRows}</tbody></table></div>
+      <div class="groupttl" id="sec-missed">📵 Missed Calls — a scheduled call that passed, reschedule now</div>
+      <div class="card">${missedRows}</div>
 
       <div class="groupttl" id="sec-nocall">📇 No Call Booked — open clients needing a next touch scheduled</div>
       <div class="card">${noCallRows}</div>
 
       <div class="groupttl" id="sec-cooling">🧊 Cooling Deals — fading proposals (by stated timing)</div>
       <div class="card">${coolRows}</div>
+     </div>
+     <div class="cccol">
+      <div class="groupttl" id="sec-top">🎯 Top 10 Opportunities — ranked by ${oppLabel}</div>
+      <div class="card"><table class="dtbl" id="oppTbl"><thead><tr><th>#</th><th>Client</th><th>Stage</th><th class="r sortth" data-osort="transferable" data-oslabel="Transferable" role="button" tabindex="0" title="Sort by transferable assets">Transferable</th><th class="r col-opt sortth" data-osort="prob" data-oslabel="P" role="button" tabindex="0" title="Sort by chance to close">P</th><th class="r sortth" data-osort="ev" data-oslabel="EV" role="button" tabindex="0" title="Sort by expected value">EV</th></tr></thead><tbody id="oppBody">${oppRows}</tbody></table></div>
+
+      <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal delivered, awaiting a yes/no · closest first</div>
+      <div class="card">${pendRows}</div>
 
       <div class="groupttl" id="sec-wins">🏆 Wins</div>
       <div class="card">
@@ -2534,16 +2525,6 @@ function renderDashboard(jumpTo){
         </div>
         <div id="winBody"></div>
       </div>
-     </div>
-     <div class="cccol">
-      <div class="groupttl" id="sec-missed">📵 Missed Calls — a scheduled call that passed, reschedule now</div>
-      <div class="card">${missedRows}</div>
-
-      <div class="groupttl" id="sec-pending">⏳ Pending Decisions — proposal delivered, awaiting a yes/no · closest first</div>
-      <div class="card">${pendRows}</div>
-
-      <div class="groupttl" id="sec-tasks">📌 Follow-ups — what you owe clients (next 2 weeks)</div>
-      <div class="card">${taskRows}</div>
      </div>
     </div>
     <div class="fabgroup">
@@ -2563,16 +2544,6 @@ function renderDashboard(jumpTo){
   });
   document.querySelectorAll('.winrow [data-code], .crow[data-code]').forEach(el=> el.onclick = ()=>{
     const c = S.clients.find(x=>x.code===el.dataset.code); if(c){ S.active=c.code; renderList(); renderDetail(c); }
-  });
-  document.querySelectorAll('.task-chk-dash').forEach(ch=> ch.onclick = async (e)=>{
-    e.stopPropagation();
-    const c=S.clients.find(x=>x.code===ch.dataset.code); const ti=+ch.dataset.ti;
-    if(c){ const tasks=(c.intel.tasks||[]).map(x=>({...x})); if(tasks[ti]){ tasks[ti].done=true; await saveTasksFor(c, tasks); renderDashboard(); } }
-  });
-  document.querySelectorAll('.task-del-dash').forEach(b=> b.onclick = async (e)=>{
-    e.stopPropagation();
-    const c=S.clients.find(x=>x.code===b.dataset.code); const ti=+b.dataset.ti;
-    if(c && confirm('Delete this follow-up?')){ const tasks=(c.intel.tasks||[]).slice(); tasks.splice(ti,1); await saveTasksFor(c, tasks); renderDashboard(); }
   });
   document.querySelectorAll('[data-reeng]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); openReengage(b.dataset.reeng); });
   document.querySelectorAll('[data-resched]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); quickReschedule(b.dataset.resched); });
