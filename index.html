@@ -404,9 +404,11 @@
     .ovtop .ovhead h2{font-size:17px;white-space:nowrap}
     .ovtop .ovhead .meta{margin-top:0;font-size:11.5px;white-space:nowrap}
     .ovtop .ovsince{margin:0 0 0 auto;padding:5px 12px;font-size:11.5px}
-    /* the body grid — rows: hero / top panels / bottom panels / wins (col-1 footer) */
+    /* the body grid — rows: hero / top panels / bottom panels / wins (col-1 footer).
+       Col 1 (Focus rail) is FIXED ~330px — names only need so much; the freed width goes to the
+       two big charts (cols 2–3), with Discovery Depth on a slimmer full-height col 4. */
     .ovbody{flex:1;min-height:0;display:grid;gap:10px 12px;
-      grid-template-columns:.95fr 1fr 1fr 1.1fr;grid-template-rows:auto .72fr 1fr auto}
+      grid-template-columns:minmax(300px,330px) 1.2fr 1.2fr 1fr;grid-template-rows:auto .72fr 1fr auto}
     .ovhero{grid-area:1/1/2/5;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:0}
     .ovtile{padding:11px 15px 10px;border-radius:13px}
     .ovtile .ot-l{font-size:9.5px;letter-spacing:.7px}
@@ -436,18 +438,26 @@
     .ovwins .g-sub{font-size:8.5px;margin-top:1px}
     .ovwins .ovgoalbtns{flex-direction:row}
     .ovwins .velsub{margin-bottom:2px}
-    /* the six analytic panels become direct grid items (display:contents) and stretch to fill:
-       top row = Win Probability | Stage Funnel | Objection Handling (short stat panels),
-       bottom row (taller — it absorbs the wins-strip row) = Velocity | Activity | Discovery */
+    /* the analytic panels become direct grid items (display:contents) and stretch to fill.
+       On the wide board renderOverview emits FIVE panels (Win Probability's rings are merged
+       into the Stage Funnel card): top row = Funnel+Rings | Objection; bottom (taller) row =
+       Velocity | Activity; Discovery Depth takes the full-height right column. */
     .ovcharts{display:contents}
     .ovcharts>div{display:flex;flex-direction:column;min-height:0;margin:0}
     .ovcharts>div>.card{flex:1;min-height:0;overflow:auto;padding:11px 14px;margin:0}
     .ovcharts>div:nth-child(1){grid-area:3/2/5/3}   /* Pipeline Velocity */
-    .ovcharts>div:nth-child(2){grid-area:2/2/3/3}   /* Win Probability */
-    .ovcharts>div:nth-child(3){grid-area:3/3/5/4}   /* Activity Trend */
-    .ovcharts>div:nth-child(4){grid-area:2/3/3/4}   /* Stage Funnel */
-    .ovcharts>div:nth-child(5){grid-area:3/4/5/5}   /* Discovery Depth */
-    .ovcharts>div:nth-child(6){grid-area:2/4/3/5}   /* Objection Handling */
+    .ovcharts>div:nth-child(2){grid-area:3/3/5/4}   /* Activity Trend */
+    .ovcharts>div:nth-child(3){grid-area:2/2/3/3}   /* Stage Funnel + Win Probability */
+    .ovcharts>div:nth-child(4){grid-area:2/4/5/5}   /* Discovery Depth (full column) */
+    .ovcharts>div:nth-child(5){grid-area:2/3/3/4}   /* Objection Handling */
+    /* merged funnel card: bars left, the two rings right */
+    .fwrow{flex:1;display:flex;gap:10px;min-height:0;align-items:center;flex-wrap:wrap}
+    .fwrow .funnelfill{flex:1;align-self:stretch}
+    .fwrow .gauges{flex:0 0 auto;padding:0}
+    .ovcharts .fwrow .gauge{width:86px}
+    .ovcharts .fwrow .gauge .g-ring{width:70px;height:70px}
+    .ovcharts .fwrow .gauge .g-num{font-size:17px}
+    .fwrow .frval{min-width:78px}
     .ovbody .groupttl{margin:0 0 5px;font-size:10px}
     .velcard .velsvg{flex:1;min-height:0;max-height:none}
     .gauges{flex:1;align-items:center;padding:0}
@@ -456,7 +466,7 @@
     .ovcharts .gauge .g-num{font-size:22px}
     .funnelfill{justify-content:space-evenly}
     /* let the list panels breathe into their slot instead of clustering at the top */
-    .ovcharts>div:nth-child(5)>.card,.ovcharts>div:nth-child(6)>.card{justify-content:space-evenly}
+    .ovcharts>div:nth-child(4)>.card,.ovcharts>div:nth-child(5)>.card{justify-content:space-evenly}
     .covrow{padding:2px 0} .covlbl{font-size:10.5px}
     .objrow{padding:3px 0} .objlbl{font-size:10.5px}
     .ovcharts .bodynote{font-size:9.5px}
@@ -1011,7 +1021,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r151';
+const BUILD = 'build 2026-07-14 · r152';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -2128,6 +2138,9 @@ function renderOverview(){
   const gauge = (pct,label,sub,c)=>`<div class="gauge" style="--p:${pct};--gc:${c}">
       <div class="g-ring"><div class="g-num">${pct}<span>%</span></div></div>
       <div class="g-lbl">${label}</div><div class="g-sub">${sub}</div></div>`;
+  // the two win-probability rings — their own panel on mobile, merged into the Stage Funnel card on the wide board
+  const wpGauges = gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')
+    + gauge(closeRate,'Close rate',(wonN+lostN)?`${wonN}W · ${lostN}L`:'as you mark deals','#f472b6');
 
   // ---- Pipeline Velocity — expected value flowing through the next 6 weeks (by expected close week) ----
   const WK=6, DAYMS=86400000;
@@ -2267,7 +2280,7 @@ function renderOverview(){
       : '<div class="bodynote" style="padding:4px 0">Every active profile covers this. 👌</div>';
     return `<div class="covrow${missC.length?' xpand':''}"${missC.length?` data-exp="cov-${di}"`:''}><span class="covlbl">${d.k}</span><span class="covbar"><span class="covfill" style="width:${pct}%"></span></span><span class="covpct">${pct}%${missC.length?` <span class="xchev">›</span>`:''}</span></div>
       <div class="ovexp" id="cov-${di}" hidden>${exp}</div>`; }).join('');
-  const thin=depthScores.filter(x=>x.n<DEPTH.length).sort((a,b)=>a.n-b.n).slice(0,4);
+  const thin=depthScores.filter(x=>x.n<DEPTH.length).sort((a,b)=>a.n-b.n).slice(0, ovWide?6:4);   // the wide board gives Discovery a full column — show more gaps
   const thinList=thin.length?`<div class="bodynote" style="padding-top:10px">Thinnest profiles — fill the gaps</div>`
       + thin.map(x=>{ const miss=DEPTH.filter(d=>!d.has(x.c.intel)).map(d=>d.k).slice(0,3).join(', ');
         return `<div class="ovrow" data-code="${x.c.code}"><span class="when">${x.n}/${DEPTH.length}</span><div class="nm">${esc(x.c.name)}<div class="sub ellip">missing: ${esc(miss)}</div></div></div>`; }).join(''):'';
@@ -2289,22 +2302,27 @@ function renderOverview(){
   // Monthly assets-won goal — defaults to $4M (single-user app), overridable via the goal button.
   const winGoal = (()=>{ const g=parseFloat(localStorage.getItem('wr_winGoalM')||''); return g>0?g:4000000; })();
   const goalPct = winGoal ? Math.min(100, Math.round(wonMval/winGoal*100)) : 0;
-  // 6-month $-won momentum bars (count labelled on each bar)
-  const MW=6, mb=Array.from({length:MW},(_,i)=>({ ds:new Date(_nowW2.getFullYear(), _nowW2.getMonth()-(MW-1-i), 1), v:0, n:0 }));
+  // $-won momentum bars (count labelled on each bar). Mobile = one 6-month row (wide strip);
+  // wide board = a rolling 12 months as TWO stacked 6-month rows, sized for the narrow Focus rail.
+  const MW=ovWide?12:6, mb=Array.from({length:MW},(_,i)=>({ ds:new Date(_nowW2.getFullYear(), _nowW2.getMonth()-(MW-1-i), 1), v:0, n:0 }));
   const mStart0=mb[0].ds;
   wins.forEach(c=>{ const d=parseLogDate(c.intel.wonDate||''); if(!d||d<mStart0) return;
     const mi=(d.getFullYear()-mStart0.getFullYear())*12+(d.getMonth()-mStart0.getMonth());
     if(mi>=0&&mi<MW){ mb[mi].v+=wonAmtOf(c); mb[mi].n++; } });
   mb.forEach(b=>{ b.v += hist[winMonthKey(b.ds)]||0; });   // layer in any manual monthly backfill
   const winMax=Math.max(1,...mb.map(b=>b.v)), win6$=mb.reduce((s,b)=>s+b.v,0), win6n=mb.reduce((s,b)=>s+b.n,0);
-  const WVW=520,WVH=64,wbase=WVH-13,wtop=7,wbw=WVW/MW, wyOf=v=>wbase-(v/winMax)*(wbase-wtop);  // short + wide: header strip
-  const winBars=mb.map((b,i)=>{ const x=i*wbw+wbw*0.20,w=wbw*0.60,y=wyOf(b.v),h=wbase-y;
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3.5" fill="url(#winbar)" opacity="${b.v?0.95:0.22}"/>
-      ${b.n?`<text x="${(i*wbw+wbw/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" class="winn">${b.n}</text>`:''}
-      <text x="${(i*wbw+wbw/2).toFixed(1)}" y="${WVH-4}" text-anchor="middle" class="velx">${b.ds.toLocaleDateString(undefined,{month:'short'})}</text>`; }).join('');
-  const winSvg=`<svg viewBox="0 0 ${WVW} ${WVH}" class="velsvg" role="img" aria-label="Assets won per month">
-    <defs><linearGradient id="winbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ee7b7"/><stop offset="1" stop-color="#10b981" stop-opacity=".55"/></linearGradient></defs>
-    ${winBars}</svg>`;
+  const winDefs=`<defs><linearGradient id="winbar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ee7b7"/><stop offset="1" stop-color="#10b981" stop-opacity=".55"/></linearGradient></defs>`;
+  const winRow=(row,vw,rowH,offY)=>{ const bw2=vw/row.length, wbase=offY+rowH-13, wtop=offY+7,
+      yv=v=>wbase-(v/winMax)*(wbase-wtop);
+    return row.map((b,i)=>{ const x=i*bw2+bw2*0.20,w=bw2*0.60,y=yv(b.v),h=wbase-y;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="3.5" fill="url(#winbar)" opacity="${b.v?0.95:0.22}"/>
+        ${b.n?`<text x="${(i*bw2+bw2/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" class="winn">${b.n}</text>`:''}
+        <text x="${(i*bw2+bw2/2).toFixed(1)}" y="${offY+rowH-3}" text-anchor="middle" class="velx">${b.ds.toLocaleDateString(undefined,{month:'short'})}</text>`; }).join(''); };
+  const winSvg = ovWide
+    ? `<svg viewBox="0 0 340 118" class="velsvg" role="img" aria-label="Assets won per month, last 12 months">
+        ${winDefs}${winRow(mb.slice(0,6),340,57,0)}<line x1="6" y1="58.5" x2="334" y2="58.5" stroke="rgba(255,255,255,.07)" stroke-width="1"/>${winRow(mb.slice(6),340,57,61)}</svg>`
+    : `<svg viewBox="0 0 520 64" class="velsvg" role="img" aria-label="Assets won per month">
+        ${winDefs}${winRow(mb,520,64,0)}</svg>`;
   const goalBlock = gauge(goalPct,`${mLbl} goal`,`${fmtVal(wonMval)} of ${fmtVal(winGoal)}`,'#34d399');
 
   // ---- Snapshot ledger → "since your last visit" strip (#6) + hero week-over-week trend chips (#7) ----
@@ -2377,13 +2395,15 @@ function renderOverview(){
     <div class="ovcharts">
       <div><div class="groupttl">📈 Pipeline Velocity</div>
         <div class="card velcard"><div class="velsub">EV by next-call week · next 6 wks ${fmtVal(velTotal)}${unbookedEV?` · ${fmtVal(unbookedEV)} not yet booked`:''} · <span style="color:#a78bfa">▂ proposal calls/wk</span></div>${velSvg}</div></div>
-      <div><div class="groupttl">🎯 Win Probability</div>
-        <div class="card"><div class="gauges">${gauge(avgProb,'Avg close prob','EV-weighted','#38bdf8')}${gauge(closeRate,'Close rate',(wonN+lostN)?`${wonN}W · ${lostN}L`:'as you mark deals','#f472b6')}</div></div></div>
+      ${ovWide?'':`<div><div class="groupttl">🎯 Win Probability</div>
+        <div class="card"><div class="gauges">${wpGauges}</div></div></div>`}
 
       <div><div class="groupttl">📊 Activity Trend</div>
         <div class="card velcard"><div class="velsub">${actTotal} call${actTotal===1?'':'s'} logged · last ${AW} weeks${actWins?` · 🏆 ${actWins} closed`:''} · <span style="color:#f472b6">▂ decision calls/wk</span></div>${actSvg}</div></div>
-      <div><div class="groupttl">🪜 Stage Funnel + Win Rate</div>
-        <div class="card"><div class="velsub">${active.length} active · ${(wonN+lostN)?`${closeRate}% win rate · ${wonN}W · ${lostN}L`:'win rate builds as you mark deals Won/Lost'}</div><div class="funnelfill">${funnelRows}</div></div></div>
+      <div><div class="groupttl">🪜 Stage Funnel + Win ${ovWide?'Probability':'Rate'}</div>
+        <div class="card"><div class="velsub">${active.length} active · ${(wonN+lostN)?`${closeRate}% win rate · ${wonN}W · ${lostN}L`:'win rate builds as you mark deals Won/Lost'}</div>${
+          ovWide?`<div class="fwrow"><div class="funnelfill">${funnelRows}</div><div class="gauges">${wpGauges}</div></div>`
+                :`<div class="funnelfill">${funnelRows}</div>`}</div></div>
 
       <div><div class="groupttl">🔎 Discovery Depth</div>
         <div class="card"><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${gauge(avgDepth,'Avg capture','of 6 topics','#a78bfa')}<div style="flex:1;min-width:170px">${covRows}</div></div>${thinList}</div></div>

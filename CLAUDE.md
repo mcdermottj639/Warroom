@@ -338,27 +338,34 @@ client's name or "new notes" never hurt, but aren't required.)
   session by `recordOverviewSnap` and read back to power the trend chips (#7) and the
   since-last-visit strip (#6). Baselines are **frozen once per session** (`S.ovSnapSession`) so
   theme/midnight re-renders don't reset the deltas to zero. `renderOverview()`.
-  **ONE-SCREEN COMMAND DECK at ≥1300px (r151, supersedes the r145/r147/r150 fit work):** the wide
-  board is a **fixed grid that fills the viewport exactly — no page scroll**. `.ovwrap`/`.ovinner`
-  become a 100%-height flex column; header collapses to one line (`.ovtop` puts the 🏠 title +
-  greeting + since-strip on one row); everything below lives in **`.ovbody`**, a
-  `grid-template-columns:.95fr 1fr 1fr 1.1fr` / `rows:auto .72fr 1fr auto` grid: row 1 = the six
-  hero KPIs (`repeat(6,1fr)`), **column 1 = the Today's-Focus rail** (`.ovfocwrap` spans rows 2–3,
-  card scrolls internally) with the **Wins & Momentum strip docked beneath it** (row 4 — momentum
-  chart full-width on top via `order:-1`, goal ring + ✎/📊 buttons below, `.velx` axis type bumped
-  to 11px so the rail-width chart stays legible), and the **six analytic panels fill the remaining
-  3 columns × 2 rows**: `.ovcharts` goes `display:contents` so its children place directly via
-  `nth-child` grid-areas — top (shorter .72fr) row = Win Probability | Stage Funnel | Objection
-  Handling, bottom (taller) row = Pipeline Velocity | Activity Trend | Discovery Depth. Cards
-  stretch (`flex:1` + `overflow:auto`); Velocity/Activity SVGs deepen their viewBox to 250 (vs 130
-  mobile) via the `ovWide` flag in `renderOverview` so they fill the tall slots; Discovery/Objection
-  cards `justify-content:space-evenly`. **DOM order is unchanged** — below 1300px the board is the
-  same stacked flow as ever (wins strip → collapsible Focus → hero → `.ovcharts` 2-col masonry with
-  natural card heights), so phones/tablets are untouched. ⚠️ The `@media(min-width:1300px)` block
-  sits AFTER all the base overview CSS on purpose — several overrides (`.ovwins`, `.ovhero`,
-  `.gauges`) are same-specificity and win by order; don't move it back up. If you add an analytic
-  panel, append the `.ovcharts>div` AND give it an `nth-child` grid-area in the wide block (the
-  masonry below 1300px places it automatically).
+  **ONE-SCREEN COMMAND DECK at ≥1300px (r151–r152, supersedes the r145/r147/r150 fit work):** the
+  wide board is a **fixed grid that fills the viewport exactly — no page scroll**. `.ovwrap`/
+  `.ovinner` become a 100%-height flex column; header collapses to one line (`.ovtop` puts the 🏠
+  title + greeting + since-strip on one row); everything below lives in **`.ovbody`**, a
+  `grid-template-columns:minmax(300px,330px) 1.2fr 1.2fr 1fr` / `rows:auto .72fr 1fr auto` grid:
+  row 1 = the six hero KPIs (`repeat(6,1fr)`), **column 1 = a FIXED ~330px Today's-Focus rail**
+  (`.ovfocwrap` spans rows 2–3, card scrolls internally; kept narrow on purpose so the big charts
+  get the width — r152) with the **Wins & Momentum strip docked beneath it** (row 4 — on the wide
+  board Momentum is a **rolling 12 months as TWO stacked 6-month bar rows** (`MW=ovWide?12:6`,
+  `winRow()` helper renders each row; older 6 on top), goal ring + ✎/📊 buttons below). The
+  analytic panels fill the remaining 3 columns — **renderOverview emits FIVE panels at wide** (the
+  Win-Probability rings, built once as `wpGauges`, render **inside the Stage Funnel card** via
+  `.fwrow` = bars left / rings right, instead of their own panel): `.ovcharts` goes
+  `display:contents` so its children place directly via `nth-child` grid-areas — top (shorter
+  .72fr) row = Funnel+Rings (col 2) | Objection Handling (col 3), bottom (taller) row = Pipeline
+  Velocity | Activity Trend (the two marquee charts, widest slots), and **Discovery Depth takes the
+  full-height col 4** (thin-profiles list shows 6 at wide vs 4). Cards stretch (`flex:1` +
+  `overflow:auto`); Velocity/Activity SVGs deepen their viewBox to 250 (vs 130 mobile) via the
+  `ovWide` flag so they fill the tall slots; Discovery/Objection cards
+  `justify-content:space-evenly`. **DOM order is unchanged** — below 1300px the board is the same
+  stacked flow as ever (wins strip → collapsible Focus → hero → `.ovcharts` 2-col masonry with
+  natural card heights, six panels incl. a standalone Win Probability), so phones/tablets are
+  untouched. ⚠️ The `@media(min-width:1300px)` block sits AFTER all the base overview CSS on
+  purpose — several overrides (`.ovwins`, `.ovhero`, `.gauges`) are same-specificity and win by
+  order; don't move it back up (and `.ovcharts .gauge` sizing comes after the `.fwrow` rules, so
+  fwrow ring overrides carry the extra `.ovcharts` prefix). If you add an analytic panel, append
+  the `.ovcharts>div` AND update the `nth-child` grid-areas in the wide block — they assume the
+  5-panel wide DOM (the masonry below 1300px places it automatically).
 - **"This Week" window** (`thisWeekEnd(today0)`, since r118) — the Upcoming "This Week" tab (Command
   Center) and the Overview "N this week" KPI both bound on the **coming Sunday (23:59)**, but **from
   Saturday noon onward (and all day Sunday) the window rolls forward a full week**, so the weekend is
