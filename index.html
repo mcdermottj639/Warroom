@@ -593,9 +593,12 @@
      `.pad.wide`; the Command Center / editor keep their current width. */
   @media (min-width:1200px){
     .pad.wide{max-width:1460px}
-    /* Prep Sheet cards flow two-up so they fill the width instead of one tall single column */
-    .pad.wide .prepgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start}
-    .pad.wide .prepgrid .apanel{margin-bottom:0}
+    /* Prep Sheet cards flow two-up so they fill the width instead of one tall single column.
+       Masonry via CSS multi-column (not grid): grid locks each row to its tallest card and
+       leaves grey voids beside/below the short ones — columns pack cards tightly up each
+       column instead. break-inside:avoid keeps every card whole. */
+    .pad.wide .prepgrid{column-count:2;column-gap:8px}
+    .pad.wide .prepgrid .apanel{margin:0 0 8px;break-inside:avoid;-webkit-column-break-inside:avoid}
     /* give the data cards a touch more presence at width */
     .pad.wide .kstrip{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
   }
@@ -908,7 +911,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r133';
+const BUILD = 'build 2026-07-14 · r134';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));

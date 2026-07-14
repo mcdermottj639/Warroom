@@ -566,8 +566,10 @@ The file is large; these are the load-bearing pieces a new session will likely t
 - **Responsive width (r132):** the shared content container is `.pad` (`max-width:1000px`). The
   **client-intel page** (`renderDetail`) opts into a wider desktop layout via `.pad wide` — at
   **≥1200px** it grows to ~1460px (1680px ≥1750px) and the **Prep Sheet** cards flow **two-up**
-  (`.prepgrid` → 2-col grid; on phone/tablet `.prepgrid` is an unstyled block, so cards stack as
-  before). All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
+  (`.prepgrid` → **masonry via CSS `column-count:2`**, r134 — NOT a grid: a 2-col grid locked each
+  row to its tallest card and left grey voids beside the short ones, so cards now pack tightly up
+  each column with `break-inside:avoid`; on phone/tablet `.prepgrid` is an unstyled block, so cards
+  stack as before). All desktop widening is behind **`min-width`** media queries so the ≤820px phone/tablet
   layout is untouched; the Command Center + editor stay at 1000px (no `wide` class). If a new
   detail-page section should also fill the desktop width, put it inside `.pad.wide` and gate any
   multi-column CSS on `@media(min-width:1200px)`.
