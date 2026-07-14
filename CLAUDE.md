@@ -337,10 +337,17 @@ client's name or "new notes" never hurt, but aren't required.)
   Wins & Momentum bars scaled to the full column width (viewBox 340×130) and grew ~450px tall on a
   big monitor, shoving the six analytic panels below the fold. The Wins chart is also width-capped
   (`.ovwins-chart max-width:520px`). At **≥1300px** a dashboard block lays the six hero KPIs out in
-  **one row** (`.ovhero` → `repeat(6,1fr)`) and the six analytic panels **3-up** (`.ovcharts` →
-  `repeat(3,1fr)`, so 2 rows not 3) with tighter `.ovinner`/`.ovhero`/`.ovwins` spacing and smaller
-  tiles — so the whole board fits one screen (collapse Today's Focus for the tightest fit). All behind
-  `min-width` so phones/tablets are untouched.
+  **one row** (`.ovhero` → `repeat(6,1fr)`) with tighter `.ovinner`/`.ovhero`/`.ovwins` spacing and
+  smaller tiles — so the whole board fits one screen (collapse Today's Focus for the tightest fit). All
+  behind `min-width` so phones/tablets are untouched.
+  **The six analytic panels are a MASONRY, not a stretch grid (r150):** `.ovcharts` is CSS multi-column
+  (`column-count:2`, →`3` at ≥1300px) with each `.ovcharts>div` `break-inside:avoid` and the card at its
+  **natural height** (no `flex:1` stretch). The old grid stretched every card in a row to the tallest,
+  so short panels — **Stage Funnel** (3 bars) and **Win Probability** (2 rings) — got inflated with grey
+  voids to match the tall Discovery Depth / Objection Handling panels. Masonry lets each card be its own
+  height and `column-fill:balance` packs the columns to ~equal height, killing the voids and tightening
+  the total. Order is column-major (order-agnostic — fine). If you add an analytic panel, just append
+  another `.ovcharts>div`; the masonry places it.
   **Wins & Momentum is a compact header strip (r147):** it moved from a tall card mid-page to a slim
   banner **above Today's Focus** (right under the since-strip) — a small goal ring + a **short, wide**
   6-month $-won bar chart (`winSvg` is now viewBox 520×64, not 340×130) + a one-line "🏆 Momentum · N
