@@ -924,7 +924,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r140';
+const BUILD = 'build 2026-07-14 · r141';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -4388,12 +4388,24 @@ function coachContent(c, type){
     const vTail='professional management, planning depth, and one team coordinating the full picture';
     const scattered = accs.length>1;                 // money sitting in more than one place
     const hasAnchor = A.some(a=>a.anchor);            // already holds something at Empower
-    const consClause = hasAnchor ? `bringing ${tname} alongside what you've already got here`
-                                 : `pulling ${tname} together with everything else`;
-
-    // ① warm recap of the picture (scattered-money framing when it's spread out)
+    // The consolidation ANGLE is chosen from THIS client's situation — the tone stays constant
+    // (easy-going); only the reason/framing changes per client. Order = most specific signal first:
+    //   · self-directed / no advisor → "a lot to steer alone" + get one team on it
+    //   · holds something at Empower already → bring the rest ALONGSIDE the anchor
+    //   · money in several places → SCATTERED, under one roof
+    //   · a single outside account → no scatter framing; just get it into a real plan
+    const cblob=((i.goals||[]).join(' ')+' '+(i.objections||[]).map(o=>o&&o.objection||'').join(' ')+' '+(i.specialFlags||[]).join(' ')+' '+(i.complications||[]).join(' ')+' '+(i.personalText||i.personal||'')).toLowerCase();
+    const selfDirected=/self-?directed|no advisor|without an advisor|manages?\s+(?:it|my|his|her|their)\s+own|\bdiy\b|on (?:his|her|their|my) own|by (?:him|her|my|them)self/.test(cblob);
+    const consClause = selfDirected ? `bringing in one team to steer ${tname} alongside everything else`
+      : hasAnchor ? `bringing ${tname} alongside what you've already got here`
+      : `pulling ${tname} together with everything else`;
+    // ① warm recap of the picture — the framing LINE is drawn from the same client signal
+    const frameLine = !accs.length ? ''
+      : selfDirected ? ` You've been running all of this yourself — and doing a solid job — but it's a lot to steer alone.`
+      : scattered ? ` Good money — just spread across a few different places right now, none of it really working together.`
+      : ``;
     const b1recap = accs.length
-      ? `${fn}, good to see you. Last time we laid it all out — ${pic}.${scattered?` Good money — just spread across a few different places right now, none of it really working together.`:''}`
+      ? `${fn}, good to see you. Last time we laid it all out — ${pic}.${frameLine}`
       : `${fn}, good to see you.`;
     // ② their one real question / driver, stated plainly — the thing today answers
     const b2question = reasons.length
@@ -4413,13 +4425,13 @@ function coachContent(c, type){
       beats=[b1,b2,b3];
     } else if(/Discovery|Intro/.test(ty)){
       label='Discovery recap';
-      const b1 = accs.length ? `${fn}, good to see you. Last time we started mapping your picture — ${pic}.${scattered?` A lot of good money, just spread across a few places.`:''}` : `${fn}, good to see you — thanks for making the time.`;
+      const b1 = accs.length ? `${fn}, good to see you. Last time we started mapping your picture — ${pic}.${frameLine}` : `${fn}, good to see you — thanks for making the time.`;
       const b2 = reasons.length ? `What I'm hearing matters most to you is ${deCap(reasons[0])}${reasons[1]?`, and ${deCap(reasons[1])}`:''}.` : '';
       const b3 = `Today I want to really understand the full picture and what you're hoping to get out of it — then show what ${consClause} could do for you${prod?`, likely ${prod}`:''}. Sound good?`;
       beats=[b1,b2,b3];
     } else {
       label='Opening recap'; // Proposal (default): recap → their question → present the plan, consolidation is how
-      const b3 = `So here's what today's about: showing you what your current path looks like, where the gaps are, and how ${consClause} pulls it all into one coordinated plan${prod?` (${prod})`:''} — ${vTail}.`;
+      const b3 = `So here's what today's about: showing you what your current path looks like, where the gaps are, and how ${consClause} gets it all into one coordinated plan${prod?` (${prod})`:''} — ${vTail}.`;
       beats=[b1recap,b2question,b3];
     }
     const html=beats.filter(Boolean).map(p=>`<p class="recap">${esc(p)}</p>`).join('')

@@ -126,15 +126,21 @@ client's name or "new notes" never hurt, but aren't required.)
     (blank-line-separated paragraphs become spoken beats). Author it on every
     notes→profile write and in the morning Prep routine — the template generator is
     a fallback; a hand-written opening is far better. **Do NOT open with a personal
-    icebreaker question** (advisor preference). Voice = easy-going, warm, contractions.
-    **Standing THREE-BEAT shape:** ① warm recap of the picture — and when their money is
-    spread across several places, name that it's **scattered** ("good money, just sitting
-    in a few places, none of it really working together"); ② their **one real question /
-    driver**, stated plainly ("that's what I want to answer for you today"); ③ today = the
-    answer, with **consolidation as the mechanism** — bringing the outside accounts
-    alongside what they already hold at Empower so it works as one coordinated plan — then
-    the drive to next step. (Both the app's generated opening and its render of an authored
-    `## Opening` strip a leading question, so an older profile that still has one won't show it.)
+    icebreaker question** (advisor preference). **Tone is CONSTANT for every client** —
+    easy-going, warm, contractions; what **varies per client is the REASON/ANGLE to
+    consolidate, drawn from that client's info** (don't reuse one framing for everyone).
+    **Standing THREE-BEAT shape:** ① warm recap of the picture, framing **chosen from the
+    client's situation** — self-directed/no-advisor → "you've been running all this
+    yourself… a lot to steer alone"; already holds money at Empower → "bring the rest
+    alongside what you've already got here"; money in several places → **scattered**, "none
+    of it really working together"; a single account → no scatter framing, just get it into
+    a real plan; ② their **one real question / driver**, stated plainly ("that's what I want
+    to answer for you today"); ③ today = the answer, with **consolidation as the mechanism**
+    (angle matched to ①) — then the drive to next step. The generated fallback picks the
+    angle via a `selfDirected`/`hasAnchor`/`scattered` signal in `coachContent(c,'open')`;
+    an authored `## Opening` should mirror it with richer specifics. (Both the generated
+    opening and the authored-`## Opening` render strip a leading question, so an older
+    profile that still has one won't show it.)
   - **§8** = the **canonical profile template + "capture everything" routing
     table.** Follow it for every notes→profile write: every fact from the photo
     goes into the section the app reads it from; nothing summarized away.

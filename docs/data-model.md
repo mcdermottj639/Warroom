@@ -212,16 +212,20 @@ Updated: <Mon D, YYYY>
 - Response: <how to reframe it>
 
 ## Opening               ← optional but ideal: a VERBATIM, second-person opening to read aloud
-# NO personal icebreaker question. Easy-going, warm, contractions. Standing THREE-BEAT shape:
-# ① Warm recap of the picture — and when their money is spread across several places, name that
-#    it's scattered ("good money, just sitting in a few places, none of it really working together").
-<Warm recap of where things stand, in their words — framed as scattered if it's in several places.>
+# NO personal icebreaker question. TONE IS CONSTANT for every client: easy-going, warm, contractions.
+# What VARIES per client is the REASON/ANGLE to consolidate — draw it from THAT client's info, don't
+# reuse one framing for everyone. Standing THREE-BEAT shape:
+# ① Warm recap of the picture. Pick the framing from the client's situation:
+#    · self-directed / no advisor → "you've been running all this yourself… a lot to steer alone"
+#    · already holds money at Empower → "bring the rest alongside what you've already got here"
+#    · money in several places → "scattered, none of it really working together"
+#    · a single account → no scatter framing; just get it into a real plan.
+<Warm recap of where things stand, in their words — framing chosen from their actual situation.>
 
 <Their ONE real question / driver, stated plainly — "that's what I want to answer for you today.">
 
-<Today = the answer, with CONSOLIDATION as the mechanism: bringing the outside accounts alongside
-what they've already got at Empower so it works as one coordinated plan, then the drive to next step.
-Each blank-line paragraph = one spoken beat.>
+<Today = the answer, with CONSOLIDATION as the mechanism (angle matched to ① above), then the drive
+to next step. Each blank-line paragraph = one spoken beat.>
 
 ## Prep Sheet            ← optional but ideal for proposal/decision calls (see §7)
 ### <Title> (table|cashflow|flags|angles)
