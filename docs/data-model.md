@@ -262,14 +262,15 @@ Next call: <Type> call — <date + time>. <what the next call is for; Watch: …
 | Their goals / why move | Snapshot → Why consolidate | 🎯 Goals widget; Opening/Pitch coaching |
 | Their hesitation | Objection & Response | 🧯 Reframe-objection coaching; Pending |
 | The recommendation + value | Snapshot → Solution; Prep Sheet | Decision-call recap; Prep cards |
-| Next call date/type | Close Action → "Next call:" | Next-call banner; Upcoming Calls; morning Prep routine |
+| Next call date/type | Close Action → "Next call:" | Next-call banner; Upcoming Calls |
 | To-dos you owe them | Tasks | Overview "Today's Focus" (follow-ups owed) + client page |
 | What happened on the call | Call Log entry | Call history; last-touch; coaching recaps |
 
 A profile that fills these in lets the app pull "whatever is needed, when it's
 needed." Sparse sections just mean empty widgets — so err toward capturing more.
 This template is the standing instruction for every notes-to-profile conversion
-(this session, the regular Claude project, and the morning Prep routine).
+(this session and the regular Claude project). (The former morning Prep routine
+that also used it is retired — see `docs/prep-today.md`.)
 
 **Parse notes (r98+):**
 - The **labeled Personal bullets parse to structured fields** (`family`, `lifeRetire`,

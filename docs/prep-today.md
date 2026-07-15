@@ -1,6 +1,14 @@
-# Morning Prep Sheet run — daily runbook
+# Morning Prep Sheet run — daily runbook — ⚠️ RETIRED (Jul 2026)
 
-This is the instruction a **scheduled morning session** runs to auto-generate
+> **This automated routine is RETIRED and must not be run.** The owner turned off
+> the "Morning Prep Sheets" scheduled trigger in Jul 2026. Do **not** re-create the
+> trigger, run this runbook on a schedule, or auto-generate prep sheets unattended.
+> Prep Sheets are still authored **on demand** when the owner asks (or as part of a
+> notes→profile write) — see `docs/data-model.md` §7 for the card format. The steps
+> below are kept **for reference only**, in case the owner ever wants to revive the
+> job manually.
+
+This was the instruction a **scheduled morning session** ran to auto-generate
 Prep Sheet cheat-sheet cards for every client with a call **today**, and write
 them back to the `1Remarkable` Google Drive folder. The War Room app then shows
 them as 🧾 Prep Sheet widgets at the top of Client Intel (it auto-dedups the

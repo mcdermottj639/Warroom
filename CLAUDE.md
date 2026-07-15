@@ -124,7 +124,7 @@ client's name or "new notes" never hurt, but aren't required.)
   - **`## Opening`** (optional, Claude-authored) = a **verbatim, second-person**
     opening recap. When present it **overrides** the app's generated 🎬 Opening
     (blank-line-separated paragraphs become spoken beats). Author it on every
-    notes→profile write and in the morning Prep routine — the template generator is
+    notes→profile write — the template generator is
     a fallback; a hand-written opening is far better. **Do NOT open with a personal
     icebreaker question** (advisor preference). **Tone is CONSTANT for every client** —
     easy-going, warm, contractions; what **varies per client is the REASON/ANGLE to
@@ -238,9 +238,13 @@ client's name or "new notes" never hurt, but aren't required.)
   numbers to make a button appear — note the gap instead.)
 
 ## Other workflows
-- **Morning Prep routine** (`docs/prep-today.md`): a scheduled Claude Code
-  *Routine* (claude.ai/code/routines) that each weekday finds clients with a call
-  that day and writes their Prep Sheets to Drive.
+- **Morning Prep routine — RETIRED (Jul 2026).** This was a scheduled Claude Code
+  *Routine* (claude.ai/code/routines) that each weekday found clients with a call
+  that day and wrote their Prep Sheets to Drive. **It has been turned off at the
+  owner's request — do NOT run it, re-create it, or generate prep sheets on a
+  schedule.** Prep Sheets are still authored on demand when the owner asks (or as
+  part of a notes→profile write); only the automated daily job is gone. The old
+  runbook survives at `docs/prep-today.md` marked retired, for reference only.
 - **Notes & tasks** sync to Drive (`## My Notes`, `## Tasks`) so they cross
   PC↔phone. **Tasks** = things the advisor owes the client (send an email, get/
   confirm specific info) — NOT proposal-building (the proposal call covers that)
