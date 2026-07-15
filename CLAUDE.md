@@ -364,7 +364,11 @@ client's name or "new notes" never hurt, but aren't required.)
   untouched. ⚠️ The `@media(min-width:1300px)` block sits AFTER all the base overview CSS on
   purpose — several overrides (`.ovwins`, `.ovhero`, `.gauges`) are same-specificity and win by
   order; don't move it back up (and `.ovcharts .gauge` sizing comes after the `.fwrow` rules, so
-  fwrow ring overrides carry the extra `.ovcharts` prefix). If you add an analytic panel, append
+  fwrow ring overrides carry the extra `.ovcharts` prefix). ⚠️ **Every `.ovbody` grid item needs
+  `min-width:0`** (`.ovbody>*` rule, r154) — without it one long nowrap line (a real follow-up task
+  in Today's Focus) blows its column out to the text's full width, steals the chart columns' space,
+  and the board reflows taller and scrolls. Synthetic test data with short strings won't catch it —
+  test with long task/objection texts. If you add an analytic panel, append
   the `.ovcharts>div` AND update the `nth-child` grid-areas in the wide block — they assume the
   5-panel wide DOM (the masonry below 1300px places it automatically).
 - **"This Week" window** (`thisWeekEnd(today0)`, since r118) — the Upcoming "This Week" tab (Command

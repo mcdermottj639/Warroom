@@ -409,6 +409,11 @@
        two big charts (cols 2–3), with Discovery Depth on a slimmer full-height col 4. */
     .ovbody{flex:1;min-height:0;display:grid;gap:10px 12px;
       grid-template-columns:minmax(300px,330px) 1.2fr 1.2fr 1fr;grid-template-rows:auto .72fr 1fr auto}
+    /* CRITICAL: grid items must be allowed to shrink below content min-width — without this a
+       single long nowrap line (e.g. a follow-up task in Today's Focus) blows its column out to
+       the text's full width and steals the chart columns' space (the r151/r153 "rail too wide"
+       bug seen with real data). .ovcharts children get it from the base .ovcharts>div rule. */
+    .ovbody>*{min-width:0}
     .ovhero{grid-area:1/1/2/5;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:0}
     .ovtile{padding:11px 15px 10px;border-radius:13px}
     .ovtile .ot-l{font-size:9.5px;letter-spacing:.7px}
@@ -1025,7 +1030,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-14 · r153';
+const BUILD = 'build 2026-07-15 · r154';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
