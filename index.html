@@ -161,6 +161,22 @@
   dialog::backdrop{background:rgba(0,0,0,.6)}
   code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
 
+  /* Discovery call cheat sheet */
+  #cheatDlg{width:780px}
+  .cheatprog{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .cheatn{font-size:12px;font-weight:800;color:var(--accent);white-space:nowrap;min-width:86px}
+  .cheatbar{flex:1;height:7px;border-radius:4px;background:var(--panel2);overflow:hidden}
+  #cheatFill{display:block;height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#38bdf8,#34d399);transition:width .25s}
+  .cheatgrid{columns:2 300px;column-gap:20px}
+  .chgrp{break-inside:avoid;margin-bottom:13px}
+  .chgrp h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin-bottom:5px}
+  .chgrp h4 .star{color:#fbbf24}
+  .chk{display:flex;gap:8px;align-items:flex-start;padding:3px 6px;border-radius:8px;cursor:pointer;
+    font-size:13px;line-height:1.35;color:var(--txt);text-transform:none;letter-spacing:0;font-weight:500}
+  .chk:hover{background:var(--panel2)}
+  .chk input{width:auto;margin-top:2px;accent-color:var(--accent);flex:none;cursor:pointer}
+  .chk.done{opacity:.45;text-decoration:line-through}
+
   /* KPI strip in detail */
   .kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:18px}
   .kchip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;overflow-wrap:anywhere}
@@ -1022,6 +1038,15 @@
   </div>
 </dialog>
 
+<!-- DISCOVERY CALL CHEAT SHEET -->
+<dialog id="cheatDlg">
+  <h3 style="margin-bottom:4px">📋 Discovery Call Cheat Sheet</h3>
+  <p class="note" style="margin-bottom:10px">Tick each item as you cover it. ★ groups are the six topics Discovery Depth scores — hit all six and the profile writes itself. Checks stick until you ↺ Reset (do it at the top of each call).</p>
+  <div class="cheatprog"><span id="cheatN" class="cheatn"></span><span class="cheatbar"><span id="cheatFill"></span></span><button class="ghost sm" id="cheatReset">↺ Reset</button></div>
+  <div id="cheatBody" class="cheatgrid"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:12px"><button onclick="cheatDlg.close()">Done</button></div>
+</dialog>
+
 <script>
 /* ============================================================
    War Room — local-first encrypted client intel
@@ -1030,7 +1055,7 @@
    AES-256-GCM at rest, PBKDF2(310k) passphrase-derived KEK.
    ============================================================ */
 
-const BUILD = 'build 2026-07-15 · r154';
+const BUILD = 'build 2026-07-15 · r155';
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
 const ub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1746,6 +1771,66 @@ const DISCO_TOPICS = [
 ];
 const discoveryGaps = i => DISCO_TOPICS.filter(t=>!t.has(i));
 
+// Discovery call cheat sheet — a generic (no client data) tick-as-you-go checklist popped from the
+// Overview toolbar. ★ groups mirror the six DISCO_TOPICS, so a fully-ticked sheet = a 6/6-depth
+// profile. Checked state lives in localStorage `wr_cheatCk` (survives closing the popup mid-call);
+// ↺ Reset clears it for the next call.
+const CHEAT_GROUPS = [
+ {t:'🎬 Open', items:[
+   'Set the agenda — “here’s what I’d like to cover, then we’ll talk next steps”',
+   'What prompted this now? Get it in THEIR words']},
+ {t:'🏦 Accounts & assets', star:1, items:[
+   'Every account — 401(k)s, IRAs, brokerage, cash/savings — rough balance in each',
+   'Who holds each one today (firm · advisor / robo / self-directed)',
+   'Old / orphaned 401(k)s from past employers',
+   'Idle cash sitting uninvested',
+   'Concentrations — single stock, company stock, crypto, rentals']},
+ {t:'💰 Fees', star:1, items:[
+   'What they pay now — advisory fee AND fund expenses',
+   '“Not sure” is a finding — offer to read a statement together']},
+ {t:'💵 Income & spending', star:1, items:[
+   'Household income today (both spouses)',
+   'Monthly spend they picture in retirement',
+   'Big outflows coming — home, college, weddings, travel']},
+ {t:'🏛️ Social Security & pension', items:[
+   'SS claiming plan / estimates (both spouses)',
+   'Pension — lump sum vs annuity options?']},
+ {t:'❤️ Family & why', star:1, items:[
+   'Spouse + kids — names, ages, who is this money FOR?',
+   'Health / longevity / long-term-care considerations',
+   'Estate wishes — beneficiaries current?']},
+ {t:'🎯 Goals & timeline', star:1, items:[
+   'Retirement age target — both spouses',
+   'What does retired life look like? (the picture, not just the date)',
+   'What would make this a home run for them?']},
+ {t:'🧯 Concerns & current advisor', star:1, items:[
+   'Anything giving them pause?',
+   'Current service — who calls whom? Real planning or just investments?',
+   'Risk comfort — how did the last big drop feel?']},
+ {t:'🤝 Close', items:[
+   'Recap what you heard — in their words',
+   'Tee up the proposal — “here’s what I’ll build for you”',
+   'Book the next call — specific date + time before hang-up',
+   'What they’ll gather — statements, fee schedules, SS estimates']}
+];
+function cheatCk(){ try{ return JSON.parse(localStorage.getItem('wr_cheatCk')||'{}'); }catch(e){ return {}; } }
+function cheatProg(){ const n=Object.keys(cheatCk()).length,
+    total=CHEAT_GROUPS.reduce((a,g)=>a+g.items.length,0);
+  $('#cheatN').textContent=`${n}/${total} covered`;
+  $('#cheatFill').style.width=(total?Math.round(n/total*100):0)+'%'; }
+function openCheat(){
+  const ck=cheatCk(), body=$('#cheatBody');
+  body.innerHTML = CHEAT_GROUPS.map((g,gi)=>`<div class="chgrp"><h4>${g.t}${g.star?' <span class="star" title="Discovery Depth topic">★</span>':''}</h4>${
+    g.items.map((it,ii)=>{ const id=gi+'.'+ii;
+      return `<label class="chk${ck[id]?' done':''}"><input type="checkbox" data-ck="${id}"${ck[id]?' checked':''}><span>${it}</span></label>`; }).join('')}</div>`).join('');
+  body.querySelectorAll('input[data-ck]').forEach(b=> b.onchange=()=>{ const m=cheatCk();
+    if(b.checked) m[b.dataset.ck]=1; else delete m[b.dataset.ck];
+    localStorage.setItem('wr_cheatCk', JSON.stringify(m));
+    b.closest('.chk').classList.toggle('done', b.checked); cheatProg(); });
+  $('#cheatReset').onclick=()=>{ localStorage.removeItem('wr_cheatCk'); openCheat(); };
+  cheatProg(); $('#cheatDlg').showModal();
+}
+
 function genWhatToAsk(o){
   const q=['What’s changed since we last talked?'];
   const f=(o.specialFlags||o.complications||[]);
@@ -2361,6 +2446,7 @@ function renderOverview(){
       <div class="ovbar-actions">
         <button id="ovbAdd">+ Client</button>
         <button id="ovbDrive">☁️ Drive</button>
+        <button id="ovbCheat" title="Discovery call cheat sheet">📋 Cheat Sheet</button>
         <button id="ovbTheme">${themeIcon} Theme</button>
         <button id="ovbCC" class="cc">⚔️ Command Center</button>
         <button id="ovbLock" class="lock">🔒 Lock</button>
@@ -2448,6 +2534,7 @@ function renderOverview(){
   // Top toolbar — reuse the sidebar's existing handlers (sidebar is hidden on Overview).
   $('#ovbAdd').onclick   = ()=> $('#addBtn').click();
   $('#ovbDrive').onclick = ()=> $('#driveBtn').click();
+  $('#ovbCheat').onclick = openCheat;
   $('#ovbTheme').onclick = ()=>{ $('#themeBtn').click(); renderOverview(); };  // re-render to refresh the icon
   $('#ovbCC').onclick    = ()=> renderDashboard();
   $('#ovbLock').onclick  = ()=> $('#lockBtn').click();

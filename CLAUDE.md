@@ -330,8 +330,15 @@ client's name or "new notes" never hurt, but aren't required.)
   left-open tab's Today's Focus / greeting / dates never go stale past midnight. On Overview the
   **whole left sidebar is hidden** (`#app.noside`, toggled in
   `renderList`) so it's a **full-screen** board; a **top toolbar** replaces it — brand +
-  `+ Client` / `☁️ Drive` / `🌙 Theme` / `⚔️ Command Center` / `🔒 Lock` (these reuse the
-  sidebar buttons' handlers via `.click()`). Client search/list lives in Command Center,
+  `+ Client` / `☁️ Drive` / `📋 Cheat Sheet` / `🌙 Theme` / `⚔️ Command Center` / `🔒 Lock`
+  (these reuse the sidebar buttons' handlers via `.click()`; Cheat Sheet is its own —
+  **📋 Discovery Call Cheat Sheet, r155**: `openCheat()` pops `#cheatDlg`, a generic
+  tick-as-you-cover-it checklist (9 groups following the call arc Open → Accounts → Fees →
+  Income/Spending → SS/Pension → Family & Why → Goals → Concerns/Current advisor → Close;
+  content = `CHEAT_GROUPS`, no client data). The six ★ groups mirror `DISCO_TOPICS`, so a
+  fully-ticked sheet = a 6/6 Discovery Depth profile. Progress bar `n/27` + ↺ Reset; checked
+  state persists in localStorage `wr_cheatCk` so closing the popup mid-call loses nothing —
+  Reset at the top of each call). Client search/list lives in Command Center,
   one click away. Most values reuse existing computations; the only new storage is the
   **`S.ovSnap` snapshot ledger** — a de-named (codes only), encrypted (`meta/ovsnap`, under
   `MK_intel`) daily record of the headline KPIs + risk client-code sets, written once per
